@@ -10,6 +10,37 @@ import (
 )
 
 func main() {
+	repo := task.NewMemoryRepository()
+	service := task.NewService(repo)
+	handler := task.NewHandler(service)
+
+	example := &task.Task{
+		ID:          "example-1",
+		Title:       "Learn Go",
+		Description: "Build TaskFlow backend",
+		Priority:    3,
+		Completed:   false,
+		CreatedAt:   time.Now().UTC(),
+	}
+
+	example2 := &task.Task{
+		ID:          "example-2",
+		Title:       "Learn Go",
+		Description: "Build TaskFlow backend",
+		Priority:    3,
+		Completed:   false,
+		CreatedAt:   time.Now().UTC(),
+	}
+
+	if err := repo.Save(example); err != nil {
+		log.Fatal(err)
+	}
+
+	if err := repo.Save(example2); err != nil {
+		log.Fatal(err)
+	}
+
+	// Monitor
 	router := gin.Default()
 
 	router.GET("/health", func(c *gin.Context) {
@@ -18,18 +49,9 @@ func main() {
 		})
 	})
 
-	router.GET("tasks/example", func(c *gin.Context) {
-		example := task.Task{
-			ID:          "example-1",
-			Title:       "Learn Go",
-			Description: "Build TaskFlow backend",
-			Completed:   false,
-			Priority:    3,
-			CreatedAt:   time.Now().UTC(),
-		}
+	router.GET("/tasks/:id", handler.GetByID)
 
-		c.JSON(http.StatusOK, example)
-	})
+	router.GET("/tasks", handler.List)
 
 	log.Println("TaskFlow API starting on :8080")
 
