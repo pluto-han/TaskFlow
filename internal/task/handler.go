@@ -86,3 +86,69 @@ func (h *Handler) Create(c *gin.Context) {
 	c.Header("Location", "/tasks/"+createdTask.ID)
 	c.JSON(http.StatusCreated, createdTask)
 }
+
+func (h *Handler) Update(c *gin.Context) {
+	id := c.Param("id")
+
+	var input UpdateTaskRequest
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "invalid request body",
+		})
+		return
+	}
+
+	updated, err := h.service.Update(
+		c.Request.Context(),
+		id,
+		input,
+	)
+
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrTaskNotFound):
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "task not found",
+			})
+
+		case errors.Is(err, ErrInvalidUpdate):
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "invalid task update",
+			})
+
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "internal server error",
+			})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, updated)
+}
+
+func (h *Handler) Delete(c *gin.Context) {
+	id := c.Param("id")
+
+	err := h.service.Delete(
+		c.Request.Context(),
+		id,
+	)
+
+	if err != nil {
+		if errors.Is(err, ErrTaskNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "task not found",
+			})
+			return
+		}
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "internal server error",
+		})
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}

@@ -50,10 +50,10 @@ func main() {
 	})
 
 	router.GET("/tasks/:id", handler.GetByID)
-
 	router.GET("/tasks", handler.List)
-
 	router.POST("/tasks", handler.Create)
+	router.PATCH("/tasks/:id", handler.Update)
+	router.DELETE("/tasks/:id", handler.Delete)
 
 	log.Println("TaskFlow API starting on :8080")
 

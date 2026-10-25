@@ -8,4 +8,6 @@ type Repoisitory interface {
 	FindByID(id string) (*Task, error)
 	Save(task *Task) error
 	FindAll() ([]Task, error)
+	Update(task *Task) error
+	Delete(id string) error
 }

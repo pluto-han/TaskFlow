@@ -10,6 +10,7 @@ import (
 )
 
 var ErrInvalidTask = errors.New("invalid task")
+var ErrInvalidUpdate = errors.New("invalid task update")
 
 type Service struct {
 	repo Repoisitory
@@ -67,4 +68,64 @@ func (s *Service) List(ctx context.Context) ([]Task, error) {
 	}
 
 	return s.repo.FindAll()
+}
+
+func (s *Service) Update(ctx context.Context, id string, input UpdateTaskRequest) (*Task, error) {
+
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	if input.Title == nil &&
+		input.Description == nil &&
+		input.Priority == nil &&
+		input.Completed == nil {
+		return nil, ErrInvalidUpdate
+	}
+
+	current, err := s.repo.FindByID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	if input.Title != nil {
+		title := strings.TrimSpace(*input.Title)
+
+		if title == "" {
+			return nil, ErrInvalidUpdate
+		}
+
+		current.Title = title
+	}
+
+	if input.Description != nil {
+		current.Description = *input.Description
+	}
+
+	if input.Priority != nil {
+		if *input.Priority < 1 || *input.Priority > 3 {
+			return nil, ErrInvalidUpdate
+		}
+
+		current.Priority = *input.Priority
+	}
+
+	if input.Completed != nil {
+		current.Completed = *input.Completed
+	}
+
+	if err := s.repo.Update(current); err != nil {
+		return nil, err
+	}
+
+	return current, nil
+}
+
+func (s *Service) Delete(ctx context.Context, id string) error {
+
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	return s.repo.Delete(id)
 }
