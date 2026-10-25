@@ -76,7 +76,28 @@ func TestHandlerGetByIDNotFound(t *testing.T) {
 	router.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusNotFound {
-		t.Errorf("expected 404, got %d", rec.Code)
+		t.Fatalf("expected 404, got %d", rec.Code)
+	}
+
+	var response struct {
+		Error struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+
+	if err := json.Unmarshal(
+		rec.Body.Bytes(),
+		&response,
+	); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	if response.Error.Code != "TASK_NOT_FOUND" {
+		t.Errorf(
+			"expected TASK_NOT_FOUND, got %s",
+			response.Error.Code,
+		)
 	}
 }
 

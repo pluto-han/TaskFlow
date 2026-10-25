@@ -1,10 +1,12 @@
 package task
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/pluto-han/taskflow/internal/httpapi"
 )
 
 type Handler struct {
@@ -15,42 +17,43 @@ func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
 }
 
+func writeTaskError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, ErrTaskNotFound):
+		httpapi.WriteError(c, http.StatusNotFound, "TASK_NOT_FOUND", "Task not found")
+
+	case errors.Is(err, ErrInvalidTask), errors.Is(err, ErrInvalidUpdate):
+		httpapi.WriteError(c, http.StatusBadRequest, "INVALID_TASK", "Invalid task data")
+
+	case errors.Is(err, context.Canceled):
+		return
+
+	case errors.Is(err, context.DeadlineExceeded):
+		httpapi.WriteError(c, http.StatusGatewayTimeout, "REQUEST_TIMEOUT", "Request timed out")
+
+	default:
+		httpapi.InternalError(c)
+	}
+}
+
 func (h *Handler) GetByID(c *gin.Context) {
 	id := c.Param("id")
 
-	task, err := h.service.GetByID(c.Request.Context(), id)
+	result, err := h.service.GetByID(c.Request.Context(), id)
 
 	if err != nil {
-		if errors.Is(err, ErrTaskNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "task not found",
-			})
-			return
-		}
-
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "internal server error",
-		})
+		writeTaskError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, task)
+	c.JSON(http.StatusOK, result)
 }
 
 func (h *Handler) List(c *gin.Context) {
 	tasks, err := h.service.List(c.Request.Context())
 
 	if err != nil {
-		if errors.Is(err, ErrTaskNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "task not found",
-			})
-			return
-		}
-
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "internal server error",
-		})
+		writeTaskError(c, err)
 		return
 	}
 
@@ -61,25 +64,14 @@ func (h *Handler) Create(c *gin.Context) {
 	var input CreateTaskRequest
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "invalid request body",
-		})
+		httpapi.WriteError(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request body")
 		return
 	}
 
 	createdTask, err := h.service.Create(c.Request.Context(), input)
 
 	if err != nil {
-		if errors.Is(err, ErrInvalidTask) {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "invalid task",
-			})
-			return
-		}
-
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "internal server error",
-		})
+		writeTaskError(c, err)
 		return
 	}
 
@@ -93,9 +85,7 @@ func (h *Handler) Update(c *gin.Context) {
 	var input UpdateTaskRequest
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "invalid request body",
-		})
+		httpapi.WriteError(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request body")
 		return
 	}
 
@@ -106,22 +96,7 @@ func (h *Handler) Update(c *gin.Context) {
 	)
 
 	if err != nil {
-		switch {
-		case errors.Is(err, ErrTaskNotFound):
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "task not found",
-			})
-
-		case errors.Is(err, ErrInvalidUpdate):
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "invalid task update",
-			})
-
-		default:
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "internal server error",
-			})
-		}
+		writeTaskError(c, err)
 		return
 	}
 
@@ -131,22 +106,8 @@ func (h *Handler) Update(c *gin.Context) {
 func (h *Handler) Delete(c *gin.Context) {
 	id := c.Param("id")
 
-	err := h.service.Delete(
-		c.Request.Context(),
-		id,
-	)
-
-	if err != nil {
-		if errors.Is(err, ErrTaskNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "task not found",
-			})
-			return
-		}
-
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "internal server error",
-		})
+	if err := h.service.Delete(c.Request.Context(), id); err != nil {
+		writeTaskError(c, err)
 		return
 	}
 
