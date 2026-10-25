@@ -13,10 +13,10 @@ var ErrInvalidTask = errors.New("invalid task")
 var ErrInvalidUpdate = errors.New("invalid task update")
 
 type Service struct {
-	repo Repoisitory
+	repo Repository
 }
 
-func NewService(repo Repoisitory) *Service {
+func NewService(repo Repository) *Service {
 	return &Service{repo: repo}
 }
 
