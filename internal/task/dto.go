@@ -14,4 +14,5 @@ type UpdateTaskRequest struct {
 	Description *string `json:"description"`
 	Priority    *int    `json:"priority"`
 	Completed   *bool   `json:"completed"`
+	Version     *int64  `json:"version" binding:"required,min=1"`
 }

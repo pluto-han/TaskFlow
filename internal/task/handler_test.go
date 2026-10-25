@@ -190,7 +190,7 @@ func TestHandlerUpdate(t *testing.T) {
 		t.Fatalf("failed to seed task: %v", err)
 	}
 
-	body := []byte(`{"completed": false}`)
+	body := []byte(`{"completed": false, "version": 1}`)
 
 	req := httptest.NewRequest(
 		http.MethodPatch,
@@ -244,7 +244,7 @@ func TestHandlerUpdateInvalid(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodPatch,
 		"/tasks/task-123",
-		bytes.NewBufferString(`{"priority": 5}`),
+		bytes.NewBufferString(`{"priority": 5, "version": 1}`),
 	)
 	req.Header.Set("Content-Type", "application/json")
 

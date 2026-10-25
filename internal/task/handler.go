@@ -31,6 +31,9 @@ func writeTaskError(c *gin.Context, err error) {
 	case errors.Is(err, context.DeadlineExceeded):
 		httpapi.WriteError(c, http.StatusGatewayTimeout, "REQUEST_TIMEOUT", "Request timed out")
 
+	case errors.Is(err, ErrTaskConflict):
+		httpapi.WriteError(c, http.StatusConflict, "TASK_CONFLICT", "Task was modified by another request")
+
 	default:
 		httpapi.InternalError(c)
 	}

@@ -46,6 +46,7 @@ func (s *Service) Create(ctx context.Context, input CreateTaskRequest) (*Task, e
 		Completed:   false,
 		CreatedAt:   time.Now().UTC(),
 		DueDate:     input.DueDate,
+		Version:     1,
 	}
 
 	if err := s.repo.Save(ctx, newTask); err != nil {
@@ -77,6 +78,10 @@ func (s *Service) Update(ctx context.Context, id string, input UpdateTaskRequest
 		return nil, err
 	}
 
+	if input.Version == nil || *input.Version < 1 {
+		return nil, ErrInvalidUpdate
+	}
+
 	if input.Title == nil &&
 		input.Description == nil &&
 		input.Priority == nil &&
@@ -87,6 +92,10 @@ func (s *Service) Update(ctx context.Context, id string, input UpdateTaskRequest
 	current, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		return nil, err
+	}
+
+	if current.Version != *input.Version {
+		return nil, ErrTaskConflict
 	}
 
 	if input.Title != nil {

@@ -57,7 +57,7 @@ func (q *Queries) DeleteTask(ctx context.Context, id string) (string, error) {
 }
 
 const getTask = `-- name: GetTask :one
-SELECT id, title, description, completed, priority, created_at, due_date
+SELECT id, title, description, completed, priority, created_at, due_date, version
 FROM tasks
 WHERE id = $1
 `
@@ -73,12 +73,13 @@ func (q *Queries) GetTask(ctx context.Context, id string) (Task, error) {
 		&i.Priority,
 		&i.CreatedAt,
 		&i.DueDate,
+		&i.Version,
 	)
 	return i, err
 }
 
 const listTasks = `-- name: ListTasks :many
-SELECT id, title, description, completed, priority, created_at, due_date
+SELECT id, title, description, completed, priority, created_at, due_date, version
 FROM tasks
 ORDER BY created_at DESC, id DESC
 `
@@ -100,6 +101,7 @@ func (q *Queries) ListTasks(ctx context.Context) ([]Task, error) {
 			&i.Priority,
 			&i.CreatedAt,
 			&i.DueDate,
+			&i.Version,
 		); err != nil {
 			return nil, err
 		}
@@ -118,10 +120,11 @@ SET
     description = $3,
     completed = $4,
     priority = $5,
-    due_date = $6
-WHERE id = $1
+    due_date = $6,
+    version = version + 1
+WHERE id = $1 AND version = $7
 RETURNING id, title, description, completed,
-          priority, created_at, due_date
+          priority, created_at, due_date, version
 `
 
 type UpdateTaskParams struct {
@@ -131,6 +134,7 @@ type UpdateTaskParams struct {
 	Completed   bool               `json:"completed"`
 	Priority    int32              `json:"priority"`
 	DueDate     pgtype.Timestamptz `json:"due_date"`
+	Version     int64              `json:"version"`
 }
 
 func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, error) {
@@ -141,6 +145,7 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, e
 		arg.Completed,
 		arg.Priority,
 		arg.DueDate,
+		arg.Version,
 	)
 	var i Task
 	err := row.Scan(
@@ -151,6 +156,7 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, e
 		&i.Priority,
 		&i.CreatedAt,
 		&i.DueDate,
+		&i.Version,
 	)
 	return i, err
 }

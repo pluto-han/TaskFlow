@@ -1,11 +1,11 @@
 
 -- name: GetTask :one
-SELECT id, title, description, completed, priority, created_at, due_date
+SELECT id, title, description, completed, priority, created_at, due_date, version
 FROM tasks
 WHERE id = $1;
 
 -- name: ListTasks :many
-SELECT id, title, description, completed, priority, created_at, due_date
+SELECT id, title, description, completed, priority, created_at, due_date, version
 FROM tasks
 ORDER BY created_at DESC, id DESC;
 
@@ -23,10 +23,11 @@ SET
     description = $3,
     completed = $4,
     priority = $5,
-    due_date = $6
-WHERE id = $1
+    due_date = $6,
+    version = version + 1
+WHERE id = $1 AND version = $7
 RETURNING id, title, description, completed,
-          priority, created_at, due_date;
+          priority, created_at, due_date, version;
 
 -- name: DeleteTask :one
 DELETE FROM tasks

@@ -10,4 +10,5 @@ type Task struct {
 	Priority    int        `json:"priority"`
 	CreatedAt   time.Time  `json:"created_at"`
 	DueDate     *time.Time `json:"due_date"`
+	Version     int64      `json:"version"`
 }

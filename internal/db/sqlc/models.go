@@ -18,4 +18,5 @@ type Task struct {
 	Priority    int32              `json:"priority"`
 	CreatedAt   time.Time          `json:"created_at"`
 	DueDate     pgtype.Timestamptz `json:"due_date"`
+	Version     int64              `json:"version"`
 }

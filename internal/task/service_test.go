@@ -47,6 +47,10 @@ func TestServiceCreate(t *testing.T) {
 		t.Fatalf("created task was not saved: %v", err)
 	}
 
+	if created.Version != 1 || saved.Version != 1 {
+		t.Fatalf("initial versions: created=%d saved=%d, want 1", created.Version, saved.Version)
+	}
+
 	if saved.Title != created.Title {
 		t.Errorf("saved title = %q, want %q", saved.Title, created.Title)
 	}
@@ -136,6 +140,7 @@ func TestServiceUpdate(t *testing.T) {
 		"task-1",
 		UpdateTaskRequest{
 			Completed: &completed,
+			Version:   &original.Version,
 		},
 	)
 
@@ -160,6 +165,10 @@ func TestServiceUpdate(t *testing.T) {
 		t.Fatalf("FindByID() error: %v", err)
 	}
 
+	if updated.Version != 2 || saved.Version != 2 {
+		t.Fatalf("updated versions: response=%d saved=%d, want 2", updated.Version, saved.Version)
+	}
+
 	if saved.Completed {
 		t.Error("updated value was not persisted")
 	}
@@ -169,6 +178,7 @@ func TestServiceUpdate(t *testing.T) {
 func TestServiceUpdateValidation(t *testing.T) {
 	empty := ""
 	invalidPriority := 5
+	version := int64(1)
 
 	tests := []struct {
 		name  string
@@ -206,6 +216,7 @@ func TestServiceUpdateValidation(t *testing.T) {
 				t.Fatalf("failed to seed task: %v", err)
 			}
 
+			tt.input.Version = &version
 			_, err = service.Update(
 				context.Background(),
 				"task-1",

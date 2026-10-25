@@ -51,6 +51,7 @@ func toDomainTask(row db.Task) *Task {
 		Priority:    int(row.Priority),
 		CreatedAt:   row.CreatedAt,
 		DueDate:     fromPgTimestamp(row.DueDate),
+		Version:     row.Version,
 	}
 }
 
@@ -66,15 +67,7 @@ func (r *PostgresRepository) FindByID(ctx context.Context, id string) (*Task, er
 		return nil, fmt.Errorf("find task: %w", err)
 	}
 
-	return &Task{
-		ID:          row.ID,
-		Title:       row.Title,
-		Description: row.Description,
-		Completed:   row.Completed,
-		Priority:    int(row.Priority),
-		CreatedAt:   row.CreatedAt,
-		DueDate:     fromPgTimestamp(row.DueDate),
-	}, nil
+	return toDomainTask(row), nil
 }
 
 func (r *PostgresRepository) FindAll(
@@ -114,11 +107,13 @@ func (r *PostgresRepository) Save(ctx context.Context, task *Task) error {
 		return fmt.Errorf("save task: %w", err)
 	}
 
+	// CreateTask uses the database default version.
+	task.Version = 1
 	return nil
 }
 
 func (r *PostgresRepository) Update(ctx context.Context, task *Task) error {
-	_, err := r.queries.UpdateTask(
+	row, err := r.queries.UpdateTask(
 		ctx,
 		db.UpdateTaskParams{
 			ID:          task.ID,
@@ -127,16 +122,32 @@ func (r *PostgresRepository) Update(ctx context.Context, task *Task) error {
 			Completed:   task.Completed,
 			Priority:    int32(task.Priority),
 			DueDate:     toPgTimestamp(task.DueDate),
+			Version:     task.Version,
 		},
 	)
 
 	if errors.Is(err, pgx.ErrNoRows) {
-		return ErrTaskNotFound
+		_, findErr := r.queries.GetTask(ctx, task.ID)
+
+		if errors.Is(findErr, pgx.ErrNoRows) {
+			return ErrTaskNotFound
+		}
+
+		if findErr != nil {
+			return fmt.Errorf(
+				"check task after failed update: %w",
+				findErr,
+			)
+		}
+
+		return ErrTaskConflict
 	}
 
 	if err != nil {
 		return fmt.Errorf("update task: %w", err)
 	}
+
+	task.Version = row.Version
 
 	return nil
 }

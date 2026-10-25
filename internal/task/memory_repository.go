@@ -33,6 +33,7 @@ func (r *MemoryRepository) Save(ctx context.Context, task *Task) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	task.Version = 1
 	r.tasks[task.ID] = *task
 	return nil
 }
@@ -53,11 +54,21 @@ func (r *MemoryRepository) Update(ctx context.Context, task *Task) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if _, exists := r.tasks[task.ID]; !exists {
+	existing, ok := r.tasks[task.ID]
+	if !ok {
 		return ErrTaskNotFound
 	}
 
-	r.tasks[task.ID] = *task
+	if existing.Version != task.Version {
+		return ErrTaskConflict
+	}
+
+	updated := *task
+	updated.Version++
+
+	r.tasks[task.ID] = updated
+	task.Version = updated.Version
+
 	return nil
 }
 
