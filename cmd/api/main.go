@@ -53,6 +53,8 @@ func main() {
 
 	router.GET("/tasks", handler.List)
 
+	router.POST("/tasks", handler.Create)
+
 	log.Println("TaskFlow API starting on :8080")
 
 	if err := router.Run(":8082"); err != nil {

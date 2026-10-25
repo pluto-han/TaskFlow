@@ -56,3 +56,33 @@ func (h *Handler) List(c *gin.Context) {
 
 	c.JSON(http.StatusOK, tasks)
 }
+
+func (h *Handler) Create(c *gin.Context) {
+	var input CreateTaskRequest
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "invalid request body",
+		})
+		return
+	}
+
+	createdTask, err := h.service.Create(c.Request.Context(), input)
+
+	if err != nil {
+		if errors.Is(err, ErrInvalidTask) {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "invalid task",
+			})
+			return
+		}
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "internal server error",
+		})
+		return
+	}
+
+	c.Header("Location", "/tasks/"+createdTask.ID)
+	c.JSON(http.StatusCreated, createdTask)
+}
