@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/pluto-han/taskflow/internal/config"
 	"github.com/pluto-han/taskflow/internal/task"
@@ -19,22 +20,33 @@ import (
 func main() {
 	cfg := config.Load()
 
-	repo := task.NewMemoryRepository()
-	service := task.NewService(repo)
-	handler := task.NewHandler(service)
-
-	example := &task.Task{
-		ID:          "example-1",
-		Title:       "Learn Go",
-		Description: "Build TaskFlow backend",
-		Priority:    3,
-		Completed:   false,
-		CreatedAt:   time.Now().UTC(),
+	if cfg.DatabaseURL == "" {
+		log.Fatal("DATABASE_URL is required")
 	}
 
-	if err := repo.Save(example); err != nil {
+	dbCtx, dbCancel := context.WithTimeout(
+		context.Background(),
+		5*time.Second,
+	)
+
+	pool, err := pgxpool.New(dbCtx, cfg.DatabaseURL)
+	if err != nil {
+		dbCancel()
 		log.Fatal(err)
 	}
+
+	if err := pool.Ping(dbCtx); err != nil {
+		dbCancel()
+		pool.Close()
+		log.Fatalf("database connection failed: %v", err)
+	}
+
+	dbCancel()
+	defer pool.Close()
+
+	repo := task.NewPostgresRepository(pool)
+	service := task.NewService(repo)
+	handler := task.NewHandler(service)
 
 	router := gin.Default()
 

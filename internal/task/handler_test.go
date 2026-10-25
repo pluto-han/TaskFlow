@@ -2,6 +2,7 @@ package task
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -31,7 +32,7 @@ func newTestRouter() (*gin.Engine, *MemoryRepository) {
 func TestHandlerGetByID(t *testing.T) {
 	router, repo := newTestRouter()
 
-	if err := repo.Save(&Task{
+	if err := repo.Save(context.Background(), &Task{
 		ID:       "task-123",
 		Title:    "Learn Go",
 		Priority: 2,
@@ -149,7 +150,7 @@ func TestHandlerCreate(t *testing.T) {
 		)
 	}
 
-	if _, err := repo.FindByID(created.ID); err != nil {
+	if _, err := repo.FindByID(context.Background(), created.ID); err != nil {
 		t.Errorf("created task not found in repository: %v", err)
 	}
 }
@@ -180,7 +181,7 @@ func TestHandlerCreateInvalid(t *testing.T) {
 func TestHandlerUpdate(t *testing.T) {
 	router, repo := newTestRouter()
 
-	if err := repo.Save(&Task{
+	if err := repo.Save(context.Background(), &Task{
 		ID:        "task-123",
 		Title:     "Learn Go",
 		Priority:  2,
@@ -219,7 +220,7 @@ func TestHandlerUpdate(t *testing.T) {
 		t.Error("title should not have changed")
 	}
 
-	saved, err := repo.FindByID("task-123")
+	saved, err := repo.FindByID(context.Background(), "task-123")
 	if err != nil {
 		t.Fatalf("failed to read updated task: %v", err)
 	}
@@ -232,7 +233,7 @@ func TestHandlerUpdate(t *testing.T) {
 func TestHandlerUpdateInvalid(t *testing.T) {
 	router, repo := newTestRouter()
 
-	if err := repo.Save(&Task{
+	if err := repo.Save(context.Background(), &Task{
 		ID:       "task-123",
 		Title:    "Learn Go",
 		Priority: 2,
@@ -258,7 +259,7 @@ func TestHandlerUpdateInvalid(t *testing.T) {
 func TestHandlerDelete(t *testing.T) {
 	router, repo := newTestRouter()
 
-	if err := repo.Save(&Task{
+	if err := repo.Save(context.Background(), &Task{
 		ID:       "task-123",
 		Title:    "Delete me",
 		Priority: 1,

@@ -1,13 +1,16 @@
 package task
 
-import "errors"
+import (
+	"context"
+	"errors"
+)
 
 var ErrTaskNotFound = errors.New("task not found")
 
 type Repository interface {
-	FindByID(id string) (*Task, error)
-	Save(task *Task) error
-	FindAll() ([]Task, error)
-	Update(task *Task) error
-	Delete(id string) error
+	FindByID(ctx context.Context, id string) (*Task, error)
+	FindAll(ctx context.Context) ([]Task, error)
+	Save(ctx context.Context, task *Task) error
+	Update(ctx context.Context, task *Task) error
+	Delete(ctx context.Context, id string) error
 }

@@ -42,7 +42,7 @@ func TestServiceCreate(t *testing.T) {
 		t.Error("CreatedAt should be initialized")
 	}
 
-	saved, err := repo.FindByID(created.ID)
+	saved, err := repo.FindByID(context.Background(), created.ID)
 	if err != nil {
 		t.Fatalf("created task was not saved: %v", err)
 	}
@@ -125,7 +125,7 @@ func TestServiceUpdate(t *testing.T) {
 		Completed: true,
 	}
 
-	if err := repo.Save(original); err != nil {
+	if err := repo.Save(context.Background(), original); err != nil {
 		t.Fatalf("failed to seed task: %v", err)
 	}
 
@@ -155,7 +155,7 @@ func TestServiceUpdate(t *testing.T) {
 		t.Errorf("priority changed unexpectedly: %d", updated.Priority)
 	}
 
-	saved, err := repo.FindByID("task-1")
+	saved, err := repo.FindByID(context.Background(), "task-1")
 	if err != nil {
 		t.Fatalf("FindByID() error: %v", err)
 	}
@@ -197,7 +197,7 @@ func TestServiceUpdateValidation(t *testing.T) {
 			repo := NewMemoryRepository()
 			service := NewService(repo)
 
-			err := repo.Save(&Task{
+			err := repo.Save(context.Background(), &Task{
 				ID:       "task-1",
 				Title:    "Original",
 				Priority: 2,
@@ -224,7 +224,7 @@ func TestServiceDelete(t *testing.T) {
 	repo := NewMemoryRepository()
 	service := NewService(repo)
 
-	if err := repo.Save(&Task{
+	if err := repo.Save(context.Background(), &Task{
 		ID:       "task-1",
 		Title:    "Delete me",
 		Priority: 1,
@@ -267,7 +267,7 @@ type failingRepository struct {
 
 var errStorageUnavailable = errors.New("storage unavailable")
 
-func (r *failingRepository) Save(task *Task) error {
+func (r *failingRepository) Save(ctx context.Context, task *Task) error {
 	return errStorageUnavailable
 }
 

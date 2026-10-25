@@ -45,9 +45,10 @@ func (s *Service) Create(ctx context.Context, input CreateTaskRequest) (*Task, e
 		Priority:    input.Priority,
 		Completed:   false,
 		CreatedAt:   time.Now().UTC(),
+		DueDate:     input.DueDate,
 	}
 
-	if err := s.repo.Save(newTask); err != nil {
+	if err := s.repo.Save(ctx, newTask); err != nil {
 		return nil, err
 	}
 
@@ -59,7 +60,7 @@ func (s *Service) GetByID(ctx context.Context, id string) (*Task, error) {
 		return nil, err
 	}
 
-	return s.repo.FindByID(id)
+	return s.repo.FindByID(ctx, id)
 }
 
 func (s *Service) List(ctx context.Context) ([]Task, error) {
@@ -67,7 +68,7 @@ func (s *Service) List(ctx context.Context) ([]Task, error) {
 		return nil, err
 	}
 
-	return s.repo.FindAll()
+	return s.repo.FindAll(ctx)
 }
 
 func (s *Service) Update(ctx context.Context, id string, input UpdateTaskRequest) (*Task, error) {
@@ -83,7 +84,7 @@ func (s *Service) Update(ctx context.Context, id string, input UpdateTaskRequest
 		return nil, ErrInvalidUpdate
 	}
 
-	current, err := s.repo.FindByID(id)
+	current, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -114,7 +115,7 @@ func (s *Service) Update(ctx context.Context, id string, input UpdateTaskRequest
 		current.Completed = *input.Completed
 	}
 
-	if err := s.repo.Update(current); err != nil {
+	if err := s.repo.Update(ctx, current); err != nil {
 		return nil, err
 	}
 
@@ -127,5 +128,5 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 		return err
 	}
 
-	return s.repo.Delete(id)
+	return s.repo.Delete(ctx, id)
 }

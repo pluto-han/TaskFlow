@@ -1,6 +1,7 @@
 package task
 
 import (
+	"context"
 	"sync"
 )
 
@@ -16,7 +17,7 @@ func NewMemoryRepository() *MemoryRepository {
 	}
 }
 
-func (r *MemoryRepository) FindByID(id string) (*Task, error) {
+func (r *MemoryRepository) FindByID(ctx context.Context, id string) (*Task, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -28,7 +29,7 @@ func (r *MemoryRepository) FindByID(id string) (*Task, error) {
 	return &task, nil
 }
 
-func (r *MemoryRepository) Save(task *Task) error {
+func (r *MemoryRepository) Save(ctx context.Context, task *Task) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -36,7 +37,7 @@ func (r *MemoryRepository) Save(task *Task) error {
 	return nil
 }
 
-func (r *MemoryRepository) FindAll() ([]Task, error) {
+func (r *MemoryRepository) FindAll(ctx context.Context) ([]Task, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -48,7 +49,7 @@ func (r *MemoryRepository) FindAll() ([]Task, error) {
 	return tasks, nil
 }
 
-func (r *MemoryRepository) Update(task *Task) error {
+func (r *MemoryRepository) Update(ctx context.Context, task *Task) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -60,7 +61,7 @@ func (r *MemoryRepository) Update(task *Task) error {
 	return nil
 }
 
-func (r *MemoryRepository) Delete(id string) error {
+func (r *MemoryRepository) Delete(ctx context.Context, id string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 

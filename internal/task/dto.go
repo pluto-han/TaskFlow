@@ -1,9 +1,12 @@
 package task
 
+import "time"
+
 type CreateTaskRequest struct {
-	Title       string `json:"title" binding:"required"`
-	Description string `json:"description"`
-	Priority    int    `json:"priority" binding:"required,min=1,max=3"`
+	Title       string     `json:"title" binding:"required"`
+	Description string     `json:"description"`
+	Priority    int        `json:"priority" binding:"required,min=1,max=3"`
+	DueDate     *time.Time `json:"due_date"`
 }
 
 type UpdateTaskRequest struct {

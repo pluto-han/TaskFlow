@@ -7,6 +7,7 @@ import (
 
 type Config struct {
 	HTTPAddr        string
+	DatabaseURL     string
 	ShutdownTimeout time.Duration
 }
 
@@ -16,8 +17,11 @@ func Load() Config {
 		addr = ":9090"
 	}
 
+	databaseURL := os.Getenv("DATABASE_URL")
+
 	return Config{
 		HTTPAddr:        addr,
+		DatabaseURL:     databaseURL,
 		ShutdownTimeout: 10 * time.Second,
 	}
 }
