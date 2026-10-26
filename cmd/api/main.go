@@ -13,8 +13,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/pluto-han/taskflow/internal/auth"
 	"github.com/pluto-han/taskflow/internal/config"
 	"github.com/pluto-han/taskflow/internal/task"
+	"github.com/pluto-han/taskflow/internal/user"
 )
 
 func main() {
@@ -49,6 +51,8 @@ func main() {
 	handler := task.NewHandler(service)
 
 	router := gin.Default()
+	userHandler := user.NewHandler(user.NewService(user.NewPostgresRepository(pool), auth.PasswordHasher{}))
+	router.POST("/auth/register", userHandler.Register)
 
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{

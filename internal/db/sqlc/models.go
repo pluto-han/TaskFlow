@@ -20,3 +20,10 @@ type Task struct {
 	DueDate     pgtype.Timestamptz `json:"due_date"`
 	Version     int64              `json:"version"`
 }
+
+type User struct {
+	ID           pgtype.UUID        `json:"id"`
+	Email        string             `json:"email"`
+	PasswordHash string             `json:"password_hash"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+}

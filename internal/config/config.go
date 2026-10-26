@@ -14,7 +14,7 @@ type Config struct {
 func Load() Config {
 	addr := os.Getenv("TASKFLOW_HTTP_ADDR")
 	if addr == "" {
-		addr = ":9090"
+		addr = "127.0.0.1:9090"
 	}
 
 	databaseURL := os.Getenv("DATABASE_URL")
