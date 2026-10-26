@@ -22,7 +22,8 @@ func NewService(repo Repository, passwords PasswordHasher) *Service {
 	return &Service{repo: repo, passwords: passwords}
 }
 
-func normalizeEmail(raw string) (string, bool) {
+// NormalizeEmail applies the shared registration/login identity policy.
+func NormalizeEmail(raw string) (string, bool) {
 	email := strings.ToLower(strings.TrimSpace(raw))
 	if len(email) < 3 || len(email) > 254 {
 		return "", false
@@ -58,7 +59,7 @@ func (s *Service) Register(ctx context.Context, input RegisterRequest) (*User, e
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	email, valid := normalizeEmail(input.Email)
+	email, valid := NormalizeEmail(input.Email)
 	count := utf8.RuneCountInString(input.Password)
 	if !valid || !utf8.ValidString(input.Password) || count < 15 || count > 128 || len(input.Password) > 512 || strings.TrimSpace(input.Password) == "" {
 		return nil, ErrInvalidUser

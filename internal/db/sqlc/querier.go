@@ -11,13 +11,16 @@ import (
 )
 
 type Querier interface {
+	CreateSession(ctx context.Context, arg CreateSessionParams) (CreateSessionRow, error)
 	CreateTask(ctx context.Context, arg CreateTaskParams) error
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteTask(ctx context.Context, id string) (string, error)
+	GetActiveSession(ctx context.Context, tokenHash []byte) (GetActiveSessionRow, error)
 	GetTask(ctx context.Context, id string) (Task, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 	ListTasks(ctx context.Context) ([]Task, error)
+	RevokeSession(ctx context.Context, arg RevokeSessionParams) (int64, error)
 	UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, error)
 }
 

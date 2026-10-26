@@ -15,6 +15,7 @@ import (
 
 	"github.com/pluto-han/taskflow/internal/auth"
 	"github.com/pluto-han/taskflow/internal/config"
+	"github.com/pluto-han/taskflow/internal/session"
 	"github.com/pluto-han/taskflow/internal/task"
 	"github.com/pluto-han/taskflow/internal/user"
 )
@@ -51,7 +52,13 @@ func main() {
 	handler := task.NewHandler(service)
 
 	router := gin.Default()
-	userHandler := user.NewHandler(user.NewService(user.NewPostgresRepository(pool), auth.PasswordHasher{}))
+	userRepo := user.NewPostgresRepository(pool)
+	userHandler := user.NewHandler(user.NewService(userRepo, auth.PasswordHasher{}))
+	sessionService, err := session.NewService(context.Background(), userRepo, session.NewPostgresRepository(pool), auth.PasswordHasher{})
+	if err != nil {
+		log.Fatal("Could not initialize password verification")
+	}
+	session.Mount(router, sessionService)
 	router.POST("/auth/register", userHandler.Register)
 
 	router.GET("/health", func(c *gin.Context) {
