@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+
+	"github.com/pluto-han/taskflow/internal/session"
 )
 
 func newTestRouter() (*gin.Engine, *MemoryRepository) {
@@ -16,15 +18,9 @@ func newTestRouter() (*gin.Engine, *MemoryRepository) {
 
 	repo := NewMemoryRepository()
 	service := NewService(repo)
-	handler := NewHandler(service)
-
 	router := gin.New()
-
-	router.GET("/tasks", handler.List)
-	router.GET("/tasks/:id", handler.GetByID)
-	router.POST("/tasks", handler.Create)
-	router.PATCH("/tasks/:id", handler.Update)
-	router.DELETE("/tasks/:id", handler.Delete)
+	ss, _ := session.NewService(context.Background(), nil, testSessionRepository{}, testPasswords{})
+	Mount(router, service, session.NewHandler(ss).RequireSession)
 
 	return router, repo
 }
@@ -32,7 +28,7 @@ func newTestRouter() (*gin.Engine, *MemoryRepository) {
 func TestHandlerGetByID(t *testing.T) {
 	router, repo := newTestRouter()
 
-	if err := repo.Save(context.Background(), &Task{
+	if err := repo.Save(context.Background(), testOwner, &Task{
 		ID:       "task-123",
 		Title:    "Learn Go",
 		Priority: 2,
@@ -47,6 +43,7 @@ func TestHandlerGetByID(t *testing.T) {
 	)
 	rec := httptest.NewRecorder()
 
+	req.Header.Set("Authorization", "Bearer "+testToken)
 	router.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
@@ -74,6 +71,7 @@ func TestHandlerGetByIDNotFound(t *testing.T) {
 	)
 	rec := httptest.NewRecorder()
 
+	req.Header.Set("Authorization", "Bearer "+testToken)
 	router.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusNotFound {
@@ -120,6 +118,7 @@ func TestHandlerCreate(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 
+	req.Header.Set("Authorization", "Bearer "+testToken)
 	router.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusCreated {
@@ -150,7 +149,7 @@ func TestHandlerCreate(t *testing.T) {
 		)
 	}
 
-	if _, err := repo.FindByID(context.Background(), created.ID); err != nil {
+	if _, err := repo.FindByID(context.Background(), testOwner, created.ID); err != nil {
 		t.Errorf("created task not found in repository: %v", err)
 	}
 }
@@ -171,6 +170,7 @@ func TestHandlerCreateInvalid(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 
 	rec := httptest.NewRecorder()
+	req.Header.Set("Authorization", "Bearer "+testToken)
 	router.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusBadRequest {
@@ -181,7 +181,7 @@ func TestHandlerCreateInvalid(t *testing.T) {
 func TestHandlerUpdate(t *testing.T) {
 	router, repo := newTestRouter()
 
-	if err := repo.Save(context.Background(), &Task{
+	if err := repo.Save(context.Background(), testOwner, &Task{
 		ID:        "task-123",
 		Title:     "Learn Go",
 		Priority:  2,
@@ -200,6 +200,7 @@ func TestHandlerUpdate(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 
 	rec := httptest.NewRecorder()
+	req.Header.Set("Authorization", "Bearer "+testToken)
 	router.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
@@ -220,7 +221,7 @@ func TestHandlerUpdate(t *testing.T) {
 		t.Error("title should not have changed")
 	}
 
-	saved, err := repo.FindByID(context.Background(), "task-123")
+	saved, err := repo.FindByID(context.Background(), testOwner, "task-123")
 	if err != nil {
 		t.Fatalf("failed to read updated task: %v", err)
 	}
@@ -233,7 +234,7 @@ func TestHandlerUpdate(t *testing.T) {
 func TestHandlerUpdateInvalid(t *testing.T) {
 	router, repo := newTestRouter()
 
-	if err := repo.Save(context.Background(), &Task{
+	if err := repo.Save(context.Background(), testOwner, &Task{
 		ID:       "task-123",
 		Title:    "Learn Go",
 		Priority: 2,
@@ -249,6 +250,7 @@ func TestHandlerUpdateInvalid(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 
 	rec := httptest.NewRecorder()
+	req.Header.Set("Authorization", "Bearer "+testToken)
 	router.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusBadRequest {
@@ -259,7 +261,7 @@ func TestHandlerUpdateInvalid(t *testing.T) {
 func TestHandlerDelete(t *testing.T) {
 	router, repo := newTestRouter()
 
-	if err := repo.Save(context.Background(), &Task{
+	if err := repo.Save(context.Background(), testOwner, &Task{
 		ID:       "task-123",
 		Title:    "Delete me",
 		Priority: 1,
@@ -274,6 +276,7 @@ func TestHandlerDelete(t *testing.T) {
 	)
 	rec := httptest.NewRecorder()
 
+	req.Header.Set("Authorization", "Bearer "+testToken)
 	router.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusNoContent {
@@ -291,6 +294,7 @@ func TestHandlerDelete(t *testing.T) {
 	)
 	getRec := httptest.NewRecorder()
 
+	getReq.Header.Set("Authorization", "Bearer "+testToken)
 	router.ServeHTTP(getRec, getReq)
 
 	if getRec.Code != http.StatusNotFound {
@@ -308,6 +312,7 @@ func TestHandlerDeleteNotFound(t *testing.T) {
 	)
 	rec := httptest.NewRecorder()
 
+	req.Header.Set("Authorization", "Bearer "+testToken)
 	router.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusNotFound {

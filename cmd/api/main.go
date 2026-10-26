@@ -49,7 +49,6 @@ func main() {
 
 	repo := task.NewPostgresRepository(pool)
 	service := task.NewService(repo)
-	handler := task.NewHandler(service)
 
 	router := gin.Default()
 	userRepo := user.NewPostgresRepository(pool)
@@ -67,11 +66,7 @@ func main() {
 		})
 	})
 
-	router.GET("/tasks", handler.List)
-	router.GET("/tasks/:id", handler.GetByID)
-	router.POST("/tasks", handler.Create)
-	router.PATCH("/tasks/:id", handler.Update)
-	router.DELETE("/tasks/:id", handler.Delete)
+	task.Mount(router, service, session.NewHandler(sessionService).RequireSession)
 
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,

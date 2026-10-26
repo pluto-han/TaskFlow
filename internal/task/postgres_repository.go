@@ -9,7 +9,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+
 	db "github.com/pluto-han/taskflow/internal/db/sqlc"
+	"github.com/pluto-han/taskflow/internal/session"
 )
 
 type PostgresRepository struct {
@@ -45,6 +47,7 @@ func fromPgTimestamp(t pgtype.Timestamptz) *time.Time {
 func toDomainTask(row db.Task) *Task {
 	return &Task{
 		ID:          row.ID,
+		OwnerID:     session.UserID(row.OwnerID.String()),
 		Title:       row.Title,
 		Description: row.Description,
 		Completed:   row.Completed,
@@ -55,9 +58,13 @@ func toDomainTask(row db.Task) *Task {
 	}
 }
 
-func (r *PostgresRepository) FindByID(ctx context.Context, id string) (*Task, error) {
+func (r *PostgresRepository) FindByID(ctx context.Context, ownerID session.UserID, id string) (*Task, error) {
+	owner, err := ownerUUID(ownerID)
+	if err != nil {
+		return nil, err
+	}
 
-	row, err := r.queries.GetTask(ctx, id)
+	row, err := r.queries.GetTask(ctx, db.GetTaskParams{ID: id, OwnerID: owner})
 
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrTaskNotFound
@@ -71,10 +78,14 @@ func (r *PostgresRepository) FindByID(ctx context.Context, id string) (*Task, er
 }
 
 func (r *PostgresRepository) FindAll(
-	ctx context.Context,
+	ctx context.Context, ownerID session.UserID,
 ) ([]Task, error) {
+	owner, err := ownerUUID(ownerID)
+	if err != nil {
+		return nil, err
+	}
 
-	rows, err := r.queries.ListTasks(ctx)
+	rows, err := r.queries.ListTasks(ctx, owner)
 	if err != nil {
 		return nil, fmt.Errorf("list tasks: %w", err)
 	}
@@ -88,11 +99,16 @@ func (r *PostgresRepository) FindAll(
 	return tasks, nil
 }
 
-func (r *PostgresRepository) Save(ctx context.Context, task *Task) error {
+func (r *PostgresRepository) Save(ctx context.Context, ownerID session.UserID, task *Task) error {
+	owner, err := ownerUUID(ownerID)
+	if err != nil {
+		return err
+	}
 
-	err := r.queries.CreateTask(
+	err = r.queries.CreateTask(
 		ctx,
 		db.CreateTaskParams{
+			OwnerID:     owner,
 			ID:          task.ID,
 			Title:       task.Title,
 			Description: task.Description,
@@ -108,14 +124,21 @@ func (r *PostgresRepository) Save(ctx context.Context, task *Task) error {
 	}
 
 	// CreateTask uses the database default version.
+	task.OwnerID = ownerID
 	task.Version = 1
 	return nil
 }
 
-func (r *PostgresRepository) Update(ctx context.Context, task *Task) error {
+func (r *PostgresRepository) Update(ctx context.Context, ownerID session.UserID, task *Task) error {
+	owner, err := ownerUUID(ownerID)
+	if err != nil {
+		return err
+	}
+
 	row, err := r.queries.UpdateTask(
 		ctx,
 		db.UpdateTaskParams{
+			OwnerID:     owner,
 			ID:          task.ID,
 			Title:       task.Title,
 			Description: task.Description,
@@ -127,7 +150,7 @@ func (r *PostgresRepository) Update(ctx context.Context, task *Task) error {
 	)
 
 	if errors.Is(err, pgx.ErrNoRows) {
-		_, findErr := r.queries.GetTask(ctx, task.ID)
+		_, findErr := r.queries.GetTask(ctx, db.GetTaskParams{ID: task.ID, OwnerID: owner})
 
 		if errors.Is(findErr, pgx.ErrNoRows) {
 			return ErrTaskNotFound
@@ -147,13 +170,19 @@ func (r *PostgresRepository) Update(ctx context.Context, task *Task) error {
 		return fmt.Errorf("update task: %w", err)
 	}
 
+	task.OwnerID = ownerID
 	task.Version = row.Version
 
 	return nil
 }
 
-func (r *PostgresRepository) Delete(ctx context.Context, id string) error {
-	_, err := r.queries.DeleteTask(ctx, id)
+func (r *PostgresRepository) Delete(ctx context.Context, ownerID session.UserID, id string) error {
+	owner, err := ownerUUID(ownerID)
+	if err != nil {
+		return err
+	}
+
+	_, err = r.queries.DeleteTask(ctx, db.DeleteTaskParams{ID: id, OwnerID: owner})
 
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrTaskNotFound
@@ -167,3 +196,14 @@ func (r *PostgresRepository) Delete(ctx context.Context, id string) error {
 }
 
 var _ Repository = (*PostgresRepository)(nil)
+
+func ownerUUID(id session.UserID) (pgtype.UUID, error) {
+	var result pgtype.UUID
+	if id == "" {
+		return result, session.ErrUnauthorized
+	}
+	if err := result.Scan(string(id)); err != nil || !result.Valid {
+		return result, session.ErrUnauthorized
+	}
+	return result, nil
+}

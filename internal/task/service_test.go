@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"testing"
+
+	"github.com/pluto-han/taskflow/internal/session"
 )
 
 // TestServiceCreate 测试创建任务的正常流程。
@@ -17,7 +19,7 @@ func TestServiceCreate(t *testing.T) {
 		Priority:    2,
 	}
 
-	created, err := service.Create(context.Background(), input)
+	created, err := service.Create(context.Background(), testOwner, input)
 	if err != nil {
 		t.Fatalf("Create() unexpected error: %v", err)
 	}
@@ -42,7 +44,7 @@ func TestServiceCreate(t *testing.T) {
 		t.Error("CreatedAt should be initialized")
 	}
 
-	saved, err := repo.FindByID(context.Background(), created.ID)
+	saved, err := repo.FindByID(context.Background(), testOwner, created.ID)
 	if err != nil {
 		t.Fatalf("created task was not saved: %v", err)
 	}
@@ -77,7 +79,7 @@ func TestServiceCreateValidation(t *testing.T) {
 			service := NewService(repo)
 
 			_, err := service.Create(
-				context.Background(),
+				context.Background(), testOwner,
 				CreateTaskRequest{
 					Title:    tt.title,
 					Priority: tt.priority,
@@ -104,7 +106,7 @@ func TestServiceGetByIDNotFound(t *testing.T) {
 	service := NewService(repo)
 
 	result, err := service.GetByID(
-		context.Background(),
+		context.Background(), testOwner,
 		"not-exist",
 	)
 
@@ -129,14 +131,14 @@ func TestServiceUpdate(t *testing.T) {
 		Completed: true,
 	}
 
-	if err := repo.Save(context.Background(), original); err != nil {
+	if err := repo.Save(context.Background(), testOwner, original); err != nil {
 		t.Fatalf("failed to seed task: %v", err)
 	}
 
 	completed := false
 
 	updated, err := service.Update(
-		context.Background(),
+		context.Background(), testOwner,
 		"task-1",
 		UpdateTaskRequest{
 			Completed: &completed,
@@ -160,7 +162,7 @@ func TestServiceUpdate(t *testing.T) {
 		t.Errorf("priority changed unexpectedly: %d", updated.Priority)
 	}
 
-	saved, err := repo.FindByID(context.Background(), "task-1")
+	saved, err := repo.FindByID(context.Background(), testOwner, "task-1")
 	if err != nil {
 		t.Fatalf("FindByID() error: %v", err)
 	}
@@ -207,7 +209,7 @@ func TestServiceUpdateValidation(t *testing.T) {
 			repo := NewMemoryRepository()
 			service := NewService(repo)
 
-			err := repo.Save(context.Background(), &Task{
+			err := repo.Save(context.Background(), testOwner, &Task{
 				ID:       "task-1",
 				Title:    "Original",
 				Priority: 2,
@@ -218,7 +220,7 @@ func TestServiceUpdateValidation(t *testing.T) {
 
 			tt.input.Version = &version
 			_, err = service.Update(
-				context.Background(),
+				context.Background(), testOwner,
 				"task-1",
 				tt.input,
 			)
@@ -235,7 +237,7 @@ func TestServiceDelete(t *testing.T) {
 	repo := NewMemoryRepository()
 	service := NewService(repo)
 
-	if err := repo.Save(context.Background(), &Task{
+	if err := repo.Save(context.Background(), testOwner, &Task{
 		ID:       "task-1",
 		Title:    "Delete me",
 		Priority: 1,
@@ -243,13 +245,13 @@ func TestServiceDelete(t *testing.T) {
 		t.Fatalf("failed to seed task: %v", err)
 	}
 
-	err := service.Delete(context.Background(), "task-1")
+	err := service.Delete(context.Background(), testOwner, "task-1")
 	if err != nil {
 		t.Fatalf("Delete() unexpected error: %v", err)
 	}
 
 	_, err = service.GetByID(
-		context.Background(),
+		context.Background(), testOwner,
 		"task-1",
 	)
 
@@ -263,7 +265,7 @@ func TestServiceDeleteNotFound(t *testing.T) {
 	repo := NewMemoryRepository()
 	service := NewService(repo)
 
-	err := service.Delete(context.Background(), "not-exist")
+	err := service.Delete(context.Background(), testOwner, "not-exist")
 
 	if !errors.Is(err, ErrTaskNotFound) {
 		t.Errorf("expected ErrTaskNotFound, got %v", err)
@@ -278,7 +280,7 @@ type failingRepository struct {
 
 var errStorageUnavailable = errors.New("storage unavailable")
 
-func (r *failingRepository) Save(ctx context.Context, task *Task) error {
+func (r *failingRepository) Save(ctx context.Context, ownerID session.UserID, task *Task) error {
 	return errStorageUnavailable
 }
 
@@ -288,7 +290,7 @@ func TestServiceCreateRepositoryError(t *testing.T) {
 	service := NewService(repo)
 
 	_, err := service.Create(
-		context.Background(),
+		context.Background(), testOwner,
 		CreateTaskRequest{
 			Title:    "Learn Go",
 			Priority: 2,

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	db "github.com/pluto-han/taskflow/internal/db/sqlc"
+	"github.com/pluto-han/taskflow/internal/session"
 )
 
 func TestToDomainTaskPreservesVersion(t *testing.T) {
@@ -35,22 +36,22 @@ func TestServiceUpdateRejectedVersionDoesNotWrite(t *testing.T) {
 			ctx := context.Background()
 			repo := NewMemoryRepository()
 			service := NewService(repo)
-			task, err := service.Create(ctx, CreateTaskRequest{Title: "Original", Priority: 2})
+			task, err := service.Create(ctx, testOwner, CreateTaskRequest{Title: "Original", Priority: 2})
 			if err != nil {
 				t.Fatal(err)
 			}
 			title := "Latest"
-			task, err = service.Update(ctx, task.ID, UpdateTaskRequest{Title: &title, Version: versionPointer(1)})
+			task, err = service.Update(ctx, testOwner, task.ID, UpdateTaskRequest{Title: &title, Version: versionPointer(1)})
 			if err != nil {
 				t.Fatal(err)
 			}
 
 			title = "Must not be saved"
-			got, err := service.Update(ctx, task.ID, UpdateTaskRequest{Title: &title, Version: tc.version})
+			got, err := service.Update(ctx, testOwner, task.ID, UpdateTaskRequest{Title: &title, Version: tc.version})
 			if !errors.Is(err, tc.want) || got != nil {
 				t.Fatalf("Update() = %+v, %v; want nil, %v", got, err, tc.want)
 			}
-			saved, err := repo.FindByID(ctx, task.ID)
+			saved, err := repo.FindByID(ctx, testOwner, task.ID)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -69,8 +70,8 @@ type synchronizedReadRepository struct {
 	readers sync.WaitGroup
 }
 
-func (r *synchronizedReadRepository) FindByID(ctx context.Context, id string) (*Task, error) {
-	task, err := r.Repository.FindByID(ctx, id)
+func (r *synchronizedReadRepository) FindByID(ctx context.Context, ownerID session.UserID, id string) (*Task, error) {
+	task, err := r.Repository.FindByID(ctx, ownerID, id)
 	r.readers.Done()
 	r.readers.Wait()
 	return task, err
@@ -79,7 +80,7 @@ func (r *synchronizedReadRepository) FindByID(ctx context.Context, id string) (*
 func TestServiceConcurrentUpdatesOnlyOneSucceeds(t *testing.T) {
 	ctx := context.Background()
 	memory := NewMemoryRepository()
-	task, err := NewService(memory).Create(ctx, CreateTaskRequest{Title: "Original", Priority: 2})
+	task, err := NewService(memory).Create(ctx, testOwner, CreateTaskRequest{Title: "Original", Priority: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +94,7 @@ func TestServiceConcurrentUpdatesOnlyOneSucceeds(t *testing.T) {
 	results := make(chan result, 2)
 	for _, title := range []string{"First", "Second"} {
 		go func(title string) {
-			got, err := service.Update(ctx, task.ID, UpdateTaskRequest{Title: &title, Version: versionPointer(1)})
+			got, err := service.Update(ctx, testOwner, task.ID, UpdateTaskRequest{Title: &title, Version: versionPointer(1)})
 			results <- result{got, err}
 		}(title)
 	}
@@ -114,7 +115,7 @@ func TestServiceConcurrentUpdatesOnlyOneSucceeds(t *testing.T) {
 	if successes != 1 || conflicts != 1 {
 		t.Fatalf("successes=%d conflicts=%d, want 1 each", successes, conflicts)
 	}
-	saved, err := memory.FindByID(ctx, task.ID)
+	saved, err := memory.FindByID(ctx, testOwner, task.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +127,7 @@ func TestServiceConcurrentUpdatesOnlyOneSucceeds(t *testing.T) {
 func TestHandlerUpdateVersionContract(t *testing.T) {
 	router, repo := newTestRouter()
 	ctx := context.Background()
-	if err := repo.Save(ctx, &Task{ID: "task-1", Title: "Original", Priority: 2}); err != nil {
+	if err := repo.Save(ctx, testOwner, &Task{ID: "task-1", Title: "Original", Priority: 2}); err != nil {
 		t.Fatal(err)
 	}
 	for _, tc := range []struct {
@@ -142,11 +143,12 @@ func TestHandlerUpdateVersionContract(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPatch, "/tasks/task-1", strings.NewReader(tc.body))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
+		req.Header.Set("Authorization", "Bearer "+testToken)
 		router.ServeHTTP(rec, req)
 		if rec.Code != tc.status {
 			t.Fatalf("body=%s: status=%d want=%d: %s", tc.body, rec.Code, tc.status, rec.Body.String())
 		}
-		saved, err := repo.FindByID(ctx, "task-1")
+		saved, err := repo.FindByID(ctx, testOwner, "task-1")
 		if err != nil {
 			t.Fatal(err)
 		}

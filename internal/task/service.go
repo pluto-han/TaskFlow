@@ -7,6 +7,8 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	"github.com/pluto-han/taskflow/internal/session"
 )
 
 var ErrInvalidTask = errors.New("invalid task")
@@ -20,8 +22,11 @@ func NewService(repo Repository) *Service {
 	return &Service{repo: repo}
 }
 
-func (s *Service) Create(ctx context.Context, input CreateTaskRequest) (*Task, error) {
+func (s *Service) Create(ctx context.Context, ownerID session.UserID, input CreateTaskRequest) (*Task, error) {
 
+	if ownerID == "" {
+		return nil, session.ErrUnauthorized
+	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -39,6 +44,7 @@ func (s *Service) Create(ctx context.Context, input CreateTaskRequest) (*Task, e
 	}
 
 	newTask := &Task{
+		OwnerID:     ownerID,
 		ID:          hex.EncodeToString(idBytes),
 		Title:       title,
 		Description: input.Description,
@@ -49,31 +55,40 @@ func (s *Service) Create(ctx context.Context, input CreateTaskRequest) (*Task, e
 		Version:     1,
 	}
 
-	if err := s.repo.Save(ctx, newTask); err != nil {
+	if err := s.repo.Save(ctx, ownerID, newTask); err != nil {
 		return nil, err
 	}
 
 	return newTask, nil
 }
 
-func (s *Service) GetByID(ctx context.Context, id string) (*Task, error) {
+func (s *Service) GetByID(ctx context.Context, ownerID session.UserID, id string) (*Task, error) {
+	if ownerID == "" {
+		return nil, session.ErrUnauthorized
+	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
-	return s.repo.FindByID(ctx, id)
+	return s.repo.FindByID(ctx, ownerID, id)
 }
 
-func (s *Service) List(ctx context.Context) ([]Task, error) {
+func (s *Service) List(ctx context.Context, ownerID session.UserID) ([]Task, error) {
+	if ownerID == "" {
+		return nil, session.ErrUnauthorized
+	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
-	return s.repo.FindAll(ctx)
+	return s.repo.FindAll(ctx, ownerID)
 }
 
-func (s *Service) Update(ctx context.Context, id string, input UpdateTaskRequest) (*Task, error) {
+func (s *Service) Update(ctx context.Context, ownerID session.UserID, id string, input UpdateTaskRequest) (*Task, error) {
 
+	if ownerID == "" {
+		return nil, session.ErrUnauthorized
+	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -89,7 +104,7 @@ func (s *Service) Update(ctx context.Context, id string, input UpdateTaskRequest
 		return nil, ErrInvalidUpdate
 	}
 
-	current, err := s.repo.FindByID(ctx, id)
+	current, err := s.repo.FindByID(ctx, ownerID, id)
 	if err != nil {
 		return nil, err
 	}
@@ -124,18 +139,21 @@ func (s *Service) Update(ctx context.Context, id string, input UpdateTaskRequest
 		current.Completed = *input.Completed
 	}
 
-	if err := s.repo.Update(ctx, current); err != nil {
+	if err := s.repo.Update(ctx, ownerID, current); err != nil {
 		return nil, err
 	}
 
 	return current, nil
 }
 
-func (s *Service) Delete(ctx context.Context, id string) error {
+func (s *Service) Delete(ctx context.Context, ownerID session.UserID, id string) error {
 
+	if ownerID == "" {
+		return session.ErrUnauthorized
+	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 
-	return s.repo.Delete(ctx, id)
+	return s.repo.Delete(ctx, ownerID, id)
 }

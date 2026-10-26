@@ -15,9 +15,9 @@ import (
 const createTask = `-- name: CreateTask :exec
 INSERT INTO tasks (
     id, title, description, completed,
-    priority, created_at, due_date
+    priority, created_at, due_date, owner_id
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 `
 
 type CreateTaskParams struct {
@@ -28,6 +28,7 @@ type CreateTaskParams struct {
 	Priority    int32              `json:"priority"`
 	CreatedAt   time.Time          `json:"created_at"`
 	DueDate     pgtype.Timestamptz `json:"due_date"`
+	OwnerID     pgtype.UUID        `json:"owner_id"`
 }
 
 func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) error {
@@ -39,31 +40,42 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) error {
 		arg.Priority,
 		arg.CreatedAt,
 		arg.DueDate,
+		arg.OwnerID,
 	)
 	return err
 }
 
 const deleteTask = `-- name: DeleteTask :one
 DELETE FROM tasks
-WHERE id = $1
+WHERE id = $1 AND owner_id = $2
 RETURNING id
 `
 
-func (q *Queries) DeleteTask(ctx context.Context, id string) (string, error) {
-	row := q.db.QueryRow(ctx, deleteTask, id)
-	var id_2 string
-	err := row.Scan(&id_2)
-	return id_2, err
+type DeleteTaskParams struct {
+	ID      string      `json:"id"`
+	OwnerID pgtype.UUID `json:"owner_id"`
+}
+
+func (q *Queries) DeleteTask(ctx context.Context, arg DeleteTaskParams) (string, error) {
+	row := q.db.QueryRow(ctx, deleteTask, arg.ID, arg.OwnerID)
+	var id string
+	err := row.Scan(&id)
+	return id, err
 }
 
 const getTask = `-- name: GetTask :one
-SELECT id, title, description, completed, priority, created_at, due_date, version
+SELECT id, title, description, completed, priority, created_at, due_date, version, owner_id
 FROM tasks
-WHERE id = $1
+WHERE id = $1 AND owner_id = $2
 `
 
-func (q *Queries) GetTask(ctx context.Context, id string) (Task, error) {
-	row := q.db.QueryRow(ctx, getTask, id)
+type GetTaskParams struct {
+	ID      string      `json:"id"`
+	OwnerID pgtype.UUID `json:"owner_id"`
+}
+
+func (q *Queries) GetTask(ctx context.Context, arg GetTaskParams) (Task, error) {
+	row := q.db.QueryRow(ctx, getTask, arg.ID, arg.OwnerID)
 	var i Task
 	err := row.Scan(
 		&i.ID,
@@ -74,18 +86,20 @@ func (q *Queries) GetTask(ctx context.Context, id string) (Task, error) {
 		&i.CreatedAt,
 		&i.DueDate,
 		&i.Version,
+		&i.OwnerID,
 	)
 	return i, err
 }
 
 const listTasks = `-- name: ListTasks :many
-SELECT id, title, description, completed, priority, created_at, due_date, version
+SELECT id, title, description, completed, priority, created_at, due_date, version, owner_id
 FROM tasks
+WHERE owner_id = $1
 ORDER BY created_at DESC, id DESC
 `
 
-func (q *Queries) ListTasks(ctx context.Context) ([]Task, error) {
-	rows, err := q.db.Query(ctx, listTasks)
+func (q *Queries) ListTasks(ctx context.Context, ownerID pgtype.UUID) ([]Task, error) {
+	rows, err := q.db.Query(ctx, listTasks, ownerID)
 	if err != nil {
 		return nil, err
 	}
@@ -102,6 +116,7 @@ func (q *Queries) ListTasks(ctx context.Context) ([]Task, error) {
 			&i.CreatedAt,
 			&i.DueDate,
 			&i.Version,
+			&i.OwnerID,
 		); err != nil {
 			return nil, err
 		}
@@ -122,9 +137,9 @@ SET
     priority = $5,
     due_date = $6,
     version = version + 1
-WHERE id = $1 AND version = $7
+WHERE id = $1 AND version = $7 AND owner_id = $8
 RETURNING id, title, description, completed,
-          priority, created_at, due_date, version
+          priority, created_at, due_date, version, owner_id
 `
 
 type UpdateTaskParams struct {
@@ -135,6 +150,7 @@ type UpdateTaskParams struct {
 	Priority    int32              `json:"priority"`
 	DueDate     pgtype.Timestamptz `json:"due_date"`
 	Version     int64              `json:"version"`
+	OwnerID     pgtype.UUID        `json:"owner_id"`
 }
 
 func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, error) {
@@ -146,6 +162,7 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, e
 		arg.Priority,
 		arg.DueDate,
 		arg.Version,
+		arg.OwnerID,
 	)
 	var i Task
 	err := row.Scan(
@@ -157,6 +174,7 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, e
 		&i.CreatedAt,
 		&i.DueDate,
 		&i.Version,
+		&i.OwnerID,
 	)
 	return i, err
 }

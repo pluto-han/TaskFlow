@@ -28,6 +28,7 @@ type Task struct {
 	CreatedAt   time.Time          `json:"created_at"`
 	DueDate     pgtype.Timestamptz `json:"due_date"`
 	Version     int64              `json:"version"`
+	OwnerID     pgtype.UUID        `json:"owner_id"`
 }
 
 type User struct {
