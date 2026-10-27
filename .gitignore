@@ -1,3 +1,10 @@
 .env
 .env.*
 !.env.example
+
+# Frontend dependencies and build/test output
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
+frontend/test-results/
+frontend/playwright-report/
