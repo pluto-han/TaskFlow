@@ -95,11 +95,41 @@ const listTasks = `-- name: ListTasks :many
 SELECT id, title, description, completed, priority, created_at, due_date, version, owner_id
 FROM tasks
 WHERE owner_id = $1
+  AND ($2::boolean IS NULL OR completed = $2)
+  AND ($3::integer IS NULL OR priority = $3)
+  AND ($4::boolean IS NULL OR (due_date IS NOT NULL) = $4)
+  AND ($5::timestamptz IS NULL OR due_date >= $5)
+  AND ($6::timestamptz IS NULL OR due_date < $6)
+  AND ($7::timestamptz IS NULL OR
+       (created_at, id) < ($7::timestamptz, $8::text))
 ORDER BY created_at DESC, id DESC
+LIMIT $9::integer
 `
 
-func (q *Queries) ListTasks(ctx context.Context, ownerID pgtype.UUID) ([]Task, error) {
-	rows, err := q.db.Query(ctx, listTasks, ownerID)
+type ListTasksParams struct {
+	OwnerID         pgtype.UUID        `json:"owner_id"`
+	CompletedFilter pgtype.Bool        `json:"completed_filter"`
+	PriorityFilter  pgtype.Int4        `json:"priority_filter"`
+	HasDueDate      pgtype.Bool        `json:"has_due_date"`
+	DueFrom         pgtype.Timestamptz `json:"due_from"`
+	DueBefore       pgtype.Timestamptz `json:"due_before"`
+	AfterCreatedAt  pgtype.Timestamptz `json:"after_created_at"`
+	AfterID         string             `json:"after_id"`
+	PageLimit       int32              `json:"page_limit"`
+}
+
+func (q *Queries) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, error) {
+	rows, err := q.db.Query(ctx, listTasks,
+		arg.OwnerID,
+		arg.CompletedFilter,
+		arg.PriorityFilter,
+		arg.HasDueDate,
+		arg.DueFrom,
+		arg.DueBefore,
+		arg.AfterCreatedAt,
+		arg.AfterID,
+		arg.PageLimit,
+	)
 	if err != nil {
 		return nil, err
 	}

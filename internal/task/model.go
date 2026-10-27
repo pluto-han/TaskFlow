@@ -17,3 +17,17 @@ type Task struct {
 	DueDate     *time.Time     `json:"due_date"`
 	Version     int64          `json:"version"`
 }
+
+func copyTime(value *time.Time) *time.Time {
+	if value == nil {
+		return nil
+	}
+	copy := value.UTC().Truncate(time.Microsecond)
+	return &copy
+}
+
+func cloneTask(task Task) Task {
+	task.DueDate = copyTime(task.DueDate)
+	task.CreatedAt = task.CreatedAt.UTC().Truncate(time.Microsecond)
+	return task
+}

@@ -33,7 +33,7 @@ func (s *Service) Create(ctx context.Context, ownerID session.UserID, input Crea
 
 	title := strings.TrimSpace(input.Title)
 
-	if title == "" || input.Priority < 1 || input.Priority > 3 {
+	if title == "" || input.Priority < 1 || input.Priority > 3 || !validDate(input.DueDate) {
 		return nil, ErrInvalidTask
 	}
 
@@ -50,8 +50,8 @@ func (s *Service) Create(ctx context.Context, ownerID session.UserID, input Crea
 		Description: input.Description,
 		Priority:    input.Priority,
 		Completed:   false,
-		CreatedAt:   time.Now().UTC(),
-		DueDate:     input.DueDate,
+		CreatedAt:   time.Now().UTC().Truncate(time.Microsecond),
+		DueDate:     copyTime(input.DueDate),
 		Version:     1,
 	}
 
@@ -73,15 +73,51 @@ func (s *Service) GetByID(ctx context.Context, ownerID session.UserID, id string
 	return s.repo.FindByID(ctx, ownerID, id)
 }
 
-func (s *Service) List(ctx context.Context, ownerID session.UserID) ([]Task, error) {
+func (s *Service) List(ctx context.Context, ownerID session.UserID, options ListOptions) (TaskPage, error) {
 	if ownerID == "" {
-		return nil, session.ErrUnauthorized
+		return TaskPage{}, session.ErrUnauthorized
 	}
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return TaskPage{}, err
 	}
-
-	return s.repo.FindAll(ctx, ownerID)
+	if options.Limit == 0 {
+		options.Limit = DefaultLimit
+	}
+	if options.Limit < 1 || options.Limit > MaxLimit {
+		return TaskPage{}, ErrInvalidList
+	}
+	filter, err := normalizeFilter(options.ListFilter)
+	if err != nil {
+		return TaskPage{}, err
+	}
+	scope, err := cursorScope(ownerID, filter)
+	if err != nil {
+		return TaskPage{}, err
+	}
+	query := PageQuery{ListFilter: filter, Limit: options.Limit + 1}
+	if options.Cursor != "" {
+		query.After, err = decodeCursor(options.Cursor, scope)
+		if err != nil {
+			return TaskPage{}, err
+		}
+	}
+	rows, err := s.repo.FindPage(ctx, ownerID, query)
+	if err != nil {
+		return TaskPage{}, err
+	}
+	page := TaskPage{Items: rows}
+	if page.Items == nil {
+		page.Items = []Task{}
+	}
+	if len(rows) > options.Limit {
+		page.Items = rows[:options.Limit]
+		last := page.Items[len(page.Items)-1]
+		page.NextCursor, err = encodeCursor(CursorPosition{CreatedAt: last.CreatedAt, ID: last.ID}, scope)
+		if err != nil {
+			return TaskPage{}, err
+		}
+	}
+	return page, nil
 }
 
 func (s *Service) Update(ctx context.Context, ownerID session.UserID, id string, input UpdateTaskRequest) (*Task, error) {
@@ -100,7 +136,11 @@ func (s *Service) Update(ctx context.Context, ownerID session.UserID, id string,
 	if input.Title == nil &&
 		input.Description == nil &&
 		input.Priority == nil &&
-		input.Completed == nil {
+		input.Completed == nil && !input.DueDate.Present {
+		return nil, ErrInvalidUpdate
+	}
+
+	if input.DueDate.Present && !validDate(input.DueDate.Value) {
 		return nil, ErrInvalidUpdate
 	}
 
@@ -137,6 +177,10 @@ func (s *Service) Update(ctx context.Context, ownerID session.UserID, id string,
 
 	if input.Completed != nil {
 		current.Completed = *input.Completed
+	}
+
+	if input.DueDate.Present {
+		current.DueDate = copyTime(input.DueDate.Value)
 	}
 
 	if err := s.repo.Update(ctx, ownerID, current); err != nil {

@@ -184,7 +184,7 @@ func TestTaskOwnershipIntegration(t *testing.T) {
 	}
 	canceled, stop := context.WithCancel(ctx)
 	stop()
-	if _, err := repo.FindAll(canceled, ids[0]); !errors.Is(err, context.Canceled) {
+	if _, err := repo.FindPage(canceled, ids[0], PageQuery{Limit: 100}); !errors.Is(err, context.Canceled) {
 		t.Fatal("context lost")
 	}
 	// Exercise a task repository outage with valid authentication supplied by fixture.

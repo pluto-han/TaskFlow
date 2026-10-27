@@ -19,7 +19,7 @@ type Querier interface {
 	GetTask(ctx context.Context, arg GetTaskParams) (Task, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
-	ListTasks(ctx context.Context, ownerID pgtype.UUID) ([]Task, error)
+	ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, error)
 	RevokeSession(ctx context.Context, arg RevokeSessionParams) (int64, error)
 	UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, error)
 }

@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"sort"
 	"sync"
 
 	"github.com/pluto-han/taskflow/internal/session"
@@ -34,7 +35,8 @@ func (r *MemoryRepository) FindByID(ctx context.Context, ownerID session.UserID,
 		return nil, ErrTaskNotFound
 	}
 
-	return &task, nil
+	value := cloneTask(task)
+	return &value, nil
 }
 
 func (r *MemoryRepository) Save(ctx context.Context, ownerID session.UserID, task *Task) error {
@@ -52,28 +54,44 @@ func (r *MemoryRepository) Save(ctx context.Context, ownerID session.UserID, tas
 	}
 	task.OwnerID = ownerID
 	task.Version = 1
-	r.tasks[task.ID] = *task
+	r.tasks[task.ID] = cloneTask(*task)
 	return nil
 }
 
-func (r *MemoryRepository) FindAll(ctx context.Context, ownerID session.UserID) ([]Task, error) {
+func (r *MemoryRepository) FindPage(ctx context.Context, ownerID session.UserID, query PageQuery) ([]Task, error) {
 	if ownerID == "" {
 		return nil, session.ErrUnauthorized
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	if err := validatePageQuery(query); err != nil {
+		return nil, err
+	}
+	query.ListFilter, _ = normalizeFilter(query.ListFilter)
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	tasks := make([]Task, 0, len(r.tasks))
 	for _, task := range r.tasks {
-		if task.OwnerID != ownerID {
+		if task.OwnerID != ownerID || !matchesFilter(task, query.ListFilter) {
 			continue
 		}
-		tasks = append(tasks, task)
+		if query.After != nil && (task.CreatedAt.After(query.After.CreatedAt) || (task.CreatedAt.Equal(query.After.CreatedAt) && task.ID >= query.After.ID)) {
+			continue
+		}
+		tasks = append(tasks, cloneTask(task))
 	}
 
+	sort.Slice(tasks, func(i, j int) bool {
+		if tasks[i].CreatedAt.Equal(tasks[j].CreatedAt) {
+			return tasks[i].ID > tasks[j].ID
+		}
+		return tasks[i].CreatedAt.After(tasks[j].CreatedAt)
+	})
+	if len(tasks) > query.Limit {
+		tasks = tasks[:query.Limit]
+	}
 	return tasks, nil
 }
 
@@ -100,7 +118,7 @@ func (r *MemoryRepository) Update(ctx context.Context, ownerID session.UserID, t
 	updated.OwnerID = ownerID
 	updated.Version++
 
-	r.tasks[task.ID] = updated
+	r.tasks[task.ID] = cloneTask(updated)
 	task.OwnerID = ownerID
 	task.Version = updated.Version
 
@@ -123,4 +141,23 @@ func (r *MemoryRepository) Delete(ctx context.Context, ownerID session.UserID, i
 
 	delete(r.tasks, id)
 	return nil
+}
+
+func matchesFilter(task Task, filter ListFilter) bool {
+	if filter.Completed != nil && task.Completed != *filter.Completed {
+		return false
+	}
+	if filter.Priority != nil && task.Priority != *filter.Priority {
+		return false
+	}
+	if filter.HasDueDate != nil && (task.DueDate != nil) != *filter.HasDueDate {
+		return false
+	}
+	if filter.DueFrom != nil && (task.DueDate == nil || task.DueDate.Before(*filter.DueFrom)) {
+		return false
+	}
+	if filter.DueBefore != nil && (task.DueDate == nil || !task.DueDate.Before(*filter.DueBefore)) {
+		return false
+	}
+	return true
 }

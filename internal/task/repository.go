@@ -11,7 +11,7 @@ var ErrTaskNotFound = errors.New("task not found")
 
 type Repository interface {
 	FindByID(ctx context.Context, ownerID session.UserID, id string) (*Task, error)
-	FindAll(ctx context.Context, ownerID session.UserID) ([]Task, error)
+	FindPage(ctx context.Context, ownerID session.UserID, query PageQuery) ([]Task, error)
 	Save(ctx context.Context, ownerID session.UserID, task *Task) error
 	Update(ctx context.Context, ownerID session.UserID, task *Task) error
 	Delete(ctx context.Context, ownerID session.UserID, id string) error

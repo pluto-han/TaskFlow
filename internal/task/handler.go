@@ -27,6 +27,8 @@ func writeTaskError(c *gin.Context, err error) {
 	case errors.Is(err, session.ErrUnauthorized):
 		c.Header("WWW-Authenticate", "Bearer")
 		httpapi.WriteError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Invalid credentials or session")
+	case errors.Is(err, ErrInvalidList):
+		httpapi.WriteError(c, http.StatusBadRequest, "INVALID_QUERY", "Invalid task list parameters")
 	case errors.Is(err, ErrTaskNotFound):
 		httpapi.WriteError(c, http.StatusNotFound, "TASK_NOT_FOUND", "Task not found")
 
@@ -69,14 +71,22 @@ func (h *Handler) List(c *gin.Context) {
 	if !ok {
 		return
 	}
-	tasks, err := h.service.List(c.Request.Context(), ownerID)
+	options, err := ParseListOptions(c.Request.URL.RawQuery)
+	if err != nil {
+		writeTaskError(c, err)
+		return
+	}
+	page, err := h.service.List(c.Request.Context(), ownerID, options)
 
 	if err != nil {
 		writeTaskError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, tasks)
+	if page.NextCursor != "" {
+		c.Header("X-Next-Cursor", page.NextCursor)
+	}
+	c.JSON(http.StatusOK, page.Items)
 }
 
 func (h *Handler) Create(c *gin.Context) {

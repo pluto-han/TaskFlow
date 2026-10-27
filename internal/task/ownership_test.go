@@ -49,7 +49,7 @@ func repositoryIsolation(t *testing.T, repo Repository, a, b session.UserID) {
 		if err := repo.Delete(ctx, pair.subject, pair.foreign.ID); !errors.Is(err, ErrTaskNotFound) {
 			t.Fatalf("cross-user delete: %v", err)
 		}
-		rows, err := repo.FindAll(ctx, pair.subject)
+		rows, err := repo.FindPage(ctx, pair.subject, PageQuery{Limit: 100})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -81,7 +81,7 @@ func repositoryIsolation(t *testing.T, repo Repository, a, b session.UserID) {
 	if _, err := repo.FindByID(ctx, a, own.ID); !errors.Is(err, ErrTaskNotFound) {
 		t.Fatal("delete failed")
 	}
-	if _, err := repo.FindAll(ctx, ""); !errors.Is(err, session.ErrUnauthorized) {
+	if _, err := repo.FindPage(ctx, "", PageQuery{Limit: 100}); !errors.Is(err, session.ErrUnauthorized) {
 		t.Fatal("empty owner queried tasks")
 	}
 	if err := repo.Save(ctx, "", &Task{ID: "anonymous"}); !errors.Is(err, session.ErrUnauthorized) {

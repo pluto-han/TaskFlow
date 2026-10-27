@@ -77,15 +77,32 @@ func (r *PostgresRepository) FindByID(ctx context.Context, ownerID session.UserI
 	return toDomainTask(row), nil
 }
 
-func (r *PostgresRepository) FindAll(
-	ctx context.Context, ownerID session.UserID,
+func (r *PostgresRepository) FindPage(
+	ctx context.Context, ownerID session.UserID, query PageQuery,
 ) ([]Task, error) {
 	owner, err := ownerUUID(ownerID)
 	if err != nil {
 		return nil, err
 	}
 
-	rows, err := r.queries.ListTasks(ctx, owner)
+	if err := validatePageQuery(query); err != nil {
+		return nil, err
+	}
+	params := db.ListTasksParams{OwnerID: owner, PageLimit: int32(query.Limit), DueFrom: toPgTimestamp(query.DueFrom), DueBefore: toPgTimestamp(query.DueBefore)}
+	if query.Completed != nil {
+		params.CompletedFilter = pgtype.Bool{Bool: *query.Completed, Valid: true}
+	}
+	if query.Priority != nil {
+		params.PriorityFilter = pgtype.Int4{Int32: int32(*query.Priority), Valid: true}
+	}
+	if query.HasDueDate != nil {
+		params.HasDueDate = pgtype.Bool{Bool: *query.HasDueDate, Valid: true}
+	}
+	if query.After != nil {
+		params.AfterCreatedAt = toPgTimestamp(&query.After.CreatedAt)
+		params.AfterID = query.After.ID
+	}
+	rows, err := r.queries.ListTasks(ctx, params)
 	if err != nil {
 		return nil, fmt.Errorf("list tasks: %w", err)
 	}
