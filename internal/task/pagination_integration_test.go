@@ -54,7 +54,7 @@ func TestTaskPaginationIntegration(t *testing.T) {
 	defer pool.Close()
 	var version int
 	var dirty bool
-	if err := pool.QueryRow(ctx, "SELECT version,dirty FROM schema_migrations").Scan(&version, &dirty); err != nil || version != 7 || dirty {
+	if err := pool.QueryRow(ctx, "SELECT version,dirty FROM schema_migrations").Scan(&version, &dirty); err != nil || version != 8 || dirty {
 		t.Fatal("unexpected schema state")
 	}
 	// Atomic insert fails on pre-existing fixture IDs: never clean another run's rows.
@@ -76,14 +76,14 @@ func TestTaskPaginationIntegration(t *testing.T) {
 	paginationContract(t, repo, testOwner, otherOwner)
 	dueDateContract(t, repo)
 	// Clear vs. set read the same version, then race at PostgreSQL's atomic UPDATE.
-	service := NewService(repo)
+	service := NewService(repo, nil)
 	task, err := service.Create(ctx, testOwner, CreateTaskRequest{Title: "Deadline race", Priority: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
 	synced := &synchronizedReadRepository{Repository: repo}
 	synced.readers.Add(2)
-	raceService := NewService(synced)
+	raceService := NewService(synced, nil)
 	due := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
 	results := make(chan error, 2)
 	var wg sync.WaitGroup

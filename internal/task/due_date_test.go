@@ -21,7 +21,7 @@ func dueDateContract(t *testing.T, repo Repository) {
 		t.Fatal(err)
 	}
 	router := gin.New()
-	Mount(router, NewService(repo), session.NewHandler(ss).RequireSession)
+	Mount(router, NewService(repo, nil), session.NewHandler(ss).RequireSession)
 	rec := taskRequest(router, "POST", "/tasks", `{"title":"Overdue allowed","priority":2,"due_date":"2000-01-01T12:00:00Z"}`, testToken)
 	var task Task
 	if rec.Code != 201 || json.Unmarshal(rec.Body.Bytes(), &task) != nil || task.DueDate == nil {

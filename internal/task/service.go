@@ -8,18 +8,24 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pluto-han/taskflow/internal/project"
 	"github.com/pluto-han/taskflow/internal/session"
 )
 
 var ErrInvalidTask = errors.New("invalid task")
 var ErrInvalidUpdate = errors.New("invalid task update")
 
-type Service struct {
-	repo Repository
+type ProjectReader interface {
+	GetByID(context.Context, session.UserID, string) (*project.Project, error)
 }
 
-func NewService(repo Repository) *Service {
-	return &Service{repo: repo}
+type Service struct {
+	projects ProjectReader
+	repo     Repository
+}
+
+func NewService(repo Repository, projects ProjectReader) *Service {
+	return &Service{repo: repo, projects: projects}
 }
 
 func (s *Service) Create(ctx context.Context, ownerID session.UserID, input CreateTaskRequest) (*Task, error) {
@@ -37,6 +43,11 @@ func (s *Service) Create(ctx context.Context, ownerID session.UserID, input Crea
 		return nil, ErrInvalidTask
 	}
 
+	projectID, err := s.checkProject(ctx, ownerID, input.ProjectID)
+	if err != nil {
+		return nil, err
+	}
+
 	idBytes := make([]byte, 16)
 
 	if _, err := rand.Read(idBytes); err != nil {
@@ -44,6 +55,7 @@ func (s *Service) Create(ctx context.Context, ownerID session.UserID, input Crea
 	}
 
 	newTask := &Task{
+		ProjectID:   projectID,
 		OwnerID:     ownerID,
 		ID:          hex.EncodeToString(idBytes),
 		Title:       title,
@@ -136,7 +148,7 @@ func (s *Service) Update(ctx context.Context, ownerID session.UserID, id string,
 	if input.Title == nil &&
 		input.Description == nil &&
 		input.Priority == nil &&
-		input.Completed == nil && !input.DueDate.Present {
+		input.Completed == nil && !input.DueDate.Present && !input.ProjectID.Present {
 		return nil, ErrInvalidUpdate
 	}
 
@@ -183,6 +195,13 @@ func (s *Service) Update(ctx context.Context, ownerID session.UserID, id string,
 		current.DueDate = copyTime(input.DueDate.Value)
 	}
 
+	if input.ProjectID.Present {
+		current.ProjectID, err = s.checkProject(ctx, ownerID, input.ProjectID.Value)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	if err := s.repo.Update(ctx, ownerID, current); err != nil {
 		return nil, err
 	}
@@ -200,4 +219,21 @@ func (s *Service) Delete(ctx context.Context, ownerID session.UserID, id string)
 	}
 
 	return s.repo.Delete(ctx, ownerID, id)
+}
+
+func (s *Service) checkProject(ctx context.Context, owner session.UserID, raw *string) (*string, error) {
+	if raw == nil {
+		return nil, nil
+	}
+	id, err := project.ParseID(*raw)
+	if err != nil {
+		return nil, project.ErrInvalid
+	}
+	if s.projects == nil {
+		return nil, project.ErrNotFound
+	}
+	if _, err := s.projects.GetByID(ctx, owner, id); err != nil {
+		return nil, err
+	}
+	return &id, nil
 }

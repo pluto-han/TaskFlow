@@ -166,7 +166,7 @@ func TestTaskHTTPIsolation(t *testing.T) {
 func TestHandlerFailsClosedWithoutMiddleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	h := NewHandler(NewService(NewMemoryRepository()))
+	h := NewHandler(NewService(NewMemoryRepository(), nil))
 	r.GET("/tasks", h.List)
 	r.POST("/tasks", h.Create)
 	r.GET("/tasks/:id", h.GetByID)

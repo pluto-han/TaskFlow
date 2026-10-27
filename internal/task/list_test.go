@@ -23,7 +23,7 @@ func intPointer(value int) *int    { return &value }
 func paginationContract(t *testing.T, repo Repository, owner, other session.UserID) {
 	t.Helper()
 	ctx := context.Background()
-	service := NewService(repo)
+	service := NewService(repo, nil)
 	base := time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
 	var fixture []Task
 	for i := 0; i < 37; i++ {
@@ -184,7 +184,7 @@ func TestListInputValidation(t *testing.T) {
 	if err != nil || options.Completed == nil || *options.Completed || options.Limit != 100 || options.DueFrom.Hour() != 0 {
 		t.Fatalf("valid options: %+v %v", options, err)
 	}
-	service := NewService(NewMemoryRepository())
+	service := NewService(NewMemoryRepository(), nil)
 	for _, cursor := range []string{"!", base64.RawURLEncoding.EncodeToString([]byte(`{}`)), base64.RawURLEncoding.EncodeToString([]byte(`null`)), strings.Repeat("a", 2049)} {
 		if _, err := service.List(context.Background(), testOwner, ListOptions{Cursor: cursor}); !errors.Is(err, ErrInvalidList) {
 			t.Fatal("invalid cursor accepted")

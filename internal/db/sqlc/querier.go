@@ -11,16 +11,21 @@ import (
 )
 
 type Querier interface {
+	CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (CreateSessionRow, error)
 	CreateTask(ctx context.Context, arg CreateTaskParams) error
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	DeleteProject(ctx context.Context, arg DeleteProjectParams) (pgtype.UUID, error)
 	DeleteTask(ctx context.Context, arg DeleteTaskParams) (string, error)
 	GetActiveSession(ctx context.Context, tokenHash []byte) (GetActiveSessionRow, error)
+	GetProject(ctx context.Context, arg GetProjectParams) (Project, error)
 	GetTask(ctx context.Context, arg GetTaskParams) (Task, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
+	ListProjects(ctx context.Context, ownerID pgtype.UUID) ([]Project, error)
 	ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, error)
 	RevokeSession(ctx context.Context, arg RevokeSessionParams) (int64, error)
+	UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error)
 	UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, error)
 }
 

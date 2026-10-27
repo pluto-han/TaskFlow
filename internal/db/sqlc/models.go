@@ -10,6 +10,15 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Project struct {
+	ID          pgtype.UUID        `json:"id"`
+	OwnerID     pgtype.UUID        `json:"owner_id"`
+	Name        string             `json:"name"`
+	Description string             `json:"description"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Session struct {
 	ID        pgtype.UUID        `json:"id"`
 	UserID    pgtype.UUID        `json:"user_id"`
@@ -29,6 +38,7 @@ type Task struct {
 	DueDate     pgtype.Timestamptz `json:"due_date"`
 	Version     int64              `json:"version"`
 	OwnerID     pgtype.UUID        `json:"owner_id"`
+	ProjectID   pgtype.UUID        `json:"project_id"`
 }
 
 type User struct {

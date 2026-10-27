@@ -11,7 +11,7 @@ import (
 // TestServiceCreate 测试创建任务的正常流程。
 func TestServiceCreate(t *testing.T) {
 	repo := NewMemoryRepository()
-	service := NewService(repo)
+	service := NewService(repo, nil)
 
 	input := CreateTaskRequest{
 		Title:       "Learn Go",
@@ -76,7 +76,7 @@ func TestServiceCreateValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := NewMemoryRepository()
-			service := NewService(repo)
+			service := NewService(repo, nil)
 
 			_, err := service.Create(
 				context.Background(), testOwner,
@@ -103,7 +103,7 @@ func TestServiceCreateValidation(t *testing.T) {
 // TestServiceGetByIDNotFound 测试查询不存在的任务。
 func TestServiceGetByIDNotFound(t *testing.T) {
 	repo := NewMemoryRepository()
-	service := NewService(repo)
+	service := NewService(repo, nil)
 
 	result, err := service.GetByID(
 		context.Background(), testOwner,
@@ -122,7 +122,7 @@ func TestServiceGetByIDNotFound(t *testing.T) {
 // TestServiceUpdate 测试部分更新，尤其是 completed=false。
 func TestServiceUpdate(t *testing.T) {
 	repo := NewMemoryRepository()
-	service := NewService(repo)
+	service := NewService(repo, nil)
 
 	original := &Task{
 		ID:        "task-1",
@@ -207,7 +207,7 @@ func TestServiceUpdateValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := NewMemoryRepository()
-			service := NewService(repo)
+			service := NewService(repo, nil)
 
 			err := repo.Save(context.Background(), testOwner, &Task{
 				ID:       "task-1",
@@ -235,7 +235,7 @@ func TestServiceUpdateValidation(t *testing.T) {
 // TestServiceDelete 测试删除任务。
 func TestServiceDelete(t *testing.T) {
 	repo := NewMemoryRepository()
-	service := NewService(repo)
+	service := NewService(repo, nil)
 
 	if err := repo.Save(context.Background(), testOwner, &Task{
 		ID:       "task-1",
@@ -263,7 +263,7 @@ func TestServiceDelete(t *testing.T) {
 // TestServiceDeleteNotFound 测试删除不存在的任务。
 func TestServiceDeleteNotFound(t *testing.T) {
 	repo := NewMemoryRepository()
-	service := NewService(repo)
+	service := NewService(repo, nil)
 
 	err := service.Delete(context.Background(), testOwner, "not-exist")
 
@@ -287,7 +287,7 @@ func (r *failingRepository) Save(ctx context.Context, ownerID session.UserID, ta
 // TestServiceCreateRepositoryError 验证底层错误是否正确传播。
 func TestServiceCreateRepositoryError(t *testing.T) {
 	repo := &failingRepository{}
-	service := NewService(repo)
+	service := NewService(repo, nil)
 
 	_, err := service.Create(
 		context.Background(), testOwner,

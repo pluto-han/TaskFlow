@@ -23,7 +23,7 @@ import (
 func TestTaskOwnershipIntegration(t *testing.T) {
 	url := os.Getenv("TASKFLOW_TASK_TEST_DATABASE_URL")
 	if url == "" {
-		t.Skip("run scripts/test-lesson14.sh")
+		t.Skip("set TASKFLOW_TASK_TEST_DATABASE_URL to an isolated taskflow_lesson14_test database migrated to version 8")
 	}
 	cfg, err := pgxpool.ParseConfig(url)
 	if err != nil || cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Database != "taskflow_lesson14_test" {
@@ -38,7 +38,7 @@ func TestTaskOwnershipIntegration(t *testing.T) {
 	defer pool.Close()
 	var version int
 	var dirty bool
-	if err := pool.QueryRow(ctx, "SELECT version,dirty FROM schema_migrations").Scan(&version, &dirty); err != nil || version != 6 || dirty {
+	if err := pool.QueryRow(ctx, "SELECT version,dirty FROM schema_migrations").Scan(&version, &dirty); err != nil || version != 8 || dirty {
 		t.Fatal("unexpected migration state")
 	}
 	users := user.NewPostgresRepository(pool)
@@ -51,7 +51,7 @@ func TestTaskOwnershipIntegration(t *testing.T) {
 	router := gin.New()
 	session.Mount(router, ss)
 	router.POST("/auth/register", user.NewHandler(user.NewService(users, auth.PasswordHasher{})).Register)
-	Mount(router, NewService(repo), session.NewHandler(ss).RequireSession)
+	Mount(router, NewService(repo, nil), session.NewHandler(ss).RequireSession)
 	var ids []session.UserID
 	var tokens []string
 	var tasks []Task
@@ -109,7 +109,7 @@ func TestTaskOwnershipIntegration(t *testing.T) {
 	// Both requests read version 1 before either can write: exercise SQL CAS.
 	synced := &synchronizedReadRepository{Repository: repo}
 	synced.readers.Add(2)
-	svc := NewService(synced)
+	svc := NewService(synced, nil)
 	outcomes := make(chan error, 2)
 	var wg sync.WaitGroup
 	for _, title := range []string{"First", "Second"} {
@@ -191,7 +191,7 @@ func TestTaskOwnershipIntegration(t *testing.T) {
 	pool.Close()
 	offline := gin.New()
 	fakeSession, _ := session.NewService(ctx, nil, testSessionRepository{}, testPasswords{})
-	Mount(offline, NewService(repo), session.NewHandler(fakeSession).RequireSession)
+	Mount(offline, NewService(repo, nil), session.NewHandler(fakeSession).RequireSession)
 	rec = taskRequest(offline, "GET", "/tasks", "", testToken)
 	if rec.Code != 500 || strings.TrimSpace(rec.Body.String()) != `{"error":{"code":"INTERNAL_ERROR","message":"Internal server error"}}` {
 		t.Fatal("repository error leaked")

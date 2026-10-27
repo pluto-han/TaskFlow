@@ -15,6 +15,7 @@ import (
 
 	"github.com/pluto-han/taskflow/internal/auth"
 	"github.com/pluto-han/taskflow/internal/config"
+	"github.com/pluto-han/taskflow/internal/project"
 	"github.com/pluto-han/taskflow/internal/session"
 	"github.com/pluto-han/taskflow/internal/task"
 	"github.com/pluto-han/taskflow/internal/user"
@@ -48,7 +49,8 @@ func main() {
 	defer pool.Close()
 
 	repo := task.NewPostgresRepository(pool)
-	service := task.NewService(repo)
+	projectRepo := project.NewPostgresRepository(pool)
+	service := task.NewService(repo, projectRepo)
 
 	router := gin.Default()
 	userRepo := user.NewPostgresRepository(pool)
@@ -67,6 +69,7 @@ func main() {
 	})
 
 	task.Mount(router, service, session.NewHandler(sessionService).RequireSession)
+	project.Mount(router, project.NewService(projectRepo), session.NewHandler(sessionService).RequireSession)
 
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,

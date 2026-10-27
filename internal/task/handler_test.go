@@ -17,7 +17,7 @@ func newTestRouter() (*gin.Engine, *MemoryRepository) {
 	gin.SetMode(gin.TestMode)
 
 	repo := NewMemoryRepository()
-	service := NewService(repo)
+	service := NewService(repo, nil)
 	router := gin.New()
 	ss, _ := session.NewService(context.Background(), nil, testSessionRepository{}, testPasswords{})
 	Mount(router, service, session.NewHandler(ss).RequireSession)

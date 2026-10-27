@@ -35,7 +35,7 @@ func TestServiceUpdateRejectedVersionDoesNotWrite(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 			repo := NewMemoryRepository()
-			service := NewService(repo)
+			service := NewService(repo, nil)
 			task, err := service.Create(ctx, testOwner, CreateTaskRequest{Title: "Original", Priority: 2})
 			if err != nil {
 				t.Fatal(err)
@@ -80,13 +80,13 @@ func (r *synchronizedReadRepository) FindByID(ctx context.Context, ownerID sessi
 func TestServiceConcurrentUpdatesOnlyOneSucceeds(t *testing.T) {
 	ctx := context.Background()
 	memory := NewMemoryRepository()
-	task, err := NewService(memory).Create(ctx, testOwner, CreateTaskRequest{Title: "Original", Priority: 2})
+	task, err := NewService(memory, nil).Create(ctx, testOwner, CreateTaskRequest{Title: "Original", Priority: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
 	repo := &synchronizedReadRepository{Repository: memory}
 	repo.readers.Add(2)
-	service := NewService(repo)
+	service := NewService(repo, nil)
 	type result struct {
 		task *Task
 		err  error

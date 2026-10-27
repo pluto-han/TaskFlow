@@ -15,9 +15,9 @@ import (
 const createTask = `-- name: CreateTask :exec
 INSERT INTO tasks (
     id, title, description, completed,
-    priority, created_at, due_date, owner_id
+    priority, created_at, due_date, owner_id, project_id
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 `
 
 type CreateTaskParams struct {
@@ -29,6 +29,7 @@ type CreateTaskParams struct {
 	CreatedAt   time.Time          `json:"created_at"`
 	DueDate     pgtype.Timestamptz `json:"due_date"`
 	OwnerID     pgtype.UUID        `json:"owner_id"`
+	ProjectID   pgtype.UUID        `json:"project_id"`
 }
 
 func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) error {
@@ -41,6 +42,7 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) error {
 		arg.CreatedAt,
 		arg.DueDate,
 		arg.OwnerID,
+		arg.ProjectID,
 	)
 	return err
 }
@@ -64,7 +66,7 @@ func (q *Queries) DeleteTask(ctx context.Context, arg DeleteTaskParams) (string,
 }
 
 const getTask = `-- name: GetTask :one
-SELECT id, title, description, completed, priority, created_at, due_date, version, owner_id
+SELECT id, title, description, completed, priority, created_at, due_date, version, owner_id, project_id
 FROM tasks
 WHERE id = $1 AND owner_id = $2
 `
@@ -87,12 +89,13 @@ func (q *Queries) GetTask(ctx context.Context, arg GetTaskParams) (Task, error) 
 		&i.DueDate,
 		&i.Version,
 		&i.OwnerID,
+		&i.ProjectID,
 	)
 	return i, err
 }
 
 const listTasks = `-- name: ListTasks :many
-SELECT id, title, description, completed, priority, created_at, due_date, version, owner_id
+SELECT id, title, description, completed, priority, created_at, due_date, version, owner_id, project_id
 FROM tasks
 WHERE owner_id = $1
   AND ($2::boolean IS NULL OR completed = $2)
@@ -147,6 +150,7 @@ func (q *Queries) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, e
 			&i.DueDate,
 			&i.Version,
 			&i.OwnerID,
+			&i.ProjectID,
 		); err != nil {
 			return nil, err
 		}
@@ -166,10 +170,11 @@ SET
     completed = $4,
     priority = $5,
     due_date = $6,
-    version = version + 1
+    version = version + 1,
+    project_id = $9
 WHERE id = $1 AND version = $7 AND owner_id = $8
 RETURNING id, title, description, completed,
-          priority, created_at, due_date, version, owner_id
+          priority, created_at, due_date, version, owner_id, project_id
 `
 
 type UpdateTaskParams struct {
@@ -181,6 +186,7 @@ type UpdateTaskParams struct {
 	DueDate     pgtype.Timestamptz `json:"due_date"`
 	Version     int64              `json:"version"`
 	OwnerID     pgtype.UUID        `json:"owner_id"`
+	ProjectID   pgtype.UUID        `json:"project_id"`
 }
 
 func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, error) {
@@ -193,6 +199,7 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, e
 		arg.DueDate,
 		arg.Version,
 		arg.OwnerID,
+		arg.ProjectID,
 	)
 	var i Task
 	err := row.Scan(
@@ -205,6 +212,7 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, e
 		&i.DueDate,
 		&i.Version,
 		&i.OwnerID,
+		&i.ProjectID,
 	)
 	return i, err
 }

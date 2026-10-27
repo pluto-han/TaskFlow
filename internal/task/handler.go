@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin/binding"
 
 	"github.com/pluto-han/taskflow/internal/httpapi"
+	"github.com/pluto-han/taskflow/internal/project"
 	"github.com/pluto-han/taskflow/internal/session"
 )
 
@@ -27,6 +28,10 @@ func writeTaskError(c *gin.Context, err error) {
 	case errors.Is(err, session.ErrUnauthorized):
 		c.Header("WWW-Authenticate", "Bearer")
 		httpapi.WriteError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Invalid credentials or session")
+	case errors.Is(err, project.ErrInvalid):
+		httpapi.WriteError(c, 400, "INVALID_PROJECT", "Invalid project ID")
+	case errors.Is(err, project.ErrNotFound):
+		httpapi.WriteError(c, 404, "PROJECT_NOT_FOUND", "Project not found")
 	case errors.Is(err, ErrInvalidList):
 		httpapi.WriteError(c, http.StatusBadRequest, "INVALID_QUERY", "Invalid task list parameters")
 	case errors.Is(err, ErrTaskNotFound):

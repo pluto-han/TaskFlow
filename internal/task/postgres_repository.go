@@ -7,8 +7,10 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/pluto-han/taskflow/internal/project"
 
 	db "github.com/pluto-han/taskflow/internal/db/sqlc"
 	"github.com/pluto-han/taskflow/internal/session"
@@ -47,6 +49,7 @@ func fromPgTimestamp(t pgtype.Timestamptz) *time.Time {
 func toDomainTask(row db.Task) *Task {
 	return &Task{
 		ID:          row.ID,
+		ProjectID:   projectString(row.ProjectID),
 		OwnerID:     session.UserID(row.OwnerID.String()),
 		Title:       row.Title,
 		Description: row.Description,
@@ -117,6 +120,10 @@ func (r *PostgresRepository) FindPage(
 }
 
 func (r *PostgresRepository) Save(ctx context.Context, ownerID session.UserID, task *Task) error {
+	projectID, err := projectUUID(task.ProjectID)
+	if err != nil {
+		return err
+	}
 	owner, err := ownerUUID(ownerID)
 	if err != nil {
 		return err
@@ -125,6 +132,7 @@ func (r *PostgresRepository) Save(ctx context.Context, ownerID session.UserID, t
 	err = r.queries.CreateTask(
 		ctx,
 		db.CreateTaskParams{
+			ProjectID:   projectID,
 			OwnerID:     owner,
 			ID:          task.ID,
 			Title:       task.Title,
@@ -137,7 +145,7 @@ func (r *PostgresRepository) Save(ctx context.Context, ownerID session.UserID, t
 	)
 
 	if err != nil {
-		return fmt.Errorf("save task: %w", err)
+		return mapProjectConstraint(fmt.Errorf("save task: %w", err))
 	}
 
 	// CreateTask uses the database default version.
@@ -147,6 +155,10 @@ func (r *PostgresRepository) Save(ctx context.Context, ownerID session.UserID, t
 }
 
 func (r *PostgresRepository) Update(ctx context.Context, ownerID session.UserID, task *Task) error {
+	projectID, err := projectUUID(task.ProjectID)
+	if err != nil {
+		return err
+	}
 	owner, err := ownerUUID(ownerID)
 	if err != nil {
 		return err
@@ -155,6 +167,7 @@ func (r *PostgresRepository) Update(ctx context.Context, ownerID session.UserID,
 	row, err := r.queries.UpdateTask(
 		ctx,
 		db.UpdateTaskParams{
+			ProjectID:   projectID,
 			OwnerID:     owner,
 			ID:          task.ID,
 			Title:       task.Title,
@@ -184,7 +197,7 @@ func (r *PostgresRepository) Update(ctx context.Context, ownerID session.UserID,
 	}
 
 	if err != nil {
-		return fmt.Errorf("update task: %w", err)
+		return mapProjectConstraint(fmt.Errorf("update task: %w", err))
 	}
 
 	task.OwnerID = ownerID
@@ -223,4 +236,29 @@ func ownerUUID(id session.UserID) (pgtype.UUID, error) {
 		return result, session.ErrUnauthorized
 	}
 	return result, nil
+}
+
+func projectString(id pgtype.UUID) *string {
+	if !id.Valid {
+		return nil
+	}
+	value := id.String()
+	return &value
+}
+func projectUUID(raw *string) (pgtype.UUID, error) {
+	var id pgtype.UUID
+	if raw == nil {
+		return id, nil
+	}
+	if err := id.Scan(*raw); err != nil || !id.Valid {
+		return id, project.ErrInvalid
+	}
+	return id, nil
+}
+func mapProjectConstraint(err error) error {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23503" && pgErr.ConstraintName == "tasks_project_owner_fk" {
+		return project.ErrNotFound
+	}
+	return err
 }

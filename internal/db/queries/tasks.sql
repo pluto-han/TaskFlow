@@ -1,11 +1,11 @@
 
 -- name: GetTask :one
-SELECT id, title, description, completed, priority, created_at, due_date, version, owner_id
+SELECT id, title, description, completed, priority, created_at, due_date, version, owner_id, project_id
 FROM tasks
 WHERE id = $1 AND owner_id = $2;
 
 -- name: ListTasks :many
-SELECT id, title, description, completed, priority, created_at, due_date, version, owner_id
+SELECT id, title, description, completed, priority, created_at, due_date, version, owner_id, project_id
 FROM tasks
 WHERE owner_id = sqlc.arg(owner_id)
   AND (sqlc.narg(completed_filter)::boolean IS NULL OR completed = sqlc.narg(completed_filter))
@@ -21,9 +21,9 @@ LIMIT sqlc.arg(page_limit)::integer;
 -- name: CreateTask :exec
 INSERT INTO tasks (
     id, title, description, completed,
-    priority, created_at, due_date, owner_id
+    priority, created_at, due_date, owner_id, project_id
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);
 
 -- name: UpdateTask :one
 UPDATE tasks
@@ -33,10 +33,11 @@ SET
     completed = $4,
     priority = $5,
     due_date = $6,
-    version = version + 1
+    version = version + 1,
+    project_id = $9
 WHERE id = $1 AND version = $7 AND owner_id = $8
 RETURNING id, title, description, completed,
-          priority, created_at, due_date, version, owner_id;
+          priority, created_at, due_date, version, owner_id, project_id;
 
 -- name: DeleteTask :one
 DELETE FROM tasks
