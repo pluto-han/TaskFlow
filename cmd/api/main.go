@@ -4,18 +4,19 @@ import (
 	"context"
 	"errors"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/pluto-han/taskflow/internal/auth"
 	"github.com/pluto-han/taskflow/internal/config"
 	"github.com/pluto-han/taskflow/internal/project"
+	"github.com/pluto-han/taskflow/internal/server"
 	"github.com/pluto-han/taskflow/internal/session"
 	"github.com/pluto-han/taskflow/internal/task"
 	"github.com/pluto-han/taskflow/internal/user"
@@ -36,13 +37,13 @@ func main() {
 	pool, err := pgxpool.New(dbCtx, cfg.DatabaseURL)
 	if err != nil {
 		dbCancel()
-		log.Fatal(err)
+		log.Fatal("Could not initialize database pool")
 	}
 
 	if err := pool.Ping(dbCtx); err != nil {
 		dbCancel()
 		pool.Close()
-		log.Fatalf("database connection failed: %v", err)
+		log.Fatal("Database connection failed")
 	}
 
 	dbCancel()
@@ -52,24 +53,19 @@ func main() {
 	projectRepo := project.NewPostgresRepository(pool)
 	service := task.NewService(repo, projectRepo)
 
-	router := gin.Default()
 	userRepo := user.NewPostgresRepository(pool)
-	userHandler := user.NewHandler(user.NewService(userRepo, auth.PasswordHasher{}))
 	sessionService, err := session.NewService(context.Background(), userRepo, session.NewPostgresRepository(pool), auth.PasswordHasher{})
 	if err != nil {
 		log.Fatal("Could not initialize password verification")
 	}
-	session.Mount(router, sessionService)
-	router.POST("/auth/register", userHandler.Register)
-
-	router.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"status": "ok",
-		})
+	router := server.NewRouter(server.Dependencies{
+		Users:    user.NewService(userRepo, auth.PasswordHasher{}),
+		Sessions: sessionService,
+		Tasks:    service,
+		Projects: project.NewService(projectRepo),
+		Ping:     pool.Ping,
+		Logger:   slog.New(slog.NewJSONHandler(os.Stdout, nil)),
 	})
-
-	task.Mount(router, service, session.NewHandler(sessionService).RequireSession)
-	project.Mount(router, project.NewService(projectRepo), session.NewHandler(sessionService).RequireSession)
 
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,
