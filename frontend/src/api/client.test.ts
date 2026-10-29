@@ -72,3 +72,23 @@ describe("API transport", () => {
     });
   });
 });
+
+it("reads the pagination header without losing project filters", async () => {
+  const { workspaceApi } = await import("./workspace");
+  const fetcher = vi
+    .fn()
+    .mockResolvedValue(
+      new Response("[]", { headers: { "X-Next-Cursor": "next-page" } }),
+    );
+  vi.stubGlobal("fetch", fetcher);
+  const page = await workspaceApi.tasks(
+    "secret",
+    { project: "none", completed: "false", priority: "3" },
+    "a+b",
+  );
+  expect(page.next).toBe("next-page");
+  const url = new URL(fetcher.mock.calls[0][0], "http://localhost");
+  expect(url.searchParams.get("project_id")).toBe("none");
+  expect(url.searchParams.get("cursor")).toBe("a+b");
+  expect(url.searchParams.get("completed")).toBe("false");
+});

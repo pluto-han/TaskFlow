@@ -181,3 +181,19 @@ it("expires the session locally without waiting for another API call", async () 
     vi.useRealTimers();
   }
 });
+
+it("clears authentication when a task request returns 401", async () => {
+  const { workspaceApi } = await import("./api/workspace");
+  vi.spyOn(workspaceApi, "projects").mockResolvedValue([]);
+  vi.spyOn(workspaceApi, "tasks").mockRejectedValue(
+    new ApiError("UNAUTHORIZED", 401),
+  );
+  mount();
+  const user = await fillLogin();
+  await screen.findByRole("heading", { name: "你的个人空间" });
+  await user.click(screen.getByRole("link", { name: /^任务$/ }));
+  expect(
+    await screen.findByRole("heading", { name: "欢迎回来。" }),
+  ).toBeVisible();
+  expect(screen.getByRole("status")).toHaveTextContent("登录已失效");
+});

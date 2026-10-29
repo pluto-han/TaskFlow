@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/pluto-han/taskflow/internal/project"
 	"github.com/pluto-han/taskflow/internal/session"
@@ -68,5 +69,50 @@ func TestOptionalProjectJSON(t *testing.T) {
 		if (err == nil) != tc.valid || (tc.valid && input.ProjectID.Present != tc.present) {
 			t.Fatalf("%s: %v", tc.body, err)
 		}
+	}
+}
+
+func TestProjectListFilter(t *testing.T) {
+	ctx := context.Background()
+	repo := NewMemoryRepository()
+	id := "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+	for _, item := range []*Task{{ID: "1", ProjectID: &id, Title: "one", Priority: 1}, {ID: "2", ProjectID: &id, Title: "two", Priority: 1}, {ID: "3", Title: "none", Priority: 1}} {
+		item.CreatedAt = time.Now().UTC()
+		if err := repo.Save(ctx, testOwner, item); err != nil {
+			t.Fatal(err)
+		}
+	}
+	service := NewService(repo, nil)
+	options, err := ParseListOptions("project_id=AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA&limit=1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err := service.List(ctx, testOwner, options)
+	if err != nil || len(page.Items) != 1 || page.NextCursor == "" {
+		t.Fatalf("first page: %v", err)
+	}
+	options.Cursor = page.NextCursor
+	page, err = service.List(ctx, testOwner, options)
+	if err != nil || len(page.Items) != 1 || page.NextCursor != "" {
+		t.Fatalf("second page: %v", err)
+	}
+	none := "none"
+	options.ProjectID = &none
+	if _, err := service.List(ctx, testOwner, options); !errors.Is(err, ErrInvalidList) {
+		t.Fatal("cross-filter cursor accepted")
+	}
+	options.Cursor = ""
+	page, err = service.List(ctx, testOwner, options)
+	if err != nil || len(page.Items) != 1 || page.Items[0].ID != "3" {
+		t.Fatal("unclassified filter")
+	}
+	for _, q := range []string{"project_id=", "project_id=bad", "project_id=none&project_id=none"} {
+		if _, err := ParseListOptions(q); !errors.Is(err, ErrInvalidList) {
+			t.Fatalf("accepted %s", q)
+		}
+	}
+	page, err = service.List(ctx, otherOwner, options)
+	if err != nil || len(page.Items) != 0 {
+		t.Fatal("owner isolation lost")
 	}
 }

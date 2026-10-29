@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pluto-han/taskflow/internal/project"
 	"github.com/pluto-han/taskflow/internal/session"
 )
 
@@ -22,6 +23,7 @@ const DefaultLimit = 20
 const MaxLimit = 100
 
 type ListFilter struct {
+	ProjectID  *string    `json:"project_id,omitempty"`
 	Completed  *bool      `json:"completed,omitempty"`
 	Priority   *int       `json:"priority,omitempty"`
 	HasDueDate *bool      `json:"has_due_date,omitempty"`
@@ -59,6 +61,14 @@ type taskCursor struct {
 }
 
 func normalizeFilter(f ListFilter) (ListFilter, error) {
+	if f.ProjectID != nil && *f.ProjectID != "none" {
+		id, err := project.ParseID(*f.ProjectID)
+		if err != nil {
+			return f, ErrInvalidList
+		}
+		f.ProjectID = &id
+	}
+
 	if f.Priority != nil && (*f.Priority < 1 || *f.Priority > 3) {
 		return f, ErrInvalidList
 	}
@@ -153,7 +163,7 @@ func ParseListOptions(rawQuery string) (ListOptions, error) {
 	if err != nil {
 		return options, ErrInvalidList
 	}
-	for _, key := range []string{"limit", "cursor", "completed", "priority", "has_due_date", "due_from", "due_before"} {
+	for _, key := range []string{"limit", "cursor", "completed", "priority", "has_due_date", "due_from", "due_before", "project_id"} {
 		v, exists := values[key]
 		if !exists {
 			continue
@@ -162,6 +172,9 @@ func ParseListOptions(rawQuery string) (ListOptions, error) {
 			return options, ErrInvalidList
 		}
 		switch key {
+		case "project_id":
+			value := v[0]
+			options.ProjectID = &value
 		case "limit":
 			options.Limit, err = strconv.Atoi(v[0])
 			if err != nil || options.Limit < 1 || options.Limit > MaxLimit {

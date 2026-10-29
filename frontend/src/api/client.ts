@@ -19,12 +19,13 @@ export class ApiError extends Error {
 
 // Fixed same-origin prefix: credentials cannot be redirected to a configured
 // third-party origin. Dev proxy and production reverse proxy own the mapping.
-async function request<T>(
+export async function request<T>(
   path: string,
   method: string,
   body?: unknown,
   token?: string,
   signal?: AbortSignal,
+  onResponse?: (response: Response) => void,
 ): Promise<T> {
   const headers = new Headers({ Accept: "application/json" });
   if (body !== undefined) headers.set("Content-Type", "application/json");
@@ -65,6 +66,7 @@ async function request<T>(
       response.headers.get("X-Request-ID") || undefined,
     );
   }
+  onResponse?.(response);
   if (response.status === 204) return undefined as T;
   try {
     return (await response.json()) as T;
@@ -94,6 +96,12 @@ export function errorMessage(error: unknown): string {
     AUTH_BUSY: "登录服务繁忙，请稍后重试。",
     REGISTRATION_BUSY: "注册服务繁忙，请稍后重试。",
     NETWORK_ERROR: "暂时无法连接服务器，请检查网络后重试。",
+    PROJECT_NOT_EMPTY: "项目仍有任务，请先移走或删除任务。",
+    TASK_NOT_FOUND: "任务已不存在，请刷新列表。",
+    PROJECT_NOT_FOUND: "项目已不存在或无法访问，请刷新项目列表。",
+    TASK_CONFLICT: "任务已被修改，请读取最新版本后再决定如何编辑。",
+    INVALID_TASK: "请检查任务标题、优先级与截止日期。",
+    INVALID_PROJECT: "项目名称需为 1–100 个字符，描述最多 2000 个字符。",
     TIMEOUT: "请求超时，请稍后重试。",
   };
   return messages[error.code] || "服务暂时不可用，请稍后重试。";

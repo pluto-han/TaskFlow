@@ -144,6 +144,16 @@ func (r *MemoryRepository) Delete(ctx context.Context, ownerID session.UserID, i
 }
 
 func matchesFilter(task Task, filter ListFilter) bool {
+	if filter.ProjectID != nil {
+		if *filter.ProjectID == "none" {
+			if task.ProjectID != nil {
+				return false
+			}
+		} else if task.ProjectID == nil || *task.ProjectID != *filter.ProjectID {
+			return false
+		}
+	}
+
 	if filter.Completed != nil && task.Completed != *filter.Completed {
 		return false
 	}

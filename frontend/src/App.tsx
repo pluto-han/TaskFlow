@@ -1,14 +1,27 @@
 import { useEffect, useRef } from "react";
 import { Link, Navigate, Route, Routes, useLocation } from "react-router";
-import { AuthProvider } from "./auth/AuthProvider";
+import { AuthProvider, useAuth } from "./auth/AuthProvider";
 import { AuthPage } from "./pages/AuthPage";
+import { WorkspacePage } from "./pages/WorkspacePage";
 import { ProfilePage } from "./pages/ProfilePage";
+
+function Navigation() {
+  const { user } = useAuth();
+  return user ? (
+    <nav className="app-nav" aria-label="主导航">
+      <Link to="/tasks">任务</Link>
+      <Link to="/profile">个人资料</Link>
+    </nav>
+  ) : (
+    <span className="nav-label">为专注留出空间</span>
+  );
+}
 
 export function App() {
   const { pathname } = useLocation();
   const main = useRef<HTMLElement>(null);
   useEffect(() => {
-    document.title = `${pathname === "/register" ? "注册" : pathname === "/profile" ? "个人空间" : "登录"} · TaskFlow`;
+    document.title = `${pathname === "/tasks" ? "任务" : pathname === "/register" ? "注册" : pathname === "/profile" ? "个人空间" : "登录"} · TaskFlow`;
     main.current?.focus();
   }, [pathname]);
   return (
@@ -24,16 +37,17 @@ export function App() {
             </span>
             TaskFlow
           </Link>
-          <span className="nav-label">为专注留出空间</span>
+          <Navigation />
         </header>
         <main id="main" className="main" ref={main} tabIndex={-1}>
           <Routes>
-            <Route path="/" element={<Navigate to="/profile" replace />} />
+            <Route path="/" element={<Navigate to="/tasks" replace />} />
             <Route path="/login" element={<AuthPage key="login" />} />
             <Route
               path="/register"
               element={<AuthPage key="register" register />}
             />
+            <Route path="/tasks" element={<WorkspacePage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route
               path="*"

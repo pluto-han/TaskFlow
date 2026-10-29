@@ -125,6 +125,59 @@ func TestProjectIntegration(t *testing.T) {
 	if json.Unmarshal(request("POST", "/tasks", fmt.Sprintf(`{"title":"task","priority":1,"project_id":%q}`, a.ID), testToken, 201), &item) != nil || item.ProjectID == nil || *item.ProjectID != a.ID {
 		t.Fatal("assignment failed")
 	}
+	// Project filtering must happen before SQL pagination, with owner scope intact.
+	var filtered []Task
+	if json.Unmarshal(request("GET", "/tasks?project_id="+a.ID+"&limit=1", "", testToken, 200), &filtered) != nil || len(filtered) != 1 || filtered[0].ID != item.ID {
+		t.Fatal("SQL project filter")
+	}
+	for _, value := range []string{foreign.ID, "none"} {
+		if json.Unmarshal(request("GET", "/tasks?project_id="+value, "", testToken, 200), &filtered) != nil || len(filtered) != 0 {
+			t.Fatal("SQL project isolation/unclassified")
+		}
+	}
+	request("GET", "/tasks?project_id=bad", "", testToken, 400)
+	second, err := ts.Create(ctx, testOwner, CreateTaskRequest{Title: "second project task", Priority: 1, ProjectID: &a.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstPage, err := ts.List(ctx, testOwner, ListOptions{Limit: 1, ListFilter: ListFilter{ProjectID: &a.ID}})
+	if err != nil || len(firstPage.Items) != 1 || firstPage.NextCursor == "" {
+		t.Fatalf("SQL filtered pagination: %v", err)
+	}
+	nextPage, err := ts.List(ctx, testOwner, ListOptions{Limit: 1, Cursor: firstPage.NextCursor, ListFilter: ListFilter{ProjectID: &a.ID}})
+	if err != nil || len(nextPage.Items) != 1 || nextPage.NextCursor != "" || firstPage.Items[0].ID == nextPage.Items[0].ID {
+		t.Fatal("SQL filtered next page")
+	}
+	if _, err := ts.List(ctx, testOwner, ListOptions{Limit: 1, Cursor: firstPage.NextCursor, ListFilter: ListFilter{ProjectID: &b.ID}}); !errors.Is(err, ErrInvalidList) {
+		t.Fatal("cross-project cursor accepted")
+	}
+	if err := tr.Delete(ctx, testOwner, second.ID); err != nil {
+		t.Fatal(err)
+	}
+	unclassified, err := ts.Create(ctx, testOwner, CreateTaskRequest{Title: "unclassified", Priority: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	none := "none"
+	page, err := ts.List(ctx, testOwner, ListOptions{ListFilter: ListFilter{ProjectID: &none}})
+	if err != nil || len(page.Items) != 1 || page.Items[0].ID != unclassified.ID {
+		t.Fatal("SQL unclassified filter")
+	}
+	if err := tr.Delete(ctx, testOwner, unclassified.ID); err != nil {
+		t.Fatal(err)
+	}
+	foreignTask, err := ts.Create(ctx, otherOwner, CreateTaskRequest{Title: "private", Priority: 1, ProjectID: &foreign.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err = ts.List(ctx, testOwner, ListOptions{ListFilter: ListFilter{ProjectID: &foreign.ID}})
+	if err != nil || len(page.Items) != 0 {
+		t.Fatal("foreign project task leaked")
+	}
+	if err := tr.Delete(ctx, otherOwner, foreignTask.ID); err != nil {
+		t.Fatal(err)
+	}
+
 	request("DELETE", "/projects/"+a.ID, "", testToken, 409)
 	request("DELETE", "/projects/"+a.ID, "", otherToken, 404)
 	request("PATCH", "/tasks/"+item.ID, fmt.Sprintf(`{"version":1,"project_id":%q}`, foreign.ID), testToken, 404)

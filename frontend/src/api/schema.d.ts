@@ -610,6 +610,8 @@ export interface operations {
                 due_from?: string;
                 /** @description Exclusive upper bound; must be greater than due_from. */
                 due_before?: string;
+                /** @description Project UUID, or literal none for unclassified tasks. Omit for all own tasks. Invalid/empty/duplicate values return 400. Foreign or absent projects yield an empty array. Cursor is bound to this filter. */
+                project_id?: string;
             };
             header?: never;
             path?: never;

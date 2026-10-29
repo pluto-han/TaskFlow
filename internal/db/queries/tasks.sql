@@ -8,6 +8,8 @@ WHERE id = $1 AND owner_id = $2;
 SELECT id, title, description, completed, priority, created_at, due_date, version, owner_id, project_id
 FROM tasks
 WHERE owner_id = sqlc.arg(owner_id)
+  AND (NOT sqlc.arg(unassigned)::boolean OR project_id IS NULL)
+  AND (sqlc.narg(project_filter)::uuid IS NULL OR project_id = sqlc.narg(project_filter))
   AND (sqlc.narg(completed_filter)::boolean IS NULL OR completed = sqlc.narg(completed_filter))
   AND (sqlc.narg(priority_filter)::integer IS NULL OR priority = sqlc.narg(priority_filter))
   AND (sqlc.narg(has_due_date)::boolean IS NULL OR (due_date IS NOT NULL) = sqlc.narg(has_due_date))

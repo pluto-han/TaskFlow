@@ -91,7 +91,15 @@ func (r *PostgresRepository) FindPage(
 	if err := validatePageQuery(query); err != nil {
 		return nil, err
 	}
+	query.ListFilter, _ = normalizeFilter(query.ListFilter)
 	params := db.ListTasksParams{OwnerID: owner, PageLimit: int32(query.Limit), DueFrom: toPgTimestamp(query.DueFrom), DueBefore: toPgTimestamp(query.DueBefore)}
+	if query.ProjectID != nil {
+		if *query.ProjectID == "none" {
+			params.Unassigned = true
+		} else {
+			params.ProjectFilter, _ = projectUUID(query.ProjectID)
+		}
+	}
 	if query.Completed != nil {
 		params.CompletedFilter = pgtype.Bool{Bool: *query.Completed, Valid: true}
 	}

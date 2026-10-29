@@ -324,6 +324,14 @@
               "format": "date-time"
             },
             "description": "Exclusive upper bound; must be greater than due_from."
+          },
+          {
+            "name": "project_id",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Project UUID, or literal none for unclassified tasks. Omit for all own tasks. Invalid/empty/duplicate values return 400. Foreign or absent projects yield an empty array. Cursor is bound to this filter."
           }
         ]
       },

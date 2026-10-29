@@ -98,19 +98,23 @@ const listTasks = `-- name: ListTasks :many
 SELECT id, title, description, completed, priority, created_at, due_date, version, owner_id, project_id
 FROM tasks
 WHERE owner_id = $1
-  AND ($2::boolean IS NULL OR completed = $2)
-  AND ($3::integer IS NULL OR priority = $3)
-  AND ($4::boolean IS NULL OR (due_date IS NOT NULL) = $4)
-  AND ($5::timestamptz IS NULL OR due_date >= $5)
-  AND ($6::timestamptz IS NULL OR due_date < $6)
-  AND ($7::timestamptz IS NULL OR
-       (created_at, id) < ($7::timestamptz, $8::text))
+  AND (NOT $2::boolean OR project_id IS NULL)
+  AND ($3::uuid IS NULL OR project_id = $3)
+  AND ($4::boolean IS NULL OR completed = $4)
+  AND ($5::integer IS NULL OR priority = $5)
+  AND ($6::boolean IS NULL OR (due_date IS NOT NULL) = $6)
+  AND ($7::timestamptz IS NULL OR due_date >= $7)
+  AND ($8::timestamptz IS NULL OR due_date < $8)
+  AND ($9::timestamptz IS NULL OR
+       (created_at, id) < ($9::timestamptz, $10::text))
 ORDER BY created_at DESC, id DESC
-LIMIT $9::integer
+LIMIT $11::integer
 `
 
 type ListTasksParams struct {
 	OwnerID         pgtype.UUID        `json:"owner_id"`
+	Unassigned      bool               `json:"unassigned"`
+	ProjectFilter   pgtype.UUID        `json:"project_filter"`
 	CompletedFilter pgtype.Bool        `json:"completed_filter"`
 	PriorityFilter  pgtype.Int4        `json:"priority_filter"`
 	HasDueDate      pgtype.Bool        `json:"has_due_date"`
@@ -124,6 +128,8 @@ type ListTasksParams struct {
 func (q *Queries) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, error) {
 	rows, err := q.db.Query(ctx, listTasks,
 		arg.OwnerID,
+		arg.Unassigned,
+		arg.ProjectFilter,
 		arg.CompletedFilter,
 		arg.PriorityFilter,
 		arg.HasDueDate,

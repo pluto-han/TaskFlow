@@ -12,6 +12,7 @@ import type { LoginRequest, User } from "../api/types";
 
 type Session = { token: string; user: User; expiresAt: number };
 type Auth = {
+  authorize<T>(operation: (token: string) => Promise<T>): Promise<T>;
   user: User | null;
   expiresAt: number | null;
   busy: boolean;
@@ -154,9 +155,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [session, clear, refresh]);
 
+  const authorize = useCallback(
+    async <T,>(action: (token: string) => Promise<T>): Promise<T> => {
+      const active = current.current;
+      if (!active) throw new ApiError("UNAUTHORIZED", 401);
+      try {
+        const result = await action(active.token);
+        if (current.current?.token !== active.token)
+          throw new DOMException("Session changed", "AbortError");
+        return result;
+      } catch (err) {
+        if (
+          err instanceof ApiError &&
+          err.status === 401 &&
+          current.current?.token === active.token
+        )
+          clear("登录已失效，请重新登录。");
+        throw err;
+      }
+    },
+    [clear],
+  );
+
   return (
     <AuthContext.Provider
       value={{
+        authorize,
         user: session?.user ?? null,
         expiresAt: session?.expiresAt ?? null,
         busy,
