@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Link, Navigate, useNavigate } from "react-router";
+import { Link, Navigate, useNavigate, useLocation } from "react-router";
 import { api, errorMessage } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
 import { validate, type FieldErrors } from "../auth/validation";
@@ -7,6 +7,10 @@ import { validate, type FieldErrors } from "../auth/validation";
 export function AuthPage({ register = false }: { register?: boolean }) {
   const auth = useAuth();
   const navigate = useNavigate();
+  const nextInvite =
+    new URLSearchParams(useLocation().search).get("next") === "invite";
+  const destination = nextInvite ? "/invite" : "/profile";
+  const suffix = nextInvite ? "?next=invite" : "";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -18,7 +22,7 @@ export function AuthPage({ register = false }: { register?: boolean }) {
   const pending = useRef<AbortController | null>(null);
   const locked = useRef(false);
   useEffect(() => () => pending.current?.abort(), []);
-  if (auth.user) return <Navigate to="/profile" replace />;
+  if (auth.user) return <Navigate to={destination} replace />;
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -50,7 +54,8 @@ export function AuthPage({ register = false }: { register?: boolean }) {
         }
       } else {
         await auth.login({ email: email.trim(), password }, controller.signal);
-        if (!controller.signal.aborted) navigate("/profile", { replace: true });
+        if (!controller.signal.aborted)
+          navigate(destination, { replace: true });
       }
     } catch (err) {
       if (!controller.signal.aborted) setError(errorMessage(err));
@@ -96,7 +101,7 @@ export function AuthPage({ register = false }: { register?: boolean }) {
             <div className="notice" role="status">
               注册成功！现在可以使用新账号登录。
             </div>
-            <Link className="button primary wide" to="/login">
+            <Link className="button primary wide" to={"/login" + suffix}>
               前往登录
             </Link>
           </>
@@ -215,7 +220,7 @@ export function AuthPage({ register = false }: { register?: boolean }) {
             </form>
             <p className="auth-switch">
               {register ? "已经有账号？" : "还没有账号？"}{" "}
-              <Link to={register ? "/login" : "/register"}>
+              <Link to={(register ? "/login" : "/register") + suffix}>
                 {register ? "去登录" : "创建账号"}
               </Link>
             </p>

@@ -89,6 +89,12 @@ export const api = {
 export function errorMessage(error: unknown): string {
   if (!(error instanceof ApiError)) return "暂时无法完成操作，请重试。";
   const messages: Record<string, string> = {
+    FORBIDDEN: "你没有执行此操作的权限，请刷新项目权限。",
+    INVITATION_INVALID:
+      "邀请已失效、已使用，或当前账号不是接收者。请联系项目所有者。",
+    INVALID_INVITEE:
+      "请检查账号 ID；接收者需已注册且尚未加入，转移对象必须是现有成员。",
+    OWNER_REQUIRED: "请先将所有权转移给现有成员，再退出项目。",
     UNAUTHORIZED: "邮箱或密码不正确，或登录状态已失效。",
     EMAIL_ALREADY_EXISTS: "这个邮箱已注册，请直接登录。",
     INVALID_USER: "请检查邮箱和密码是否符合要求。",

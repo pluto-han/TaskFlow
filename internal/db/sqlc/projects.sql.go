@@ -61,7 +61,7 @@ func (q *Queries) DeleteProject(ctx context.Context, arg DeleteProjectParams) (p
 
 const getProject = `-- name: GetProject :one
 SELECT id, owner_id, name, description, created_at, updated_at
-FROM projects WHERE id = $1 AND owner_id = $2
+FROM projects WHERE id = $1 AND (owner_id = $2 OR EXISTS (SELECT 1 FROM project_memberships m WHERE m.project_id=projects.id AND m.user_id=$2))
 `
 
 type GetProjectParams struct {
@@ -85,7 +85,7 @@ func (q *Queries) GetProject(ctx context.Context, arg GetProjectParams) (Project
 
 const listProjects = `-- name: ListProjects :many
 SELECT id, owner_id, name, description, created_at, updated_at
-FROM projects WHERE owner_id = $1
+FROM projects WHERE owner_id = $1 OR EXISTS (SELECT 1 FROM project_memberships m WHERE m.project_id=projects.id AND m.user_id=$1)
 ORDER BY created_at DESC, id DESC
 `
 

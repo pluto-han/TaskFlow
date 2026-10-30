@@ -110,8 +110,8 @@ func TestAPIExamplesIntegration(t *testing.T) {
 	defer pool.Close()
 	var version int
 	var dirty bool
-	if err := pool.QueryRow(ctx, "SELECT version,dirty FROM schema_migrations").Scan(&version, &dirty); err != nil || version != 8 || dirty {
-		t.Fatal("requires clean migration 8")
+	if err := pool.QueryRow(ctx, "SELECT version,dirty FROM schema_migrations").Scan(&version, &dirty); err != nil || version != 9 || dirty {
+		t.Fatal("requires clean migration 9")
 	}
 	users := user.NewPostgresRepository(pool)
 	projects := project.NewPostgresRepository(pool)

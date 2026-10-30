@@ -18,11 +18,13 @@ import (
 
 type PostgresRepository struct {
 	queries *db.Queries
+	pool    *pgxpool.Pool
 }
 
 func NewPostgresRepository(pool *pgxpool.Pool) *PostgresRepository {
 	return &PostgresRepository{
 		queries: db.New(pool),
+		pool:    pool,
 	}
 }
 
@@ -137,20 +139,22 @@ func (r *PostgresRepository) Save(ctx context.Context, ownerID session.UserID, t
 		return err
 	}
 
-	err = r.queries.CreateTask(
-		ctx,
-		db.CreateTaskParams{
-			ProjectID:   projectID,
-			OwnerID:     owner,
-			ID:          task.ID,
-			Title:       task.Title,
-			Description: task.Description,
-			Completed:   task.Completed,
-			Priority:    int32(task.Priority),
-			CreatedAt:   task.CreatedAt,
-			DueDate:     toPgTimestamp(task.DueDate),
-		},
-	)
+	err = r.write(ctx, ownerID, nil, task.ProjectID, func(q *db.Queries, _ *db.Task) error {
+		return q.CreateTask(
+			ctx,
+			db.CreateTaskParams{
+				ProjectID:   projectID,
+				OwnerID:     owner,
+				ID:          task.ID,
+				Title:       task.Title,
+				Description: task.Description,
+				Completed:   task.Completed,
+				Priority:    int32(task.Priority),
+				CreatedAt:   task.CreatedAt,
+				DueDate:     toPgTimestamp(task.DueDate),
+			},
+		)
+	})
 
 	if err != nil {
 		return mapProjectConstraint(fmt.Errorf("save task: %w", err))
@@ -172,45 +176,45 @@ func (r *PostgresRepository) Update(ctx context.Context, ownerID session.UserID,
 		return err
 	}
 
-	row, err := r.queries.UpdateTask(
-		ctx,
-		db.UpdateTaskParams{
-			ProjectID:   projectID,
-			OwnerID:     owner,
-			ID:          task.ID,
-			Title:       task.Title,
-			Description: task.Description,
-			Completed:   task.Completed,
-			Priority:    int32(task.Priority),
-			DueDate:     toPgTimestamp(task.DueDate),
-			Version:     task.Version,
-		},
-	)
-
-	if errors.Is(err, pgx.ErrNoRows) {
-		_, findErr := r.queries.GetTask(ctx, db.GetTaskParams{ID: task.ID, OwnerID: owner})
-
-		if errors.Is(findErr, pgx.ErrNoRows) {
-			return ErrTaskNotFound
-		}
-
-		if findErr != nil {
-			return fmt.Errorf(
-				"check task after failed update: %w",
-				findErr,
-			)
-		}
-
-		return ErrTaskConflict
+	snapshot, err := r.FindByID(ctx, ownerID, task.ID)
+	if err != nil {
+		return err
 	}
+	var updated db.Task
+	err = r.write(ctx, ownerID, snapshot, task.ProjectID, func(q *db.Queries, current *db.Task) error {
+		if current.Version != task.Version {
+			return ErrTaskConflict
+		}
+		row, e := q.UpdateTask(
+			ctx,
+			db.UpdateTaskParams{
+				ProjectID:   projectID,
+				OwnerID:     owner,
+				ID:          task.ID,
+				Title:       task.Title,
+				Description: task.Description,
+				Completed:   task.Completed,
+				Priority:    int32(task.Priority),
+				DueDate:     toPgTimestamp(task.DueDate),
+				Version:     task.Version,
+			},
+		)
+
+		if errors.Is(e, pgx.ErrNoRows) {
+			return ErrTaskConflict
+		}
+		if e != nil {
+			return e
+		}
+		updated = row
+		return nil
+	})
 
 	if err != nil {
 		return mapProjectConstraint(fmt.Errorf("update task: %w", err))
 	}
-
-	task.OwnerID = ownerID
-	task.Version = row.Version
-
+	task.OwnerID = session.UserID(updated.OwnerID.String())
+	task.Version = updated.Version
 	return nil
 }
 
@@ -220,7 +224,14 @@ func (r *PostgresRepository) Delete(ctx context.Context, ownerID session.UserID,
 		return err
 	}
 
-	_, err = r.queries.DeleteTask(ctx, db.DeleteTaskParams{ID: id, OwnerID: owner})
+	snapshot, err := r.FindByID(ctx, ownerID, id)
+	if err != nil {
+		return err
+	}
+	err = r.write(ctx, ownerID, snapshot, snapshot.ProjectID, func(q *db.Queries, _ *db.Task) error {
+		_, e := q.DeleteTask(ctx, db.DeleteTaskParams{ID: id, OwnerID: owner})
+		return e
+	})
 
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrTaskNotFound
@@ -265,7 +276,7 @@ func projectUUID(raw *string) (pgtype.UUID, error) {
 }
 func mapProjectConstraint(err error) error {
 	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) && pgErr.Code == "23503" && pgErr.ConstraintName == "tasks_project_owner_fk" {
+	if errors.As(err, &pgErr) && pgErr.Code == "23503" && (pgErr.ConstraintName == "tasks_project_owner_fk" || pgErr.ConstraintName == "tasks_project_fk") {
 		return project.ErrNotFound
 	}
 	return err

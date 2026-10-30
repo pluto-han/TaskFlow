@@ -90,13 +90,13 @@ export interface paths {
         };
         /**
          * listTasks
-         * @description Own tasks only; ordered by created_at DESC, id DESC. Array response, not an envelope. X-Next-Cursor is omitted on the last page. Known parameters reject duplicates/empty values; unknown parameters are ignored. Cursor is scoped to user and filters; it is not a snapshot, concurrent edits may affect results.
+         * @description Visible tasks: private unclassified tasks created by caller, plus tasks in projects currently owned by or shared with caller. Every page rechecks membership; old cursors never grant access. Array response; X-Next-Cursor omitted when exhausted. Cursor is bound to user and filters. Not a snapshot.
          */
         get: operations["listTasks"];
         put?: never;
         /**
          * createTask
-         * @description Body limit 64 KiB; unknown fields rejected. Owner comes from session. project_id must belong to caller; nonexistent/foreign project both give 404.
+         * @description Owner comes from session and remains the immutable creator. Creating inside a project requires current access. Other members will be able to read/edit/delete the task.
          */
         post: operations["createTask"];
         delete?: never;
@@ -116,13 +116,16 @@ export interface paths {
         get: operations["getTask"];
         put?: never;
         post?: never;
-        /** deleteTask */
+        /**
+         * deleteTask
+         * @description Project owner/member may delete any project task; private tasks only their creator. No version precondition on DELETE.
+         */
         delete: operations["deleteTask"];
         options?: never;
         head?: never;
         /**
          * updateTask
-         * @description Body limit 64 KiB; missing/null project_id and due_date have distinct semantics. Foreign task and absent task both 404. Invalid/foreign target project fails without changing task/version.
+         * @description Members may edit any project task. Only creator may move or unassign; current source and target access are required. PATCH version and omitted/null semantics remain unchanged. 403 for unauthorized movement; 404 for inaccessible source.
          */
         patch: operations["updateTask"];
         trace?: never;
@@ -136,7 +139,7 @@ export interface paths {
         };
         /**
          * listProjects
-         * @description Own projects only, created_at DESC/id DESC. Currently unpaginated; no membership/sharing.
+         * @description Projects owned by or shared with the caller, newest first. Unpaginated. Each includes caller role.
          */
         get: operations["listProjects"];
         put?: never;
@@ -164,14 +167,14 @@ export interface paths {
         post?: never;
         /**
          * deleteProject
-         * @description 409 PROJECT_NOT_EMPTY if any task remains. Move/delete those tasks first. No cascading task deletion; foreign/absent projects both 404.
+         * @description Owner only, 409 if tasks remain. Memberships/invitations are cleaned up; tasks never cascade.
          */
         delete: operations["deleteProject"];
         options?: never;
         head?: never;
         /**
          * updateProject
-         * @description Body limit 64 KiB; unknown fields rejected.
+         * @description Owner only. Same-field last-write-wins; no project version. Body 64 KiB; unknown fields rejected.
          */
         patch: operations["updateProject"];
         trace?: never;
@@ -236,13 +239,157 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{id}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * listMembers
+         * @description Owner and members can list IDs and roles. No emails.
+         */
+        get: operations["listMembers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{id}/members/{userID}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * removeMember
+         * @description Owner only. Cannot remove the owner. Existing sessions lose subsequent project access immediately after commit.
+         */
+        delete: operations["removeMember"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{id}/leave": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * leaveProject
+         * @description Member leaves. Owner must transfer first (409 OWNER_REQUIRED). Tasks remain in the project.
+         */
+        post: operations["leaveProject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{id}/ownership": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * transferOwnership
+         * @description Owner only; target must be a current member. Old owner becomes member. Pending invitations are revoked atomically.
+         */
+        post: operations["transferOwnership"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{id}/invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * listInvitations
+         * @description Owner only; token never returned in this list.
+         */
+        get: operations["listInvitations"];
+        put?: never;
+        /**
+         * createInvitation
+         * @description Owner only; recipient must be a registered user who is not already a member. 24-hour single-use recipient-bound token, returned once. Reissuing revokes prior outstanding invitations for that recipient. No email sent.
+         */
+        post: operations["createInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{id}/invitations/{invitationID}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * revokeInvitation
+         * @description Owner only. Accepted tokens cannot be revoked; remove the member instead.
+         */
+        delete: operations["revokeInvitation"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/invitations/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * acceptInvitation
+         * @description Authenticated intended recipient only. Invalid, expired, revoked, used or mismatched tokens return generic INVITATION_INVALID. Request bodies must not be logged.
+         */
+        post: operations["acceptInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         ErrorDetail: {
             /** @enum {string} */
-            code: "AUTH_BUSY" | "EMAIL_ALREADY_EXISTS" | "INTERNAL_ERROR" | "INVALID_PROJECT" | "INVALID_QUERY" | "INVALID_REQUEST" | "INVALID_TASK" | "INVALID_USER" | "LOGIN_RATE_LIMITED" | "METHOD_NOT_ALLOWED" | "NOT_READY" | "PROJECT_NOT_EMPTY" | "PROJECT_NOT_FOUND" | "REGISTRATION_BUSY" | "REQUEST_TIMEOUT" | "REQUEST_TOO_LARGE" | "ROUTE_NOT_FOUND" | "TASK_CONFLICT" | "TASK_NOT_FOUND" | "UNAUTHORIZED";
+            code: "AUTH_BUSY" | "EMAIL_ALREADY_EXISTS" | "FORBIDDEN" | "INTERNAL_ERROR" | "INVALID_INVITEE" | "INVALID_PROJECT" | "INVALID_QUERY" | "INVALID_REQUEST" | "INVALID_TASK" | "INVALID_USER" | "INVITATION_INVALID" | "LOGIN_RATE_LIMITED" | "METHOD_NOT_ALLOWED" | "NOT_READY" | "OWNER_REQUIRED" | "PROJECT_NOT_EMPTY" | "PROJECT_NOT_FOUND" | "REGISTRATION_BUSY" | "REQUEST_TIMEOUT" | "REQUEST_TOO_LARGE" | "ROUTE_NOT_FOUND" | "TASK_CONFLICT" | "TASK_NOT_FOUND" | "UNAUTHORIZED";
             message: string;
         };
         Error: {
@@ -293,6 +440,8 @@ export interface components {
             version: number;
             /** Format: uuid */
             project_id: string | null;
+            /** @description True only for the creator. Server separately authorizes source and target projects. */
+            can_move: boolean;
         };
         /** @description Title must contain non-whitespace text. Missing/null project_id means unclassified. Due dates must be RFC3339 within years 1–9999. */
         CreateTask: {
@@ -326,6 +475,8 @@ export interface components {
             created_at: string;
             /** Format: date-time */
             updated_at: string;
+            /** @enum {string} */
+            role: "owner" | "member";
         };
         CreateProject: {
             /** @description Trim before validation; 1–100 Unicode characters after trimming, no NUL. */
@@ -340,12 +491,42 @@ export interface components {
             /** @description Null/missing preserves; empty string clears; no NUL. */
             description?: string | null;
         };
+        Member: {
+            /** Format: uuid */
+            user_id: string;
+            /** @enum {string} */
+            role: "owner" | "member";
+        };
+        InviteRequest: {
+            /** Format: uuid */
+            user_id: string;
+        };
+        AcceptRequest: {
+            token: string;
+        };
+        Invitation: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            project_id: string;
+            /** Format: uuid */
+            invitee_user_id: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            expires_at: string;
+            /** Format: date-time */
+            revoked_at: string | null;
+            /** Format: date-time */
+            accepted_at: string | null;
+            /** @description Returned only once on creation. Do not log or persist. Share as URL fragment. */
+            token?: string;
+        };
     };
     responses: {
-        /** @description INVALID_REQUEST, INVALID_USER, INVALID_TASK, INVALID_PROJECT, INVALID_QUERY */
+        /** @description INVALID_REQUEST, INVALID_USER, INVALID_TASK, INVALID_PROJECT, INVALID_QUERY, INVITATION_INVALID, INVALID_INVITEE */
         Error400: {
             headers: {
-                /** @description Server-generated opaque correlation ID; incoming values are ignored. */
                 "X-Request-ID"?: string;
                 [name: string]: unknown;
             };
@@ -388,10 +569,9 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description EMAIL_ALREADY_EXISTS, TASK_CONFLICT, PROJECT_NOT_EMPTY */
+        /** @description EMAIL_ALREADY_EXISTS, TASK_CONFLICT, PROJECT_NOT_EMPTY, OWNER_REQUIRED */
         Error409: {
             headers: {
-                /** @description Server-generated opaque correlation ID; incoming values are ignored. */
                 "X-Request-ID"?: string;
                 [name: string]: unknown;
             };
@@ -451,6 +631,16 @@ export interface components {
         Error504: {
             headers: {
                 /** @description Server-generated opaque correlation ID; incoming values are ignored. */
+                "X-Request-ID"?: string;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description FORBIDDEN */
+        Error403: {
+            headers: {
                 "X-Request-ID"?: string;
                 [name: string]: unknown;
             };
@@ -769,6 +959,7 @@ export interface operations {
             };
             400: components["responses"]["Error400"];
             401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
             404: components["responses"]["Error404"];
             409: components["responses"]["Error409"];
             500: components["responses"]["Error500"];
@@ -893,6 +1084,7 @@ export interface operations {
             };
             400: components["responses"]["Error400"];
             401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
             404: components["responses"]["Error404"];
             409: components["responses"]["Error409"];
             500: components["responses"]["Error500"];
@@ -933,6 +1125,7 @@ export interface operations {
             };
             400: components["responses"]["Error400"];
             401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
             404: components["responses"]["Error404"];
             500: components["responses"]["Error500"];
             503: components["responses"]["Error503"];
@@ -1007,6 +1200,261 @@ export interface operations {
             };
             500: components["responses"]["Error500"];
             503: components["responses"]["Error503"];
+        };
+    };
+    listMembers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Member"][];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
+            409: components["responses"]["Error409"];
+            500: components["responses"]["Error500"];
+            503: components["responses"]["Error503"];
+            504: components["responses"]["Error504"];
+        };
+    };
+    removeMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                userID: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            204: {
+                headers: {
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
+            409: components["responses"]["Error409"];
+            500: components["responses"]["Error500"];
+            503: components["responses"]["Error503"];
+            504: components["responses"]["Error504"];
+        };
+    };
+    leaveProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            204: {
+                headers: {
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
+            409: components["responses"]["Error409"];
+            500: components["responses"]["Error500"];
+            503: components["responses"]["Error503"];
+            504: components["responses"]["Error504"];
+        };
+    };
+    transferOwnership: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InviteRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            204: {
+                headers: {
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
+            409: components["responses"]["Error409"];
+            500: components["responses"]["Error500"];
+            503: components["responses"]["Error503"];
+            504: components["responses"]["Error504"];
+        };
+    };
+    listInvitations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invitation"][];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
+            409: components["responses"]["Error409"];
+            500: components["responses"]["Error500"];
+            503: components["responses"]["Error503"];
+            504: components["responses"]["Error504"];
+        };
+    };
+    createInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InviteRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            201: {
+                headers: {
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invitation"];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
+            409: components["responses"]["Error409"];
+            500: components["responses"]["Error500"];
+            503: components["responses"]["Error503"];
+            504: components["responses"]["Error504"];
+        };
+    };
+    revokeInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                invitationID: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            204: {
+                headers: {
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
+            409: components["responses"]["Error409"];
+            500: components["responses"]["Error500"];
+            503: components["responses"]["Error503"];
+            504: components["responses"]["Error504"];
+        };
+    };
+    acceptInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AcceptRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        project_id: string;
+                    };
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
+            409: components["responses"]["Error409"];
+            500: components["responses"]["Error500"];
+            503: components["responses"]["Error503"];
+            504: components["responses"]["Error504"];
         };
     };
 }

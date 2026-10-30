@@ -6,6 +6,7 @@ import (
 )
 
 type Project struct {
+	Role        string         `json:"role"`
 	ID          string         `json:"id"`
 	OwnerID     session.UserID `json:"-"`
 	Name        string         `json:"name"`

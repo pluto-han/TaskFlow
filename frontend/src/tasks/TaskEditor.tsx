@@ -155,6 +155,14 @@ export function TaskEditor({
           )}
         </section>
       )}
+      {project && (
+        <p className="notice">
+          项目内的任务对所有当前成员可见，成员可以编辑和删除。只有创建者可以移动或解除归类。
+        </p>
+      )}
+      {base && !base.can_move && (
+        <p className="hint">你不是这项任务的创建者，不能改变所属项目。</p>
+      )}
       <form onSubmit={(event) => void submit(event)} aria-busy={busy}>
         <div className="field">
           <label htmlFor="task-title">任务标题</label>
@@ -196,7 +204,7 @@ export function TaskEditor({
               id="task-project"
               value={project}
               onChange={(e) => setProject(e.target.value)}
-              disabled={busy}
+              disabled={busy || (!!base && !base.can_move)}
             >
               <option value="">未归类</option>
               {project && !projects.some((p) => p.id === project) && (

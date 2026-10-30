@@ -55,6 +55,7 @@ func (s *Service) Create(ctx context.Context, ownerID session.UserID, input Crea
 	}
 
 	newTask := &Task{
+		CanMove:     true,
 		ProjectID:   projectID,
 		OwnerID:     ownerID,
 		ID:          hex.EncodeToString(idBytes),
@@ -82,7 +83,11 @@ func (s *Service) GetByID(ctx context.Context, ownerID session.UserID, id string
 		return nil, err
 	}
 
-	return s.repo.FindByID(ctx, ownerID, id)
+	result, err := s.repo.FindByID(ctx, ownerID, id)
+	if err == nil {
+		result.CanMove = result.OwnerID == ownerID
+	}
+	return result, err
 }
 
 func (s *Service) List(ctx context.Context, ownerID session.UserID, options ListOptions) (TaskPage, error) {
@@ -116,6 +121,9 @@ func (s *Service) List(ctx context.Context, ownerID session.UserID, options List
 	rows, err := s.repo.FindPage(ctx, ownerID, query)
 	if err != nil {
 		return TaskPage{}, err
+	}
+	for i := range rows {
+		rows[i].CanMove = rows[i].OwnerID == ownerID
 	}
 	page := TaskPage{Items: rows}
 	if page.Items == nil {
@@ -196,7 +204,14 @@ func (s *Service) Update(ctx context.Context, ownerID session.UserID, id string,
 	}
 
 	if input.ProjectID.Present {
-		current.ProjectID, err = s.checkProject(ctx, ownerID, input.ProjectID.Value)
+		target, e := s.checkProject(ctx, ownerID, input.ProjectID.Value)
+		if e != nil {
+			return nil, e
+		}
+		if !sameProject(current.ProjectID, target) && current.OwnerID != ownerID {
+			return nil, project.ErrForbidden
+		}
+		current.ProjectID = target
 		if err != nil {
 			return nil, err
 		}
@@ -206,6 +221,7 @@ func (s *Service) Update(ctx context.Context, ownerID session.UserID, id string,
 		return nil, err
 	}
 
+	current.CanMove = current.OwnerID == ownerID
 	return current, nil
 }
 

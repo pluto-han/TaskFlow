@@ -4,6 +4,7 @@ import { useAuth } from "../auth/AuthProvider";
 import { workspaceApi } from "../api/workspace";
 import { errorMessage } from "../api/client";
 import type { Project } from "../api/types";
+import { SharingPanel } from "../tasks/SharingPanel";
 import { TaskBoard } from "../tasks/TaskBoard";
 import { ProjectEditor } from "../tasks/ProjectEditor";
 import { DeleteDialog } from "../tasks/DeleteDialog";
@@ -25,6 +26,7 @@ function Workspace() {
   const [loading, setLoading] = useState(true);
   const [mutating, setMutating] = useState(false);
   const [editor, setEditor] = useState<Project | "new" | null>(null);
+  const [sharing, setSharing] = useState<Project | null>(null);
   const [deleting, setDeleting] = useState<Project | null>(null);
   const projectRequest = useRef<AbortController | null>(null);
   const loadProjects = useCallback(async () => {
@@ -169,17 +171,28 @@ function Workspace() {
               <button
                 className="text-button"
                 disabled={mutating}
-                onClick={() => setEditor(selected)}
+                onClick={() => setSharing(selected)}
               >
-                编辑项目
+                成员与邀请
               </button>
-              <button
-                className="text-button danger-text"
-                disabled={mutating}
-                onClick={() => setDeleting(selected)}
-              >
-                删除项目
-              </button>
+              {selected.role === "owner" && (
+                <>
+                  <button
+                    className="text-button"
+                    disabled={mutating}
+                    onClick={() => setEditor(selected)}
+                  >
+                    编辑项目
+                  </button>
+                  <button
+                    className="text-button danger-text"
+                    disabled={mutating}
+                    onClick={() => setDeleting(selected)}
+                  >
+                    删除项目
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -194,6 +207,13 @@ function Workspace() {
           setMutating={setMutating}
         />
       </div>
+      {sharing && (
+        <SharingPanel
+          project={sharing}
+          close={() => setSharing(null)}
+          changed={() => void loadProjects()}
+        />
+      )}
       {editor && (
         <ProjectEditor
           project={editor === "new" ? undefined : editor}

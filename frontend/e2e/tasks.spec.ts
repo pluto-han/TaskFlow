@@ -4,6 +4,7 @@ test.use({ timezoneId: "Europe/Amsterdam" });
 
 test("workspace pagination, filtering and mobile layout", async ({ page }) => {
   const task = {
+    can_move: true,
     id: "task-a",
     title: "为重要的事留出时间",
     description: "整理今天的想法，专注做好一件事。",
@@ -38,6 +39,7 @@ test("workspace pagination, filtering and mobile layout", async ({ page }) => {
           {
             id: "11111111-1111-4111-8111-111111111111",
             name: "个人成长",
+            role: "owner",
             description: "",
             created_at: task.created_at,
             updated_at: task.created_at,
@@ -74,7 +76,9 @@ test("workspace pagination, filtering and mobile layout", async ({ page }) => {
     path: "test-results/tasks-desktop.png",
     fullPage: true,
   });
-  await page.getByRole("button", { name: "个人成长", exact: true }).click();
+  await page
+    .getByRole("button", { name: "个人成长", exact: true })
+    .click();
   await expect(page.getByText("这里还没有任务")).toBeVisible();
   await page.getByRole("button", { name: "全部任务", exact: false }).click();
   await expect(page.getByRole("heading", { name: task.title })).toBeVisible();

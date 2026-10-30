@@ -21,6 +21,14 @@ func writeError(c *gin.Context, err error) {
 	case errors.Is(err, session.ErrUnauthorized):
 		c.Header("WWW-Authenticate", "Bearer")
 		httpapi.WriteError(c, 401, "UNAUTHORIZED", "Invalid credentials or session")
+	case errors.Is(err, ErrForbidden):
+		httpapi.WriteError(c, 403, "FORBIDDEN", "Operation not permitted")
+	case errors.Is(err, ErrInvitationInvalid):
+		httpapi.WriteError(c, 400, "INVITATION_INVALID", "Invitation is invalid or unavailable")
+	case errors.Is(err, ErrInvalidInvitee):
+		httpapi.WriteError(c, 400, "INVALID_INVITEE", "Recipient or ownership target is invalid")
+	case errors.Is(err, ErrOwnerRequired):
+		httpapi.WriteError(c, 409, "OWNER_REQUIRED", "Transfer ownership before leaving")
 	case errors.Is(err, ErrInvalid):
 		httpapi.WriteError(c, 400, "INVALID_PROJECT", "Invalid project data")
 	case errors.Is(err, ErrNotFound):
@@ -133,4 +141,12 @@ func Mount(router *gin.Engine, service *Service, authentication gin.HandlerFunc)
 	group.GET("/:id", h.Get)
 	group.PATCH("/:id", h.Update)
 	group.DELETE("/:id", h.Delete)
+	group.GET("/:id/members", h.Members)
+	group.DELETE("/:id/members/:userID", h.RemoveMember)
+	group.POST("/:id/leave", h.Leave)
+	group.POST("/:id/ownership", h.Transfer)
+	group.GET("/:id/invitations", h.Invitations)
+	group.POST("/:id/invitations", h.Invite)
+	group.DELETE("/:id/invitations/:invitationID", h.RevokeInvitation)
+	router.POST("/invitations/accept", authentication, func(c *gin.Context) { c.Header("Cache-Control", "no-store"); h.AcceptInvitation(c) })
 }

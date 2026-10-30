@@ -7,6 +7,7 @@ import (
 )
 
 type Task struct {
+	CanMove     bool           `json:"can_move"`
 	ProjectID   *string        `json:"project_id"`
 	OwnerID     session.UserID `json:"-"`
 	ID          string         `json:"id"`

@@ -12,6 +12,7 @@ vi.mock("../auth/AuthProvider", () => ({
   }),
 }));
 const task: Task = {
+  can_move: true,
   id: "task1",
   title: "Read",
   description: "",
@@ -102,4 +103,18 @@ it("keeps the draft on 409 and never silently retries with a new version", async
     version: 5,
     title: "Changed elsewhere resolved",
   });
+});
+
+it("disables moving a task created by someone else while permitting edits", async () => {
+  render(
+    <TaskEditor
+      task={{ ...task, can_move: false }}
+      projects={[]}
+      defaultProject=""
+      close={vi.fn()}
+      saved={vi.fn()}
+    />,
+  );
+  expect(screen.getByLabelText("所属项目")).toBeDisabled();
+  expect(screen.getByLabelText("任务标题")).toBeEnabled();
 });

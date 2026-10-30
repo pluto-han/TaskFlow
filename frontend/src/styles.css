@@ -980,3 +980,60 @@ h2 {
     font-size: 16px;
   }
 }
+.member-list {
+  list-style: none;
+  padding: 0;
+  margin: 16px 0;
+}
+.member-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #dfe5dd;
+  padding: 14px 0;
+}
+.member-list code,
+.member-list small {
+  display: block;
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+.member-list strong {
+  font-size: 0.85rem;
+}
+.member-list > li > div {
+  min-width: 0;
+}
+.invitation-link {
+  margin-top: 16px;
+}
+.invitation-link input {
+  display: block;
+  width: 100%;
+  padding: 8px;
+  margin-top: 10px;
+}
+.modal h3 {
+  font-size: 1rem;
+}
+.modal hr {
+  border: 0;
+  border-top: 1px solid #dfe5dd;
+  margin: 24px 0;
+}
+.project-actions {
+  flex-wrap: wrap;
+}
+@media (max-width: 640px) {
+  .member-list li {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .member-list .row-actions {
+    margin: 0;
+  }
+  .detail code {
+    font-size: 0.8rem;
+  }
+}

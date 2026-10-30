@@ -28,6 +28,8 @@ func writeTaskError(c *gin.Context, err error) {
 	case errors.Is(err, session.ErrUnauthorized):
 		c.Header("WWW-Authenticate", "Bearer")
 		httpapi.WriteError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Invalid credentials or session")
+	case errors.Is(err, project.ErrForbidden):
+		httpapi.WriteError(c, 403, "FORBIDDEN", "Operation not permitted")
 	case errors.Is(err, project.ErrInvalid):
 		httpapi.WriteError(c, 400, "INVALID_PROJECT", "Invalid project ID")
 	case errors.Is(err, project.ErrNotFound):

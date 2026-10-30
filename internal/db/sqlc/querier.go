@@ -24,6 +24,7 @@ type Querier interface {
 	GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 	ListProjects(ctx context.Context, ownerID pgtype.UUID) ([]Project, error)
 	ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, error)
+	LockTask(ctx context.Context, arg LockTaskParams) (Task, error)
 	RevokeSession(ctx context.Context, arg RevokeSessionParams) (int64, error)
 	UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error)
 	UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, error)

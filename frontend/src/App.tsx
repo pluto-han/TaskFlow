@@ -1,8 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, Route, Routes, useLocation } from "react-router";
 import { AuthProvider, useAuth } from "./auth/AuthProvider";
 import { AuthPage } from "./pages/AuthPage";
 import { WorkspacePage } from "./pages/WorkspacePage";
+import { InvitePage } from "./pages/InvitePage";
 import { ProfilePage } from "./pages/ProfilePage";
 
 function Navigation() {
@@ -17,7 +18,8 @@ function Navigation() {
   );
 }
 
-export function App() {
+export function App({ invitationToken = "" }: { invitationToken?: string }) {
+  const [invitation, setInvitation] = useState(invitationToken);
   const { pathname } = useLocation();
   const main = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -46,6 +48,15 @@ export function App() {
             <Route
               path="/register"
               element={<AuthPage key="register" register />}
+            />
+            <Route
+              path="/invite"
+              element={
+                <InvitePage
+                  token={invitation}
+                  consumed={() => setInvitation("")}
+                />
+              }
             />
             <Route path="/tasks" element={<WorkspacePage />} />
             <Route path="/profile" element={<ProfilePage />} />

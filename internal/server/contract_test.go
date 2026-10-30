@@ -78,7 +78,7 @@ func TestContractRoutesAndReferences(t *testing.T) {
 	routes := map[string]bool{}
 	ids := map[string]bool{}
 	for _, r := range testRouter().Routes() {
-		path := strings.ReplaceAll(r.Path, ":id", "{id}")
+		path := strings.NewReplacer(":id", "{id}", ":userID", "{userID}", ":invitationID", "{invitationID}").Replace(r.Path)
 		routes[strings.ToLower(r.Method)+" "+path] = true
 	}
 	for path, methods := range d.Paths {
@@ -153,7 +153,7 @@ func TestContractRoutesAndReferences(t *testing.T) {
 
 func TestContractDTOFields(t *testing.T) {
 	d, _ := readContract(t)
-	for name, value := range map[string]any{"RegisterRequest": user.RegisterRequest{}, "LoginRequest": session.LoginRequest{}, "LoginResponse": session.LoginResponse{}, "User": user.UserResponse{}, "Task": task.Task{}, "CreateTask": task.CreateTaskRequest{}, "UpdateTask": task.UpdateTaskRequest{}, "Project": project.Project{}, "CreateProject": project.CreateRequest{}, "UpdateProject": project.UpdateRequest{}, "Error": httpapi.ErrorResponse{}, "ErrorDetail": httpapi.ErrorDetail{}} {
+	for name, value := range map[string]any{"RegisterRequest": user.RegisterRequest{}, "LoginRequest": session.LoginRequest{}, "LoginResponse": session.LoginResponse{}, "User": user.UserResponse{}, "Task": task.Task{}, "CreateTask": task.CreateTaskRequest{}, "UpdateTask": task.UpdateTaskRequest{}, "Member": project.Member{}, "Invitation": project.Invitation{}, "InviteRequest": project.InviteRequest{}, "AcceptRequest": project.AcceptRequest{}, "Project": project.Project{}, "CreateProject": project.CreateRequest{}, "UpdateProject": project.UpdateRequest{}, "Error": httpapi.ErrorResponse{}, "ErrorDetail": httpapi.ErrorDetail{}} {
 		t.Run(name, func(t *testing.T) {
 			fields := map[string]bool{}
 			typ := reflect.TypeOf(value)
@@ -185,7 +185,7 @@ func TestContractDTOFields(t *testing.T) {
 func TestContractErrorCodes(t *testing.T) {
 	d, _ := readContract(t)
 	actual := map[string]string{}
-	statusNames := map[string]string{"StatusBadRequest": "400", "StatusUnauthorized": "401", "StatusNotFound": "404", "StatusMethodNotAllowed": "405", "StatusConflict": "409", "StatusRequestEntityTooLarge": "413", "StatusTooManyRequests": "429", "StatusInternalServerError": "500", "StatusServiceUnavailable": "503", "StatusGatewayTimeout": "504"}
+	statusNames := map[string]string{"StatusForbidden": "403", "StatusBadRequest": "400", "StatusUnauthorized": "401", "StatusNotFound": "404", "StatusMethodNotAllowed": "405", "StatusConflict": "409", "StatusRequestEntityTooLarge": "413", "StatusTooManyRequests": "429", "StatusInternalServerError": "500", "StatusServiceUnavailable": "503", "StatusGatewayTimeout": "504"}
 	err := filepath.WalkDir("..", func(path string, entry os.DirEntry, err error) error {
 		if err != nil {
 			return err

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Navigate } from "react-router";
 import { useAuth } from "../auth/AuthProvider";
 
@@ -9,6 +10,7 @@ const date = (value: string | number) =>
 
 export function ProfilePage() {
   const auth = useAuth();
+  const [copyMessage, setCopyMessage] = useState("");
   if (!auth.user) return <Navigate to="/login" replace />;
   return (
     <section className="profile" aria-labelledby="profile-heading">
@@ -39,6 +41,24 @@ export function ProfilePage() {
           <div className="detail">
             <dt>邮箱地址</dt>
             <dd>{auth.user.email}</dd>
+          </div>
+          <div className="detail">
+            <dt>账号 ID</dt>
+            <dd>
+              <code>{auth.user.id}</code>{" "}
+              <button
+                className="text-button"
+                onClick={() =>
+                  void navigator.clipboard
+                    .writeText(auth.user!.id)
+                    .then(() => setCopyMessage("账号 ID 已复制"))
+                    .catch(() => setCopyMessage("请选中账号 ID 手工复制"))
+                }
+              >
+                复制账号 ID
+              </button>
+              <span aria-live="polite">{copyMessage}</span>
+            </dd>
           </div>
           <div className="detail">
             <dt>加入时间</dt>

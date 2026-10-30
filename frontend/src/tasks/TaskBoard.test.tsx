@@ -14,6 +14,7 @@ import type { Task } from "../api/types";
 const authorize = <T,>(action: (token: string) => Promise<T>) => action("test");
 vi.mock("../auth/AuthProvider", () => ({ useAuth: () => ({ authorize }) }));
 const task: Task = {
+  can_move: true,
   id: "one",
   title: "Task one",
   description: "",

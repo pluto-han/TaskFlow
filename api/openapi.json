@@ -3,7 +3,7 @@
   "info": {
     "title": "TaskFlow API",
     "version": "1.0.0",
-    "description": "All errors use {error:{code,message}}; clients branch on stable code, not message. Server-generated X-Request-ID accompanies responses. Unknown routes: 404 ROUTE_NOT_FOUND; unsupported methods on known routes: 405 METHOD_NOT_ALLOWED. Validation stays 400 (422 not used); owner-only resources conceal unauthorized existence with 404 (403 not used). Auth credentials must be transported over HTTPS outside loopback development. Auth/task/project bodies are never logged. Task/project oversized bodies currently return 400; auth oversized bodies return 413. No frontend or cookie authentication in this lesson. Paths are exact: no automatic trailing-slash redirects."
+    "description": "TaskFlow sharing contract. Errors use {error:{code,message}}. Bearer Session identifies user; every operation checks current project access. Nonmembers receive 404; members attempting owner-only operations receive 403. One owner per project, other participants are members. Only task creators may move/unassign tasks. X-Request-ID accompanies responses. Validation uses 400, not 422. Use HTTPS outside loopback. No cookie authentication. Unknown routes 404; unsupported methods 405. Paths match exactly."
   },
   "servers": [
     {
@@ -215,7 +215,7 @@
       "get": {
         "operationId": "listTasks",
         "summary": "listTasks",
-        "description": "Own tasks only; ordered by created_at DESC, id DESC. Array response, not an envelope. X-Next-Cursor is omitted on the last page. Known parameters reject duplicates/empty values; unknown parameters are ignored. Cursor is scoped to user and filters; it is not a snapshot, concurrent edits may affect results.",
+        "description": "Visible tasks: private unclassified tasks created by caller, plus tasks in projects currently owned by or shared with caller. Every page rechecks membership; old cursors never grant access. Array response; X-Next-Cursor omitted when exhausted. Cursor is bound to user and filters. Not a snapshot.",
         "responses": {
           "200": {
             "description": "Success",
@@ -338,7 +338,7 @@
       "post": {
         "operationId": "createTask",
         "summary": "createTask",
-        "description": "Body limit 64 KiB; unknown fields rejected. Owner comes from session. project_id must belong to caller; nonexistent/foreign project both give 404.",
+        "description": "Owner comes from session and remains the immutable creator. Creating inside a project requires current access. Other members will be able to read/edit/delete the task.",
         "responses": {
           "201": {
             "description": "Success",
@@ -453,7 +453,7 @@
       "patch": {
         "operationId": "updateTask",
         "summary": "updateTask",
-        "description": "Body limit 64 KiB; missing/null project_id and due_date have distinct semantics. Foreign task and absent task both 404. Invalid/foreign target project fails without changing task/version.",
+        "description": "Members may edit any project task. Only creator may move or unassign; current source and target access are required. PATCH version and omitted/null semantics remain unchanged. 403 for unauthorized movement; 404 for inaccessible source.",
         "responses": {
           "200": {
             "description": "Success",
@@ -493,6 +493,9 @@
           },
           "504": {
             "$ref": "#/components/responses/Error504"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
           }
         },
         "requestBody": {
@@ -523,7 +526,7 @@
       "delete": {
         "operationId": "deleteTask",
         "summary": "deleteTask",
-        "description": "",
+        "description": "Project owner/member may delete any project task; private tasks only their creator. No version precondition on DELETE.",
         "responses": {
           "204": {
             "description": "Success",
@@ -568,7 +571,7 @@
       "get": {
         "operationId": "listProjects",
         "summary": "listProjects",
-        "description": "Own projects only, created_at DESC/id DESC. Currently unpaginated; no membership/sharing.",
+        "description": "Projects owned by or shared with the caller, newest first. Unpaginated. Each includes caller role.",
         "responses": {
           "200": {
             "description": "Success",
@@ -724,7 +727,7 @@
       "patch": {
         "operationId": "updateProject",
         "summary": "updateProject",
-        "description": "Body limit 64 KiB; unknown fields rejected.",
+        "description": "Owner only. Same-field last-write-wins; no project version. Body 64 KiB; unknown fields rejected.",
         "responses": {
           "200": {
             "description": "Success",
@@ -761,6 +764,9 @@
           },
           "504": {
             "$ref": "#/components/responses/Error504"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
           }
         },
         "requestBody": {
@@ -791,7 +797,7 @@
       "delete": {
         "operationId": "deleteProject",
         "summary": "deleteProject",
-        "description": "409 PROJECT_NOT_EMPTY if any task remains. Move/delete those tasks first. No cascading task deletion; foreign/absent projects both 404.",
+        "description": "Owner only, 409 if tasks remain. Memberships/invitations are cleaned up; tasks never cascade.",
         "responses": {
           "204": {
             "description": "Success",
@@ -824,6 +830,9 @@
           },
           "504": {
             "$ref": "#/components/responses/Error504"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
           }
         },
         "parameters": [
@@ -934,6 +943,517 @@
         },
         "security": []
       }
+    },
+    "/projects/{id}/members": {
+      "get": {
+        "operationId": "listMembers",
+        "summary": "listMembers",
+        "description": "Owner and members can list IDs and roles. No emails.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Member"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/projects/{id}/members/{userID}": {
+      "delete": {
+        "operationId": "removeMember",
+        "summary": "removeMember",
+        "description": "Owner only. Cannot remove the owner. Existing sessions lose subsequent project access immediately after commit.",
+        "responses": {
+          "204": {
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "userID",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/projects/{id}/leave": {
+      "post": {
+        "operationId": "leaveProject",
+        "summary": "leaveProject",
+        "description": "Member leaves. Owner must transfer first (409 OWNER_REQUIRED). Tasks remain in the project.",
+        "responses": {
+          "204": {
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/projects/{id}/ownership": {
+      "post": {
+        "operationId": "transferOwnership",
+        "summary": "transferOwnership",
+        "description": "Owner only; target must be a current member. Old owner becomes member. Pending invitations are revoked atomically.",
+        "responses": {
+          "204": {
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InviteRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/{id}/invitations": {
+      "get": {
+        "operationId": "listInvitations",
+        "summary": "listInvitations",
+        "description": "Owner only; token never returned in this list.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Invitation"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      },
+      "post": {
+        "operationId": "createInvitation",
+        "summary": "createInvitation",
+        "description": "Owner only; recipient must be a registered user who is not already a member. 24-hour single-use recipient-bound token, returned once. Reissuing revokes prior outstanding invitations for that recipient. No email sent.",
+        "responses": {
+          "201": {
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invitation"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InviteRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/{id}/invitations/{invitationID}": {
+      "delete": {
+        "operationId": "revokeInvitation",
+        "summary": "revokeInvitation",
+        "description": "Owner only. Accepted tokens cannot be revoked; remove the member instead.",
+        "responses": {
+          "204": {
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "invitationID",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/invitations/accept": {
+      "post": {
+        "operationId": "acceptInvitation",
+        "summary": "acceptInvitation",
+        "description": "Authenticated intended recipient only. Invalid, expired, revoked, used or mismatched tokens return generic INVITATION_INVALID. Request bodies must not be logged.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "project_id"
+                  ],
+                  "properties": {
+                    "project_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptRequest"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -953,15 +1473,19 @@
             "enum": [
               "AUTH_BUSY",
               "EMAIL_ALREADY_EXISTS",
+              "FORBIDDEN",
               "INTERNAL_ERROR",
+              "INVALID_INVITEE",
               "INVALID_PROJECT",
               "INVALID_QUERY",
               "INVALID_REQUEST",
               "INVALID_TASK",
               "INVALID_USER",
+              "INVITATION_INVALID",
               "LOGIN_RATE_LIMITED",
               "METHOD_NOT_ALLOWED",
               "NOT_READY",
+              "OWNER_REQUIRED",
               "PROJECT_NOT_EMPTY",
               "PROJECT_NOT_FOUND",
               "REGISTRATION_BUSY",
@@ -1133,6 +1657,10 @@
             "type": "string",
             "format": "uuid",
             "nullable": true
+          },
+          "can_move": {
+            "type": "boolean",
+            "description": "True only for the creator. Server separately authorizes source and target projects."
           }
         },
         "required": [
@@ -1144,7 +1672,8 @@
           "created_at",
           "due_date",
           "version",
-          "project_id"
+          "project_id",
+          "can_move"
         ],
         "additionalProperties": false
       },
@@ -1243,6 +1772,13 @@
           "updated_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "member"
+            ]
           }
         },
         "required": [
@@ -1250,7 +1786,8 @@
           "name",
           "description",
           "created_at",
-          "updated_at"
+          "updated_at",
+          "role"
         ],
         "additionalProperties": false
       },
@@ -1289,23 +1826,120 @@
         },
         "additionalProperties": false,
         "description": "At least one non-null field. Same-field concurrent edits use last-write-wins; projects have no version."
+      },
+      "Member": {
+        "type": "object",
+        "required": [
+          "user_id",
+          "role"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "member"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "InviteRequest": {
+        "type": "object",
+        "required": [
+          "user_id"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AcceptRequest": {
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "properties": {
+          "token": {
+            "type": "string",
+            "minLength": 43,
+            "maxLength": 43,
+            "writeOnly": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "Invitation": {
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "invitee_user_id",
+          "created_at",
+          "expires_at",
+          "revoked_at",
+          "accepted_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "project_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invitee_user_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revoked_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "accepted_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "token": {
+            "type": "string",
+            "description": "Returned only once on creation. Do not log or persist. Share as URL fragment."
+          }
+        },
+        "additionalProperties": false
       }
     },
     "responses": {
       "Error400": {
-        "description": "INVALID_REQUEST, INVALID_USER, INVALID_TASK, INVALID_PROJECT, INVALID_QUERY",
-        "headers": {
-          "X-Request-ID": {
-            "description": "Server-generated opaque correlation ID; incoming values are ignored.",
-            "schema": {
-              "type": "string"
-            }
-          }
-        },
+        "description": "INVALID_REQUEST, INVALID_USER, INVALID_TASK, INVALID_PROJECT, INVALID_QUERY, INVITATION_INVALID, INVALID_INVITEE",
         "content": {
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/Error"
+            }
+          }
+        },
+        "headers": {
+          "X-Request-ID": {
+            "schema": {
+              "type": "string"
             }
           }
         }
@@ -1371,19 +2005,18 @@
         }
       },
       "Error409": {
-        "description": "EMAIL_ALREADY_EXISTS, TASK_CONFLICT, PROJECT_NOT_EMPTY",
-        "headers": {
-          "X-Request-ID": {
-            "description": "Server-generated opaque correlation ID; incoming values are ignored.",
-            "schema": {
-              "type": "string"
-            }
-          }
-        },
+        "description": "EMAIL_ALREADY_EXISTS, TASK_CONFLICT, PROJECT_NOT_EMPTY, OWNER_REQUIRED",
         "content": {
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/Error"
+            }
+          }
+        },
+        "headers": {
+          "X-Request-ID": {
+            "schema": {
+              "type": "string"
             }
           }
         }
@@ -1489,6 +2122,23 @@
             }
           }
         }
+      },
+      "Error403": {
+        "description": "FORBIDDEN",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        },
+        "headers": {
+          "X-Request-ID": {
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
       }
     }
   },
@@ -1498,7 +2148,9 @@
       "INVALID_USER",
       "INVALID_TASK",
       "INVALID_PROJECT",
-      "INVALID_QUERY"
+      "INVALID_QUERY",
+      "INVITATION_INVALID",
+      "INVALID_INVITEE"
     ],
     "401": [
       "UNAUTHORIZED"
@@ -1514,7 +2166,8 @@
     "409": [
       "EMAIL_ALREADY_EXISTS",
       "TASK_CONFLICT",
-      "PROJECT_NOT_EMPTY"
+      "PROJECT_NOT_EMPTY",
+      "OWNER_REQUIRED"
     ],
     "413": [
       "REQUEST_TOO_LARGE"
@@ -1532,6 +2185,9 @@
     ],
     "504": [
       "REQUEST_TIMEOUT"
+    ],
+    "403": [
+      "FORBIDDEN"
     ]
   }
 }

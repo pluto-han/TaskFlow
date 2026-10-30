@@ -11,3 +11,5 @@ export type UpdateTask = components["schemas"]["UpdateTask"];
 export type Project = components["schemas"]["Project"];
 export type CreateProject = components["schemas"]["CreateProject"];
 export type UpdateProject = components["schemas"]["UpdateProject"];
+export type Member = components["schemas"]["Member"];
+export type Invitation = components["schemas"]["Invitation"];

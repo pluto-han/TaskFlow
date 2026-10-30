@@ -13,10 +13,13 @@ import (
 	"github.com/pluto-han/taskflow/internal/session"
 )
 
-type PostgresRepository struct{ queries *db.Queries }
+type PostgresRepository struct {
+	queries *db.Queries
+	pool    *pgxpool.Pool
+}
 
 func NewPostgresRepository(pool *pgxpool.Pool) *PostgresRepository {
-	return &PostgresRepository{queries: db.New(pool)}
+	return &PostgresRepository{queries: db.New(pool), pool: pool}
 }
 func ownerUUID(raw session.UserID) (pgtype.UUID, error) {
 	var id pgtype.UUID
@@ -40,7 +43,7 @@ func databaseError(err error) error {
 		return ErrNotFound
 	}
 	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) && pgErr.Code == "23503" && pgErr.ConstraintName == "tasks_project_owner_fk" {
+	if errors.As(err, &pgErr) && pgErr.Code == "23503" && (pgErr.ConstraintName == "tasks_project_owner_fk" || pgErr.ConstraintName == "tasks_project_fk") {
 		return ErrNotEmpty
 	}
 	return fmt.Errorf("project repository: %w", err)
@@ -63,7 +66,11 @@ func (r *PostgresRepository) Create(ctx context.Context, owner session.UserID, p
 	if err != nil {
 		return nil, err
 	}
-	return fromRow(r.queries.CreateProject(ctx, db.CreateProjectParams{ID: id, OwnerID: uid, Name: p.Name, Description: p.Description}))
+	result, err := fromRow(r.queries.CreateProject(ctx, db.CreateProjectParams{ID: id, OwnerID: uid, Name: p.Name, Description: p.Description}))
+	if err == nil {
+		result.Role = "owner"
+	}
+	return result, err
 }
 func (r *PostgresRepository) GetByID(ctx context.Context, owner session.UserID, rawID string) (*Project, error) {
 	uid, err := ownerUUID(owner)
@@ -74,7 +81,14 @@ func (r *PostgresRepository) GetByID(ctx context.Context, owner session.UserID, 
 	if err != nil {
 		return nil, err
 	}
-	return fromRow(r.queries.GetProject(ctx, db.GetProjectParams{ID: id, OwnerID: uid}))
+	result, err := fromRow(r.queries.GetProject(ctx, db.GetProjectParams{ID: id, OwnerID: uid}))
+	if err == nil {
+		result.Role = "member"
+		if result.OwnerID == owner {
+			result.Role = "owner"
+		}
+	}
+	return result, err
 }
 func (r *PostgresRepository) List(ctx context.Context, owner session.UserID) ([]Project, error) {
 	uid, err := ownerUUID(owner)
@@ -90,6 +104,10 @@ func (r *PostgresRepository) List(ctx context.Context, owner session.UserID) ([]
 		p, err := fromRow(row, nil)
 		if err != nil {
 			return nil, err
+		}
+		p.Role = "member"
+		if p.OwnerID == owner {
+			p.Role = "owner"
 		}
 		result = append(result, *p)
 	}
@@ -111,7 +129,16 @@ func (r *PostgresRepository) Update(ctx context.Context, owner session.UserID, r
 	if input.Description != nil {
 		params.Description = pgtype.Text{String: *input.Description, Valid: true}
 	}
-	return fromRow(r.queries.UpdateProject(ctx, params))
+	var result *Project
+	err = r.withAccess(ctx, owner, rawID, true, func(tx pgx.Tx) error {
+		var e error
+		result, e = fromRow(r.queries.WithTx(tx).UpdateProject(ctx, params))
+		return e
+	})
+	if err == nil {
+		result.Role = "owner"
+	}
+	return result, err
 }
 func (r *PostgresRepository) Delete(ctx context.Context, owner session.UserID, rawID string) error {
 	uid, err := ownerUUID(owner)
@@ -122,8 +149,10 @@ func (r *PostgresRepository) Delete(ctx context.Context, owner session.UserID, r
 	if err != nil {
 		return err
 	}
-	_, err = r.queries.DeleteProject(ctx, db.DeleteProjectParams{ID: id, OwnerID: uid})
-	return databaseError(err)
+	return r.withAccess(ctx, owner, rawID, true, func(tx pgx.Tx) error {
+		_, e := r.queries.WithTx(tx).DeleteProject(ctx, db.DeleteProjectParams{ID: id, OwnerID: uid})
+		return e
+	})
 }
 
 var _ Repository = (*PostgresRepository)(nil)
