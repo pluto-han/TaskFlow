@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pluto-han/taskflow/internal/project"
 	"github.com/pluto-han/taskflow/internal/session"
+	"github.com/pluto-han/taskflow/internal/testdb"
 )
 
 func TestSharingIntegration(t *testing.T) {
@@ -25,6 +26,7 @@ func TestSharingIntegration(t *testing.T) {
 	if e != nil || cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Database != "taskflow_lesson20_test" {
 		t.Fatal("requires isolated taskflow_lesson20_test")
 	}
+	testdb.Verify(t, cfg)
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	pool, e := pgxpool.NewWithConfig(ctx, cfg)

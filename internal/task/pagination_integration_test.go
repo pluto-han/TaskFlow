@@ -11,6 +11,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/pluto-han/taskflow/internal/testdb"
 
 	"github.com/pluto-han/taskflow/internal/session"
 )
@@ -45,6 +46,7 @@ func TestTaskPaginationIntegration(t *testing.T) {
 	}
 	trace := &listQueryTrace{}
 	cfg.ConnConfig.Tracer = trace
+	testdb.Verify(t, cfg)
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)

@@ -15,13 +15,14 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pluto-han/taskflow/internal/auth"
+	"github.com/pluto-han/taskflow/internal/testdb"
 )
 
-// Run via scripts/test-lesson12.sh. Ordinary unit tests never connect to a DB.
+// Run via python3 scripts/test_integration.py. Ordinary unit tests never connect to a DB.
 func TestPostgresRegistrationIntegration(t *testing.T) {
 	url := os.Getenv("TASKFLOW_TEST_DATABASE_URL")
 	if url == "" {
-		t.Skip("run scripts/test-lesson12.sh for isolated PostgreSQL tests")
+		t.Skip("run python3 scripts/test_integration.py for isolated PostgreSQL tests")
 	}
 	cfg, err := pgxpool.ParseConfig(url)
 	if err != nil {
@@ -30,6 +31,7 @@ func TestPostgresRegistrationIntegration(t *testing.T) {
 	if cfg.ConnConfig.Database != "taskflow_lesson12_test" || cfg.ConnConfig.Host != "127.0.0.1" {
 		t.Fatal("integration tests require loopback and taskflow_lesson12_test database")
 	}
+	testdb.Verify(t, cfg)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)

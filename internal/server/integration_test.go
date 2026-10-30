@@ -18,6 +18,7 @@ import (
 	"github.com/pluto-han/taskflow/internal/project"
 	"github.com/pluto-han/taskflow/internal/session"
 	"github.com/pluto-han/taskflow/internal/task"
+	"github.com/pluto-han/taskflow/internal/testdb"
 	"github.com/pluto-han/taskflow/internal/user"
 )
 
@@ -101,6 +102,7 @@ func TestAPIExamplesIntegration(t *testing.T) {
 	if err != nil || cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Database != "taskflow_lesson17_test" {
 		t.Fatal("requires isolated loopback taskflow_lesson17_test")
 	}
+	testdb.Verify(t, cfg)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)

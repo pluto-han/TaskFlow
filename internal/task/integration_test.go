@@ -14,6 +14,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/pluto-han/taskflow/internal/testdb"
 
 	"github.com/pluto-han/taskflow/internal/auth"
 	"github.com/pluto-han/taskflow/internal/session"
@@ -29,6 +30,7 @@ func TestTaskOwnershipIntegration(t *testing.T) {
 	if err != nil || cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Database != "taskflow_lesson14_test" {
 		t.Fatal("requires isolated loopback taskflow_lesson14_test")
 	}
+	testdb.Verify(t, cfg)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)

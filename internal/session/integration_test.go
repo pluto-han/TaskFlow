@@ -15,18 +15,20 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pluto-han/taskflow/internal/auth"
+	"github.com/pluto-han/taskflow/internal/testdb"
 	"github.com/pluto-han/taskflow/internal/user"
 )
 
 func TestSessionIntegration(t *testing.T) {
 	url := os.Getenv("TASKFLOW_SESSION_TEST_DATABASE_URL")
 	if url == "" {
-		t.Skip("run scripts/test-lesson13.sh for PostgreSQL tests")
+		t.Skip("run python3 scripts/test_integration.py for PostgreSQL tests")
 	}
 	cfg, err := pgxpool.ParseConfig(url)
 	if err != nil || cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Database != "taskflow_lesson13_test" {
 		t.Fatal("requires isolated loopback taskflow_lesson13_test database")
 	}
+	testdb.Verify(t, cfg)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)

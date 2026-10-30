@@ -1,0 +1,30 @@
+name: Reliability tests
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Install migration CLI
+        run: go install -tags postgres github.com/golang-migrate/migrate/v4/cmd/migrate@v4.18.3
+      - name: Unit tests and static checks
+        run: |
+          test -z "$(gofmt -l cmd internal)"
+          go vet ./cmd/... ./internal/...
+          go test ./cmd/... ./internal/...
+      - name: Three isolated database rounds with race detector
+        run: python3 scripts/test_integration.py --repeat 3
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: go-coverage
+          path: artifacts/lesson21/
+          if-no-files-found: ignore
