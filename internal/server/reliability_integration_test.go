@@ -16,6 +16,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pluto-han/taskflow/internal/auth"
+	"github.com/pluto-han/taskflow/internal/config"
 	"github.com/pluto-han/taskflow/internal/project"
 	"github.com/pluto-han/taskflow/internal/session"
 	"github.com/pluto-han/taskflow/internal/task"
@@ -46,6 +47,53 @@ func TestReliabilityHTTPIntegration(t *testing.T) {
 	if err = pool.QueryRow(ctx, "SELECT version,dirty FROM schema_migrations").Scan(&version, &dirty); err != nil || version != 9 || dirty {
 		t.Fatal("requires clean schema 9")
 	}
+
+	t.Run("least privilege runtime role", func(t *testing.T) {
+		if config.CheckRuntimeRole(ctx, pool) == nil {
+			t.Fatal("superuser accepted as runtime role")
+		}
+		_, err := pool.Exec(ctx, `CREATE ROLE taskflow_security_runtime NOLOGIN;
+   GRANT USAGE ON SCHEMA public TO taskflow_security_runtime;
+   GRANT SELECT,INSERT ON users TO taskflow_security_runtime;
+   GRANT SELECT,INSERT,UPDATE ON sessions TO taskflow_security_runtime;
+   GRANT SELECT,INSERT,UPDATE,DELETE ON projects,tasks,project_memberships,project_invitations TO taskflow_security_runtime;`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		limitedCfg := cfg.Copy()
+		limitedCfg.ConnConfig.RuntimeParams["role"] = "taskflow_security_runtime"
+		limited, err := pgxpool.NewWithConfig(ctx, limitedCfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer limited.Close()
+		if err = config.CheckRuntimeRole(ctx, limited); err != nil {
+			t.Fatal(err)
+		}
+		for _, query := range []string{"CREATE TABLE public.forbidden(id int)", "DELETE FROM users", "SELECT * FROM taskflow_test_lease"} {
+			if _, err = limited.Exec(ctx, query); err == nil {
+				t.Fatalf("unexpected privilege: %s", query)
+			}
+		}
+		u, err := user.NewService(user.NewPostgresRepository(limited), auth.PasswordHasher{}).Register(ctx, user.RegisterRequest{Email: "limited-role@example.com", Password: "limited runtime passphrase"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		pr := project.NewPostgresRepository(limited)
+		owner := session.UserID(u.ID)
+		p, err := project.NewService(pr).Create(ctx, owner, project.CreateRequest{Name: "limited project"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		svc := task.NewService(task.NewPostgresRepository(limited), pr)
+		item, err := svc.Create(ctx, owner, task.CreateTaskRequest{Title: "limited task", Priority: 1, ProjectID: &p.ID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = svc.Delete(ctx, owner, item.ID); err != nil {
+			t.Fatal(err)
+		}
+	})
 	users := user.NewPostgresRepository(pool)
 	projects := project.NewPostgresRepository(pool)
 	sessions, err := session.NewService(ctx, users, session.NewPostgresRepository(pool), auth.PasswordHasher{})

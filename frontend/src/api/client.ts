@@ -89,6 +89,9 @@ export const api = {
 export function errorMessage(error: unknown): string {
   if (!(error instanceof ApiError)) return "暂时无法完成操作，请重试。";
   const messages: Record<string, string> = {
+    RATE_LIMITED: "请求过于频繁，请一分钟后重试。",
+    HTTPS_REQUIRED: "请通过 HTTPS 安全入口访问服务。",
+    ORIGIN_NOT_ALLOWED: "当前访问来源未获允许，请使用正式站点。",
     FORBIDDEN: "你没有执行此操作的权限，请刷新项目权限。",
     INVITATION_INVALID:
       "邀请已失效、已使用，或当前账号不是接收者。请联系项目所有者。",

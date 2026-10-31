@@ -389,7 +389,7 @@ export interface components {
     schemas: {
         ErrorDetail: {
             /** @enum {string} */
-            code: "AUTH_BUSY" | "EMAIL_ALREADY_EXISTS" | "FORBIDDEN" | "INTERNAL_ERROR" | "INVALID_INVITEE" | "INVALID_PROJECT" | "INVALID_QUERY" | "INVALID_REQUEST" | "INVALID_TASK" | "INVALID_USER" | "INVITATION_INVALID" | "LOGIN_RATE_LIMITED" | "METHOD_NOT_ALLOWED" | "NOT_READY" | "OWNER_REQUIRED" | "PROJECT_NOT_EMPTY" | "PROJECT_NOT_FOUND" | "REGISTRATION_BUSY" | "REQUEST_TIMEOUT" | "REQUEST_TOO_LARGE" | "ROUTE_NOT_FOUND" | "TASK_CONFLICT" | "TASK_NOT_FOUND" | "UNAUTHORIZED";
+            code: "AUTH_BUSY" | "EMAIL_ALREADY_EXISTS" | "FORBIDDEN" | "INTERNAL_ERROR" | "INVALID_INVITEE" | "INVALID_PROJECT" | "INVALID_QUERY" | "INVALID_REQUEST" | "INVALID_TASK" | "INVALID_USER" | "INVITATION_INVALID" | "LOGIN_RATE_LIMITED" | "METHOD_NOT_ALLOWED" | "NOT_READY" | "OWNER_REQUIRED" | "PROJECT_NOT_EMPTY" | "PROJECT_NOT_FOUND" | "REGISTRATION_BUSY" | "REQUEST_TIMEOUT" | "REQUEST_TOO_LARGE" | "ROUTE_NOT_FOUND" | "TASK_CONFLICT" | "TASK_NOT_FOUND" | "UNAUTHORIZED" | "HTTPS_REQUIRED" | "ORIGIN_NOT_ALLOWED" | "RATE_LIMITED";
             message: string;
         };
         Error: {
@@ -687,8 +687,10 @@ export interface operations {
                 };
             };
             400: components["responses"]["Error400"];
+            403: components["responses"]["Error403"];
             409: components["responses"]["Error409"];
             413: components["responses"]["Error413"];
+            429: components["responses"]["Error429"];
             500: components["responses"]["Error500"];
             503: components["responses"]["Error503"];
             504: components["responses"]["Error504"];
@@ -726,6 +728,7 @@ export interface operations {
             };
             400: components["responses"]["Error400"];
             401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
             413: components["responses"]["Error413"];
             429: components["responses"]["Error429"];
             500: components["responses"]["Error500"];
@@ -754,6 +757,9 @@ export interface operations {
                 };
             };
             401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            413: components["responses"]["Error413"];
+            429: components["responses"]["Error429"];
             500: components["responses"]["Error500"];
             503: components["responses"]["Error503"];
             504: components["responses"]["Error504"];
@@ -778,6 +784,9 @@ export interface operations {
                 content?: never;
             };
             401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            413: components["responses"]["Error413"];
+            429: components["responses"]["Error429"];
             500: components["responses"]["Error500"];
             503: components["responses"]["Error503"];
             504: components["responses"]["Error504"];
@@ -824,6 +833,9 @@ export interface operations {
             };
             400: components["responses"]["Error400"];
             401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            413: components["responses"]["Error413"];
+            429: components["responses"]["Error429"];
             500: components["responses"]["Error500"];
             503: components["responses"]["Error503"];
             504: components["responses"]["Error504"];
@@ -863,7 +875,10 @@ export interface operations {
             };
             400: components["responses"]["Error400"];
             401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
             404: components["responses"]["Error404"];
+            413: components["responses"]["Error413"];
+            429: components["responses"]["Error429"];
             500: components["responses"]["Error500"];
             503: components["responses"]["Error503"];
             504: components["responses"]["Error504"];
@@ -892,7 +907,10 @@ export interface operations {
                 };
             };
             401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
             404: components["responses"]["Error404"];
+            413: components["responses"]["Error413"];
+            429: components["responses"]["Error429"];
             500: components["responses"]["Error500"];
             503: components["responses"]["Error503"];
             504: components["responses"]["Error504"];
@@ -919,7 +937,10 @@ export interface operations {
                 content?: never;
             };
             401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
             404: components["responses"]["Error404"];
+            413: components["responses"]["Error413"];
+            429: components["responses"]["Error429"];
             500: components["responses"]["Error500"];
             503: components["responses"]["Error503"];
             504: components["responses"]["Error504"];
@@ -962,6 +983,8 @@ export interface operations {
             403: components["responses"]["Error403"];
             404: components["responses"]["Error404"];
             409: components["responses"]["Error409"];
+            413: components["responses"]["Error413"];
+            429: components["responses"]["Error429"];
             500: components["responses"]["Error500"];
             503: components["responses"]["Error503"];
             504: components["responses"]["Error504"];
@@ -988,6 +1011,9 @@ export interface operations {
                 };
             };
             401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            413: components["responses"]["Error413"];
+            429: components["responses"]["Error429"];
             500: components["responses"]["Error500"];
             503: components["responses"]["Error503"];
             504: components["responses"]["Error504"];
@@ -1027,6 +1053,9 @@ export interface operations {
             };
             400: components["responses"]["Error400"];
             401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            413: components["responses"]["Error413"];
+            429: components["responses"]["Error429"];
             500: components["responses"]["Error500"];
             503: components["responses"]["Error503"];
             504: components["responses"]["Error504"];
@@ -1056,7 +1085,10 @@ export interface operations {
             };
             400: components["responses"]["Error400"];
             401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
             404: components["responses"]["Error404"];
+            413: components["responses"]["Error413"];
+            429: components["responses"]["Error429"];
             500: components["responses"]["Error500"];
             503: components["responses"]["Error503"];
             504: components["responses"]["Error504"];
@@ -1087,6 +1119,8 @@ export interface operations {
             403: components["responses"]["Error403"];
             404: components["responses"]["Error404"];
             409: components["responses"]["Error409"];
+            413: components["responses"]["Error413"];
+            429: components["responses"]["Error429"];
             500: components["responses"]["Error500"];
             503: components["responses"]["Error503"];
             504: components["responses"]["Error504"];
@@ -1127,6 +1161,8 @@ export interface operations {
             401: components["responses"]["Error401"];
             403: components["responses"]["Error403"];
             404: components["responses"]["Error404"];
+            413: components["responses"]["Error413"];
+            429: components["responses"]["Error429"];
             500: components["responses"]["Error500"];
             503: components["responses"]["Error503"];
             504: components["responses"]["Error504"];
@@ -1152,6 +1188,8 @@ export interface operations {
                     "application/json": components["schemas"]["Health"];
                 };
             };
+            403: components["responses"]["Error403"];
+            413: components["responses"]["Error413"];
             500: components["responses"]["Error500"];
         };
     };
@@ -1175,6 +1213,8 @@ export interface operations {
                     "application/json": components["schemas"]["Health"];
                 };
             };
+            403: components["responses"]["Error403"];
+            413: components["responses"]["Error413"];
             500: components["responses"]["Error500"];
         };
     };
@@ -1198,6 +1238,8 @@ export interface operations {
                     "application/json": components["schemas"]["Health"];
                 };
             };
+            403: components["responses"]["Error403"];
+            413: components["responses"]["Error413"];
             500: components["responses"]["Error500"];
             503: components["responses"]["Error503"];
         };
@@ -1228,6 +1270,8 @@ export interface operations {
             403: components["responses"]["Error403"];
             404: components["responses"]["Error404"];
             409: components["responses"]["Error409"];
+            413: components["responses"]["Error413"];
+            429: components["responses"]["Error429"];
             500: components["responses"]["Error500"];
             503: components["responses"]["Error503"];
             504: components["responses"]["Error504"];
@@ -1258,6 +1302,8 @@ export interface operations {
             403: components["responses"]["Error403"];
             404: components["responses"]["Error404"];
             409: components["responses"]["Error409"];
+            413: components["responses"]["Error413"];
+            429: components["responses"]["Error429"];
             500: components["responses"]["Error500"];
             503: components["responses"]["Error503"];
             504: components["responses"]["Error504"];
@@ -1287,6 +1333,8 @@ export interface operations {
             403: components["responses"]["Error403"];
             404: components["responses"]["Error404"];
             409: components["responses"]["Error409"];
+            413: components["responses"]["Error413"];
+            429: components["responses"]["Error429"];
             500: components["responses"]["Error500"];
             503: components["responses"]["Error503"];
             504: components["responses"]["Error504"];
@@ -1320,6 +1368,8 @@ export interface operations {
             403: components["responses"]["Error403"];
             404: components["responses"]["Error404"];
             409: components["responses"]["Error409"];
+            413: components["responses"]["Error413"];
+            429: components["responses"]["Error429"];
             500: components["responses"]["Error500"];
             503: components["responses"]["Error503"];
             504: components["responses"]["Error504"];
@@ -1351,6 +1401,8 @@ export interface operations {
             403: components["responses"]["Error403"];
             404: components["responses"]["Error404"];
             409: components["responses"]["Error409"];
+            413: components["responses"]["Error413"];
+            429: components["responses"]["Error429"];
             500: components["responses"]["Error500"];
             503: components["responses"]["Error503"];
             504: components["responses"]["Error504"];
@@ -1386,6 +1438,8 @@ export interface operations {
             403: components["responses"]["Error403"];
             404: components["responses"]["Error404"];
             409: components["responses"]["Error409"];
+            413: components["responses"]["Error413"];
+            429: components["responses"]["Error429"];
             500: components["responses"]["Error500"];
             503: components["responses"]["Error503"];
             504: components["responses"]["Error504"];
@@ -1416,6 +1470,8 @@ export interface operations {
             403: components["responses"]["Error403"];
             404: components["responses"]["Error404"];
             409: components["responses"]["Error409"];
+            413: components["responses"]["Error413"];
+            429: components["responses"]["Error429"];
             500: components["responses"]["Error500"];
             503: components["responses"]["Error503"];
             504: components["responses"]["Error504"];
@@ -1452,6 +1508,8 @@ export interface operations {
             403: components["responses"]["Error403"];
             404: components["responses"]["Error404"];
             409: components["responses"]["Error409"];
+            413: components["responses"]["Error413"];
+            429: components["responses"]["Error429"];
             500: components["responses"]["Error500"];
             503: components["responses"]["Error503"];
             504: components["responses"]["Error504"];

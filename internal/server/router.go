@@ -15,6 +15,7 @@ import (
 )
 
 type Dependencies struct {
+	Security httpapi.SecurityOptions
 	Users    *user.Service
 	Sessions *session.Service
 	Tasks    *task.Service
@@ -25,6 +26,7 @@ type Dependencies struct {
 
 func NewRouter(d Dependencies) *gin.Engine {
 	router := gin.New()
+	_ = router.SetTrustedProxies(nil)
 	// Avoid redirects outside the middleware chain: every response gets an ID.
 	router.RedirectTrailingSlash = false
 	router.RedirectFixedPath = false
@@ -32,7 +34,7 @@ func NewRouter(d Dependencies) *gin.Engine {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	router.Use(httpapi.Observe(logger))
+	router.Use(httpapi.Observe(logger), httpapi.Security(d.Security))
 	router.HandleMethodNotAllowed = true
 	router.NoRoute(func(c *gin.Context) { httpapi.WriteError(c, http.StatusNotFound, "ROUTE_NOT_FOUND", "Route not found") })
 	router.NoMethod(func(c *gin.Context) {

@@ -24,6 +24,10 @@ import (
 
 func main() {
 	cfg := config.Load()
+	security, err := cfg.Security()
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	if cfg.DatabaseURL == "" {
 		log.Fatal("DATABASE_URL is required")
@@ -46,6 +50,13 @@ func main() {
 		log.Fatal("Database connection failed")
 	}
 
+	if security.Production {
+		if err := config.CheckRuntimeRole(dbCtx, pool); err != nil {
+			dbCancel()
+			pool.Close()
+			log.Fatal(err)
+		}
+	}
 	dbCancel()
 	defer pool.Close()
 
@@ -59,6 +70,7 @@ func main() {
 		log.Fatal("Could not initialize password verification")
 	}
 	router := server.NewRouter(server.Dependencies{
+		Security: security,
 		Users:    user.NewService(userRepo, auth.PasswordHasher{}),
 		Sessions: sessionService,
 		Tasks:    service,
@@ -74,6 +86,7 @@ func main() {
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      15 * time.Second,
 		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    16 * 1024,
 	}
 
 	shutdownCtx, stop := signal.NotifyContext(

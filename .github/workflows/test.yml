@@ -20,6 +20,10 @@ jobs:
           test -z "$(gofmt -l cmd internal)"
           go vet ./cmd/... ./internal/...
           go test ./cmd/... ./internal/...
+      - name: Go dependency vulnerability scan
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
+          govulncheck ./internal/... ./cmd/...
       - name: Three isolated database rounds with race detector
         run: python3 scripts/test_integration.py --repeat 3
       - uses: actions/upload-artifact@v4
@@ -28,3 +32,24 @@ jobs:
           name: go-coverage
           path: artifacts/lesson21/
           if-no-files-found: ignore
+
+  frontend-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Audit and validate frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm audit --audit-level=high
+          npm run api:check
+          npm run lint
+          npm run typecheck
+          npm test
+          npm run build
