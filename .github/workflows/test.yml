@@ -2,6 +2,7 @@ name: Reliability tests
 on:
   push:
   pull_request:
+  workflow_call:
 permissions:
   contents: read
 jobs:
@@ -15,6 +16,8 @@ jobs:
           go-version-file: go.mod
       - name: Install migration CLI
         run: go install -tags postgres github.com/golang-migrate/migrate/v4/cmd/migrate@v4.18.3
+      - name: CD safety regression tests
+        run: python3 -m unittest discover -s scripts -p "test_deploy_release.py" -v
       - name: Unit tests and static checks
         run: |
           test -z "$(gofmt -l cmd internal)"

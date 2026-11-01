@@ -1,0 +1,129 @@
+name: Publish and deploy TaskFlow
+on:
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: 'Deploy after publishing (first run: false, then make GHCR packages public)'
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: taskflow-production-release
+  cancel-in-progress: false
+jobs:
+  release-ref:
+    if: github.repository == 'pluto-han/TaskFlow'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require a version tag
+        run: |
+          python3 - <<'PYCODE'
+          import os, re
+          if not re.fullmatch(r'refs/tags/v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)', os.environ['GITHUB_REF']):
+              raise SystemExit('Select a version tag such as v0.1.0; branch deployments are disabled')
+          PYCODE
+  verify:
+    needs: release-ref
+    uses: ./.github/workflows/test.yml
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      api: ${{ steps.images.outputs.api }}
+      migrate: ${{ steps.images.outputs.migrate }}
+      web: ${{ steps.images.outputs.web }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Log in to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+      - name: Build and publish immutable release references
+        id: images
+        env:
+          REVISION: ${{ github.sha }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess
+          revision = os.environ['REVISION']
+          version = os.environ['VERSION']
+          for service in ('api', 'migrate', 'web'):
+              tag = f'ghcr.io/pluto-han/taskflow-{service}:{revision}'
+              args = ['docker', 'build', '--pull', '--label', f'org.opencontainers.image.revision={revision}',
+                      '--label', 'org.opencontainers.image.source=https://github.com/pluto-han/TaskFlow',
+                      '--label', f'org.opencontainers.image.version={version}', '-t', tag]
+              args += ['-f', 'frontend/Dockerfile'] if service == 'web' else ['--target', service]
+              subprocess.run(args + ['.'], check=True)
+              subprocess.run(['docker', 'push', tag], check=True)
+              subprocess.run(['docker', 'pull', tag], check=True)
+              details = json.loads(subprocess.check_output(['docker', 'image', 'inspect', tag]))[0]
+              prefix = f'ghcr.io/pluto-han/taskflow-{service}@sha256:'
+              digest = next(ref for ref in details['RepoDigests'] if ref.startswith(prefix))
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+                  output.write(f'{service}={digest}\n')
+              with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+                  summary.write(f'- `{service}`: `{digest}`\n')
+          PY
+      - name: Remove registry login
+        if: always()
+        run: docker logout ghcr.io
+  deploy:
+    needs: publish
+    if: inputs.deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    environment:
+      name: production
+      url: https://taskflow.hancongzhang.com
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+      DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+      DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+      REVISION: ${{ github.sha }}
+      API_IMAGE: ${{ needs.publish.outputs.api }}
+      MIGRATE_IMAGE: ${{ needs.publish.outputs.migrate }}
+      WEB_IMAGE: ${{ needs.publish.outputs.web }}
+    steps:
+      - name: Send approved release to restricted SSH receiver
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, re, subprocess, tempfile
+          host, port = os.environ['DEPLOY_HOST'], os.environ['DEPLOY_PORT']
+          if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9.-]*', host):
+              raise SystemExit('Invalid DEPLOY_HOST')
+          if not port.isdigit() or not 1 <= int(port) <= 65535:
+              raise SystemExit('Invalid DEPLOY_PORT')
+          if not os.environ['DEPLOY_SSH_KEY'].strip() or not os.environ['DEPLOY_KNOWN_HOSTS'].strip():
+              raise SystemExit('SSH key and verified known_hosts are required')
+          payload = {'revision': os.environ['REVISION'], 'images': {
+              name: os.environ[name.upper() + '_IMAGE'] for name in ('api', 'migrate', 'web')}}
+          os.umask(0o077)
+          with tempfile.TemporaryDirectory() as directory:
+              key, hosts = pathlib.Path(directory)/'key', pathlib.Path(directory)/'known_hosts'
+              key.write_text(os.environ['DEPLOY_SSH_KEY'].rstrip() + '\n')
+              hosts.write_text(os.environ['DEPLOY_KNOWN_HOSTS'].rstrip() + '\n')
+              subprocess.run(['ssh', '-T', '-p', port, '-i', str(key),
+                  '-o', 'BatchMode=yes', '-o', 'IdentitiesOnly=yes',
+                  '-o', 'StrictHostKeyChecking=yes', '-o', f'UserKnownHostsFile={hosts}',
+                  '-o', 'ConnectTimeout=15', '-o', 'ServerAliveInterval=15',
+                  '-o', 'ServerAliveCountMax=4', f'root@{host}', 'deploy'],
+                  input=json.dumps(payload), text=True, check=True, timeout=2100)
+          PY
+      - name: Verify public HTTPS readiness
+        run: curl --fail --silent --show-error --max-time 20 https://taskflow.hancongzhang.com/api/health/ready
+      - name: Release result
+        if: always()
+        env:
+          RESULT: ${{ job.status }}
+        run: |
+          printf 'Deployment job: %s\nCommit: %s\n' "$RESULT" "$REVISION" >> "$GITHUB_STEP_SUMMARY"
