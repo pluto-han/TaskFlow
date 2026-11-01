@@ -53,3 +53,20 @@ jobs:
           npm run typecheck
           npm test
           npm run build
+  container-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate disposable local test credentials and certificates
+        run: python3 scripts/init_local_stack.py
+      - name: Build pinned multi-stage images
+        run: docker compose -f compose.production.yaml build --pull
+      - name: Verify migration gate and persistent container stack
+        run: python3 scripts/test_local_stack.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: container-image-sizes
+          path: artifacts/lesson23/images.json
+          if-no-files-found: ignore

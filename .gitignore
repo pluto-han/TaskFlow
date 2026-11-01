@@ -12,3 +12,6 @@ frontend/playwright-report/
 # Disposable integration test reports
 artifacts/
 __pycache__/
+
+# Local production simulation secrets, certificates and compose overrides
+.local/

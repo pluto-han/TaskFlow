@@ -23,7 +23,16 @@ import (
 )
 
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "healthcheck" {
+		if healthy() {
+			return
+		}
+		os.Exit(1)
+	}
 	cfg := config.Load()
+	if err := cfg.ReadSecrets(); err != nil {
+		log.Fatal(err)
+	}
 	security, err := cfg.Security()
 	if err != nil {
 		log.Fatal(err)

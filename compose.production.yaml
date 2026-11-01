@@ -1,0 +1,122 @@
+# Local production simulation only. Never merge with the development compose.yaml.
+name: taskflow-local
+services:
+  postgres:
+    image: postgres:17@sha256:b8faeff7712663c2773a190181e1246e37e364b887611c04658c28b44e2408fe
+    environment:
+      POSTGRES_USER: taskflow_migrator
+      POSTGRES_DB: taskflow
+      POSTGRES_PASSWORD_FILE: /run/secrets/admin_password
+    secrets: [admin_password, db_cert, db_key]
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        mkdir -p /tmp/tls
+        cp /run/secrets/db_cert /tmp/tls/server.crt
+        cp /run/secrets/db_key /tmp/tls/server.key
+        chown -R postgres:postgres /tmp/tls
+        chmod 600 /tmp/tls/server.key
+        exec docker-entrypoint.sh postgres -c ssl=on -c ssl_cert_file=/tmp/tls/server.crt -c ssl_key_file=/tmp/tls/server.key
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    networks: [database]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "taskflow_migrator", "-d", "taskflow"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 15s
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 1
+    pids_limit: 128
+    stop_grace_period: 30s
+  migrate:
+    image: taskflow-migrate:local
+    build: {context: ., target: migrate}
+    environment:
+      DATABASE_URL_FILE: /run/secrets/admin_url
+      APP_PASSWORD_FILE: /run/secrets/app_password
+    secrets: [admin_url, app_password, db_ca]
+    networks: [database]
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: "no"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 128m
+    cpus: 0.5
+    pids_limit: 64
+  api:
+    image: taskflow-api:local
+    build: {context: ., target: api}
+    environment:
+      DATABASE_URL_FILE: /run/secrets/app_url
+      TASKFLOW_ENV: production
+      TASKFLOW_HTTP_ADDR: 0.0.0.0:9090
+      TASKFLOW_PUBLIC_ORIGIN: https://localhost:8443
+      TASKFLOW_TRUSTED_PROXIES: 172.30.23.2/32,127.0.0.1/32
+      GIN_MODE: release
+    secrets: [app_url, db_ca]
+    networks:
+      database: {}
+      edge: {ipv4_address: 172.30.23.3}
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    healthcheck:
+      test: ["CMD", "/api", "healthcheck"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 15s
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 256m
+    cpus: 1
+    pids_limit: 128
+    stop_grace_period: 20s
+  web:
+    image: taskflow-web:local
+    build: {context: ., dockerfile: frontend/Dockerfile}
+    ports: ["127.0.0.1:8443:8443"]
+    secrets: [web_cert, web_key]
+    networks:
+      edge: {ipv4_address: 172.30.23.2}
+      ingress: {}
+    depends_on:
+      api: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "wget", "--no-check-certificate", "-q", "-O", "/dev/null", "https://127.0.0.1:8443/_health"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ["/tmp:size=32m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 128m
+    cpus: 0.5
+    pids_limit: 64
+    stop_grace_period: 15s
+networks:
+  ingress: {}
+  database: {internal: true}
+  edge:
+    internal: true
+    ipam:
+      config: [{subnet: 172.30.23.0/24}]
+volumes:
+  postgres_data:
+secrets:
+  admin_password: {file: ./.local/stack/admin_password}
+  app_password: {file: ./.local/stack/app_password}
+  admin_url: {file: ./.local/stack/admin_url}
+  app_url: {file: ./.local/stack/app_url}
+  db_cert: {file: ./.local/stack/db.crt}
+  db_key: {file: ./.local/stack/db.key}
+  db_ca: {file: ./.local/stack/ca.crt}
+  web_cert: {file: ./.local/stack/web.crt}
+  web_key: {file: ./.local/stack/web.key}
