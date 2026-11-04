@@ -16,8 +16,16 @@ jobs:
           go-version-file: go.mod
       - name: Install migration CLI
         run: go install -tags postgres github.com/golang-migrate/migrate/v4/cmd/migrate@v4.18.3
+      - name: Check sqlc generation consistency
+        run: |
+          go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1
+          sqlc generate
+          git diff --exit-code -- internal/db/sqlc
+          test -z "$(git ls-files --others --exclude-standard -- internal/db/sqlc)"
       - name: CD safety regression tests
-        run: python3 -m unittest discover -s scripts -p "test_deploy_release.py" -v
+        run: |
+          python3 -m unittest discover -s scripts -p "test_deploy_release.py" -v
+          python3 -m unittest discover -s scripts -p "test_prepare_monitoring.py" -v
       - name: Unit tests and static checks
         run: |
           test -z "$(gofmt -l cmd internal)"
@@ -58,7 +66,7 @@ jobs:
           npm run build
   container-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - name: Generate disposable local test credentials and certificates
@@ -67,6 +75,16 @@ jobs:
         run: docker compose -f compose.production.yaml build --pull
       - name: Verify migration gate and persistent container stack
         run: python3 scripts/test_local_stack.py
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Pull pinned monitoring images and check rules
+        run: |
+          docker compose -f compose.monitoring.yaml pull
+          python3 scripts/check_monitoring_rules.py
+      - name: Monitoring and isolated deployment failure drills
+        run: |
+          python3 scripts/test_monitoring.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:

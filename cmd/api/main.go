@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -19,6 +20,7 @@ import (
 	"github.com/pluto-han/taskflow/internal/server"
 	"github.com/pluto-han/taskflow/internal/session"
 	"github.com/pluto-han/taskflow/internal/task"
+	"github.com/pluto-han/taskflow/internal/telemetry"
 	"github.com/pluto-han/taskflow/internal/user"
 )
 
@@ -78,8 +80,10 @@ func main() {
 	if err != nil {
 		log.Fatal("Could not initialize password verification")
 	}
+	metrics := telemetry.New(pool, pool.Ping)
 	router := server.NewRouter(server.Dependencies{
 		Security: security,
+		Metrics:  metrics,
 		Users:    user.NewService(userRepo, auth.PasswordHasher{}),
 		Sessions: sessionService,
 		Tasks:    service,
@@ -105,7 +109,22 @@ func main() {
 	)
 	defer stop()
 
-	serverErrors := make(chan error, 1)
+	serverErrors := make(chan error, 2)
+	var metricsServer *http.Server
+	if cfg.MetricsAddr != "" {
+		listener, err := net.Listen("tcp", cfg.MetricsAddr)
+		if err != nil {
+			log.Print("Metrics listener failed to bind")
+			return
+		}
+		metricsServer = &http.Server{Handler: metrics.Handler(), ReadHeaderTimeout: 3 * time.Second,
+			ReadTimeout: 5 * time.Second, WriteTimeout: 5 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 8192}
+		go func() {
+			if err := metricsServer.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				serverErrors <- err
+			}
+		}()
+	}
 
 	go func() {
 		log.Printf("TaskFlow listening on %s", cfg.HTTPAddr)
@@ -123,7 +142,6 @@ func main() {
 
 	case err := <-serverErrors:
 		log.Printf("HTTP server failed: %v", err)
-		return
 	}
 
 	ctx, cancel := context.WithTimeout(
@@ -140,5 +158,10 @@ func main() {
 		}
 	}
 
+	if metricsServer != nil {
+		if err := metricsServer.Shutdown(ctx); err != nil {
+			_ = metricsServer.Close()
+		}
+	}
 	log.Println("TaskFlow stopped")
 }

@@ -15,6 +15,7 @@ import (
 )
 
 type Dependencies struct {
+	Metrics  httpapi.RequestObserver
 	Security httpapi.SecurityOptions
 	Users    *user.Service
 	Sessions *session.Service
@@ -34,7 +35,7 @@ func NewRouter(d Dependencies) *gin.Engine {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	router.Use(httpapi.Observe(logger), httpapi.Security(d.Security))
+	router.Use(httpapi.Observe(logger, d.Metrics), httpapi.Security(d.Security))
 	router.HandleMethodNotAllowed = true
 	router.NoRoute(func(c *gin.Context) { httpapi.WriteError(c, http.StatusNotFound, "ROUTE_NOT_FOUND", "Route not found") })
 	router.NoMethod(func(c *gin.Context) {

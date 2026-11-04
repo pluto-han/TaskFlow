@@ -1,0 +1,44 @@
+groups:
+  - name: taskflow
+    rules:
+      - alert: TaskFlowUnavailable
+        expr: up{job="taskflow"} == 0 or absent(up{job="taskflow"})
+        for: 2m
+        labels: {severity: critical}
+        annotations:
+          summary: TaskFlow metrics endpoint has been unavailable for two minutes
+      - alert: TaskFlowDatabaseUnavailable
+        expr: taskflow_database_ready{job="taskflow"} == 0
+        for: 1m
+        labels: {severity: critical}
+        annotations:
+          summary: TaskFlow database readiness probe is failing
+      - alert: TaskFlowHighErrorRate
+        expr: |
+          ((sum(rate(taskflow_http_requests_total{job="taskflow",status_class="5xx",route!~"/health.*"}[5m])) or vector(0))
+          / clamp_min(sum(rate(taskflow_http_requests_total{job="taskflow",route!~"/health.*"}[5m])), 0.000001) > 0.05)
+          and (sum(increase(taskflow_http_requests_total{job="taskflow",route!~"/health.*"}[5m])) >= 20)
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: More than 5 percent server errors with at least 20 requests in five minutes
+      - alert: TaskFlowHighLatency
+        expr: |
+          (histogram_quantile(0.95, sum by (le) (rate(taskflow_http_request_duration_seconds_bucket{job="taskflow",route!~"/health.*"}[5m]))) > 1)
+          and (sum(increase(taskflow_http_request_duration_seconds_count{job="taskflow",route!~"/health.*"}[5m])) >= 20)
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: API p95 exceeds one second with at least 20 requests in five minutes
+      - alert: TaskFlowDiskLow
+        expr: node_filesystem_avail_bytes{job="node",mountpoint="/",fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{job="node",mountpoint="/",fstype!~"tmpfs|overlay"} < 0.15
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: Host root filesystem has less than 15 percent available space
+      - alert: TaskFlowHostMetricsMissing
+        expr: up{job="node"} == 0 or absent(node_filesystem_size_bytes{job="node",mountpoint="/",fstype!~"tmpfs|overlay"})
+        for: 2m
+        labels: {severity: warning}
+        annotations:
+          summary: Host disk monitoring is unavailable

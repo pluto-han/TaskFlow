@@ -20,7 +20,11 @@ func RequestID(ctx context.Context) string {
 
 // Observe deliberately excludes raw URLs, headers, bodies, client IDs, errors
 // and panic values. Even a panic containing credentials must not reach the log.
-func Observe(logger *slog.Logger) gin.HandlerFunc {
+type RequestObserver interface {
+	Observe(method, route string, status int, elapsed time.Duration)
+}
+
+func Observe(logger *slog.Logger, observers ...RequestObserver) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		started := time.Now()
 		id := rand.Text()
@@ -45,6 +49,11 @@ func Observe(logger *slog.Logger) gin.HandlerFunc {
 			case "GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "CONNECT", "TRACE":
 			default:
 				method = "OTHER"
+			}
+			for _, observer := range observers {
+				if observer != nil {
+					observer.Observe(method, route, c.Writer.Status(), time.Since(started))
+				}
 			}
 			level := slog.LevelInfo
 			if panicked || c.Writer.Status() >= 500 {

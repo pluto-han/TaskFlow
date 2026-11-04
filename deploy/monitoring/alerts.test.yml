@@ -1,0 +1,193 @@
+{
+  "rule_files": [
+    "alerts.yml"
+  ],
+  "evaluation_interval": "15s",
+  "tests": [
+    {
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "up{job=\"taskflow\",instance=\"api:9091\"}",
+          "values": "0x12 1x8"
+        },
+        {
+          "series": "up{job=\"node\",instance=\"node:9100\"}",
+          "values": "1x20"
+        },
+        {
+          "series": "node_filesystem_size_bytes{job=\"node\",mountpoint=\"/\",fstype=\"ext4\"}",
+          "values": "100x20"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "1m",
+          "alertname": "TaskFlowUnavailable",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "2m",
+          "alertname": "TaskFlowUnavailable",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "job": "taskflow",
+                "instance": "api:9091",
+                "severity": "critical"
+              },
+              "exp_annotations": {
+                "summary": "TaskFlow metrics endpoint has been unavailable for two minutes"
+              }
+            }
+          ]
+        },
+        {
+          "eval_time": "4m",
+          "alertname": "TaskFlowUnavailable",
+          "exp_alerts": []
+        }
+      ]
+    },
+    {
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "up{job=\"taskflow\",instance=\"api:9091\"}",
+          "values": "1x48"
+        },
+        {
+          "series": "up{job=\"node\",instance=\"node:9100\"}",
+          "values": "1x48"
+        },
+        {
+          "series": "node_filesystem_size_bytes{job=\"node\",mountpoint=\"/\",fstype=\"ext4\"}",
+          "values": "100x48"
+        },
+        {
+          "series": "taskflow_database_ready{job=\"taskflow\",instance=\"api:9091\"}",
+          "values": "0x48"
+        },
+        {
+          "series": "node_filesystem_avail_bytes{job=\"node\",mountpoint=\"/\",fstype=\"ext4\"}",
+          "values": "10x48"
+        },
+        {
+          "series": "taskflow_http_requests_total{job=\"taskflow\",route=\"/tasks\",status_class=\"2xx\"}",
+          "values": "0+9x48"
+        },
+        {
+          "series": "taskflow_http_requests_total{job=\"taskflow\",route=\"/tasks\",status_class=\"5xx\"}",
+          "values": "0+1x48"
+        },
+        {
+          "series": "taskflow_http_request_duration_seconds_bucket{job=\"taskflow\",route=\"/tasks\",le=\"1\"}",
+          "values": "0x48"
+        },
+        {
+          "series": "taskflow_http_request_duration_seconds_bucket{job=\"taskflow\",route=\"/tasks\",le=\"2.5\"}",
+          "values": "0+10x48"
+        },
+        {
+          "series": "taskflow_http_request_duration_seconds_bucket{job=\"taskflow\",route=\"/tasks\",le=\"+Inf\"}",
+          "values": "0+10x48"
+        },
+        {
+          "series": "taskflow_http_request_duration_seconds_count{job=\"taskflow\",route=\"/tasks\"}",
+          "values": "0+10x48"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "10m",
+          "alertname": "TaskFlowDatabaseUnavailable",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "job": "taskflow",
+                "instance": "api:9091",
+                "severity": "critical"
+              },
+              "exp_annotations": {
+                "summary": "TaskFlow database readiness probe is failing"
+              }
+            }
+          ]
+        },
+        {
+          "eval_time": "10m",
+          "alertname": "TaskFlowDiskLow",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "job": "node",
+                "mountpoint": "/",
+                "fstype": "ext4",
+                "severity": "warning"
+              },
+              "exp_annotations": {
+                "summary": "Host root filesystem has less than 15 percent available space"
+              }
+            }
+          ]
+        },
+        {
+          "eval_time": "10m",
+          "alertname": "TaskFlowHighErrorRate",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "severity": "warning"
+              },
+              "exp_annotations": {
+                "summary": "More than 5 percent server errors with at least 20 requests in five minutes"
+              }
+            }
+          ]
+        },
+        {
+          "eval_time": "10m",
+          "alertname": "TaskFlowHighLatency",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "severity": "warning"
+              },
+              "exp_annotations": {
+                "summary": "API p95 exceeds one second with at least 20 requests in five minutes"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "up{job=\"taskflow\",instance=\"api:9091\"}",
+          "values": "1x48"
+        },
+        {
+          "series": "up{job=\"node\",instance=\"node:9100\"}",
+          "values": "1x48"
+        },
+        {
+          "series": "node_filesystem_size_bytes{job=\"node\",mountpoint=\"/\",fstype=\"ext4\"}",
+          "values": "100x48"
+        },
+        {
+          "series": "taskflow_http_requests_total{job=\"taskflow\",route=\"/tasks\",status_class=\"5xx\"}",
+          "values": "0+0.1x48"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "10m",
+          "alertname": "TaskFlowHighErrorRate",
+          "exp_alerts": []
+        }
+      ]
+    }
+  ]
+}

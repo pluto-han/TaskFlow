@@ -121,6 +121,20 @@ def activate(path):
     probe()
 
 
+
+def activate_with_rollback(candidate, previous):
+    """Execute the real Compose change and restore prior containers on failure."""
+    try:
+        activate(candidate)
+    except Exception:
+        print('Deployment failed; restoring previous API/web images', flush=True)
+        try:
+            activate(previous)
+        except Exception as rollback_error:
+            raise RuntimeError(f'ROLLBACK FAILED; inspect {previous.parent} locally') from rollback_error
+        raise RuntimeError('deployment failed; previous images restored')
+
+
 def deploy(data):
     base_path = ROOT / 'compose.server.yaml'
     state = ROOT / '.local/deploy/cd'
@@ -162,16 +176,12 @@ def deploy(data):
         # Crash marker allows an operator to distinguish an interrupted deployment.
         write_json(state / 'pending.json', {'release': str(release)})
         try:
-            activate(candidate)
-        except Exception:
-            print('Deployment failed; restoring previous API/web images', flush=True)
-            try:
-                activate(previous)
-            except Exception as rollback_error:
-                raise RuntimeError(f'ROLLBACK FAILED; inspect {release} locally') from rollback_error
-            write_json(release / 'result.json', {'status': 'rolled_back'})
-            (state / 'pending.json').unlink()
-            raise RuntimeError('deployment failed; previous images restored')
+            activate_with_rollback(candidate, previous)
+        except RuntimeError as error:
+            if str(error) == 'deployment failed; previous images restored':
+                write_json(release / 'result.json', {'status': 'rolled_back'})
+                (state / 'pending.json').unlink()
+            raise
         # Keep the operator-facing Compose file in sync with the deployed images.
         # JSON is valid YAML, accepted by Compose; files contain paths, never secret values.
         temp = ROOT / 'compose.server.yaml.next'

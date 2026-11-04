@@ -1,0 +1,359 @@
+{
+  "uid": "taskflow-overview",
+  "title": "TaskFlow overview",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "timezone": "browser",
+  "refresh": "15s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "tags": [
+    "taskflow"
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "title": "API scrape availability",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "taskflow-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "up{job=\"taskflow\"}",
+          "instant": true,
+          "format": "time_series",
+          "legendFormat": "{{__name__}} {{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 2,
+      "title": "Database readiness",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "taskflow-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "taskflow_database_ready{job=\"taskflow\"}",
+          "instant": true,
+          "format": "time_series",
+          "legendFormat": "{{__name__}} {{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 3,
+      "title": "Requests / second",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "taskflow-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(taskflow_http_requests_total{job=\"taskflow\",route!~\"/health.*\"}[5m]))",
+          "instant": false,
+          "format": "time_series",
+          "legendFormat": "{{__name__}} {{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 4,
+      "title": "5xx ratio",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "taskflow-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(sum(rate(taskflow_http_requests_total{job=\"taskflow\",status_class=\"5xx\",route!~\"/health.*\"}[5m])) or vector(0)) / clamp_min(sum(rate(taskflow_http_requests_total{job=\"taskflow\",route!~\"/health.*\"}[5m])), 0.000001)",
+          "instant": false,
+          "format": "time_series",
+          "legendFormat": "{{__name__}} {{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 5,
+      "title": "API p95 latency",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "taskflow-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(taskflow_http_request_duration_seconds_bucket{job=\"taskflow\",route!~\"/health.*\"}[5m])))",
+          "instant": false,
+          "format": "time_series",
+          "legendFormat": "{{__name__}} {{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 6,
+      "title": "Database connections",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "taskflow-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{__name__=~\"taskflow_db_pool_(acquired|idle|max)_connections\",job=\"taskflow\"}",
+          "instant": false,
+          "format": "time_series",
+          "legendFormat": "{{__name__}} {{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 7,
+      "title": "Database pool waits / second",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "taskflow-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(taskflow_db_pool_waits_total{job=\"taskflow\"}[5m])",
+          "instant": false,
+          "format": "time_series",
+          "legendFormat": "{{__name__}} {{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 8,
+      "title": "Host root disk available",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "taskflow-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_filesystem_avail_bytes{job=\"node\",mountpoint=\"/\",fstype!~\"tmpfs|overlay\"}",
+          "instant": false,
+          "format": "time_series",
+          "legendFormat": "{{__name__}} {{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 9,
+      "title": "Host available memory",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "taskflow-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 32,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_memory_MemAvailable_bytes{job=\"node\"}",
+          "instant": false,
+          "format": "time_series",
+          "legendFormat": "{{__name__}} {{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 10,
+      "title": "API resident memory",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "taskflow-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 32,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "process_resident_memory_bytes{job=\"taskflow\"}",
+          "instant": false,
+          "format": "time_series",
+          "legendFormat": "{{__name__}} {{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 11,
+      "title": "Pending / firing alerts (no external notifications)",
+      "type": "table",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "taskflow-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 40,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "ALERTS{alertname=~\"TaskFlow.*\"}",
+          "instant": true,
+          "format": "table",
+          "legendFormat": "{{__name__}} {{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {}
+    }
+  ]
+}

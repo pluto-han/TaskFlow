@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -23,6 +24,14 @@ func (c Config) Security() (httpapi.SecurityOptions, error) {
 		ip := net.ParseIP(host)
 		if err != nil || ip == nil || !ip.IsLoopback() {
 			return options, errors.New("development HTTP address must be loopback; configure production mode for external listeners")
+		}
+	}
+	if c.MetricsAddr != "" {
+		host, port, err := net.SplitHostPort(c.MetricsAddr)
+		ip := net.ParseIP(host)
+		number, portErr := strconv.Atoi(port)
+		if err != nil || portErr != nil || number < 1 || number > 65535 || ip == nil || (!ip.IsLoopback() && !ip.IsPrivate()) {
+			return options, errors.New("metrics requires an explicit loopback/private IP and port; never publish this port")
 		}
 	}
 	if c.PublicOrigin != "" {

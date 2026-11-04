@@ -1,5 +1,7 @@
 """Validate the local container stack using only a unique disposable Compose project."""
 import json
+import ipaddress
+import socket
 from pathlib import Path
 import secrets
 import signal
@@ -28,12 +30,39 @@ def run(args, check=True):
 
 
 def main():
+    global BASE
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
     if not SECRETS.exists():
         raise SystemExit('Run python3 scripts/init_local_stack.py first')
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
     bad = ARTIFACTS / NAME
     bad.mkdir()
+    # Isolate ports and subnet too: do not stop the user's existing local stack.
+    model = json.loads(run(BASE + ['config', '--format', 'json']).stdout)
+    ids = run(['docker', 'network', 'ls', '-q']).stdout.split()
+    networks = json.loads(run(['docker', 'network', 'inspect', *ids]).stdout) if ids else []
+    used = [ipaddress.ip_network(c['Subnet']) for network in networks
+            for c in (network.get('IPAM', {}).get('Config') or []) if c.get('Subnet')]
+    subnet = next((ipaddress.ip_network(f'10.203.{n}.0/24') for n in range(256)
+                   if not any(ipaddress.ip_network(f'10.203.{n}.0/24').overlaps(old) for old in used)), None)
+    if subnet is None:
+        raise RuntimeError('no isolated test subnet available')
+    with socket.socket() as reservation:
+        reservation.bind(('127.0.0.1', 0))
+        port = reservation.getsockname()[1]
+    origin = f'https://localhost:{port}'
+    for network in model['networks'].values(): network.pop('name', None)
+    for volume in model['volumes'].values(): volume.pop('name', None)
+    model['networks']['edge']['ipam']['config'] = [{'subnet':str(subnet)}]
+    web_ip, api_ip = str(subnet[2]), str(subnet[3])
+    model['services']['web']['networks']['edge']['ipv4_address'] = web_ip
+    model['services']['api']['networks']['edge']['ipv4_address'] = api_ip
+    model['services']['api']['environment']['TASKFLOW_TRUSTED_PROXIES'] = web_ip+'/32,127.0.0.1/32'
+    model['services']['api']['environment']['TASKFLOW_PUBLIC_ORIGIN'] = origin
+    model['services']['web']['ports'] = [{'host_ip':'127.0.0.1','published':str(port),'target':8443,'protocol':'tcp'}]
+    isolated = bad / 'compose.json'
+    isolated.write_text(json.dumps(model))
+    BASE = ['docker', 'compose', '-p', NAME, '-f', str(isolated)]
     (bad / '000001_fail.up.sql').write_text('THIS IS AN INTENTIONAL INVALID MIGRATION;\n')
     override = bad / 'override.json'
     override.write_text(json.dumps({'services': {'migrate': {'volumes': [str(bad)+':/migrations:ro']}}}))
@@ -44,7 +73,10 @@ def main():
         rows = run(failed + ['ps', '-a', '--format', 'json']).stdout
         # Compose emits either a JSON array or newline-delimited objects.
         objects = json.loads(rows) if rows.lstrip().startswith('[') else [json.loads(x) for x in rows.splitlines() if x]
-        migration = next(x for x in objects if x['Service']=='migrate')
+        migration = next((x for x in objects if x['Service']=='migrate'), None)
+        if migration is None:
+            print(result.stderr[-3000:])
+            raise RuntimeError('migration container was not created; inspect startup prerequisites')
         if migration['ExitCode'] == 0:
             print(result.stderr[-3000:])
             print(rows)
@@ -57,10 +89,10 @@ def main():
         run(BASE + ['up', '-d', '--no-build', '--wait', '--wait-timeout', '180'])
         tls = ssl.create_default_context(cafile=str(SECRETS / 'ca.crt'))
         def request(method, path, body=None, token=None, expected=200):
-            headers = {'Content-Type': 'application/json', 'Origin': 'https://localhost:8443'}
+            headers = {'Content-Type': 'application/json', 'Origin': origin}
             if token:
                 headers['Authorization'] = 'Bearer '+token
-            req = urllib.request.Request('https://localhost:8443'+path,
+            req = urllib.request.Request(origin+path,
                     data=None if body is None else json.dumps(body).encode(), headers=headers, method=method)
             try:
                 response = urllib.request.urlopen(req, context=tls, timeout=15)
@@ -71,7 +103,7 @@ def main():
                 raw = response.read()
                 return json.loads(raw) if raw else None
         request('GET', '/api/health/ready')
-        with urllib.request.urlopen('https://localhost:8443/tasks', context=tls) as page:
+        with urllib.request.urlopen(origin+'/tasks', context=tls) as page:
             assert b'<div id="root">' in page.read(), 'SPA fallback failed'
             assert page.headers['X-Frame-Options']=='DENY'
             assert "frame-ancestors 'none'" in page.headers['Content-Security-Policy']
@@ -93,6 +125,8 @@ def main():
             raise RuntimeError('stack did not recover after restart')
         stored = request('GET','/api/tasks/'+task['id'],token=token)
         assert stored['title']=='Persistent task' and stored['version']==1
+        from test_deploy_drill import drill
+        drill(BASE, NAME, lambda: request('GET', '/api/tasks/'+task['id'], token=token))
         # Runtime role was checked at startup, migrations use a different login.
         role = run(BASE + ['exec','-T','postgres','psql','-X','-U','taskflow_migrator','-d','taskflow','-At','-c',
             "SELECT rolname||':'||rolsuper||':'||rolcreatedb FROM pg_roles WHERE rolname='taskflow_app'"]).stdout.strip()

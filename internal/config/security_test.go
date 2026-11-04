@@ -39,3 +39,18 @@ func TestDevelopmentCannotBindPublicly(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestMetricsAddressBoundary(t *testing.T) {
+	for _, addr := range []string{"0.0.0.0:9091", ":9091", "8.8.8.8:9091", "localhost:9091", "127.0.0.1:0", "127.0.0.1:70000"} {
+		c := Config{Environment: "development", MetricsAddr: addr}
+		if _, err := c.Security(); err == nil {
+			t.Errorf("accepted unsafe metrics address %s", addr)
+		}
+	}
+	for _, addr := range []string{"", "127.0.0.1:9091", "172.30.23.3:9091"} {
+		c := Config{Environment: "development", MetricsAddr: addr}
+		if _, err := c.Security(); err != nil {
+			t.Errorf("rejected %s: %v", addr, err)
+		}
+	}
+}

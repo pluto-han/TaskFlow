@@ -10,6 +10,7 @@ type Config struct {
 	PublicOrigin    string
 	TrustedProxies  string
 	HTTPAddr        string
+	MetricsAddr     string
 	DatabaseURL     string
 	ShutdownTimeout time.Duration
 }
@@ -29,6 +30,7 @@ func Load() Config {
 	return Config{
 		Environment: environment, PublicOrigin: os.Getenv("TASKFLOW_PUBLIC_ORIGIN"), TrustedProxies: os.Getenv("TASKFLOW_TRUSTED_PROXIES"),
 		HTTPAddr:        addr,
+		MetricsAddr:     os.Getenv("TASKFLOW_METRICS_ADDR"),
 		DatabaseURL:     databaseURL,
 		ShutdownTimeout: 10 * time.Second,
 	}
