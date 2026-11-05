@@ -24,7 +24,7 @@ import (
 func TestTaskOwnershipIntegration(t *testing.T) {
 	url := os.Getenv("TASKFLOW_TASK_TEST_DATABASE_URL")
 	if url == "" {
-		t.Skip("set TASKFLOW_TASK_TEST_DATABASE_URL to an isolated taskflow_lesson14_test database migrated to version 9")
+		t.Skip("set TASKFLOW_TASK_TEST_DATABASE_URL to an isolated taskflow_lesson14_test database migrated to version 10")
 	}
 	cfg, err := pgxpool.ParseConfig(url)
 	if err != nil || cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Database != "taskflow_lesson14_test" {
@@ -40,7 +40,7 @@ func TestTaskOwnershipIntegration(t *testing.T) {
 	defer pool.Close()
 	var version int
 	var dirty bool
-	if err := pool.QueryRow(ctx, "SELECT version,dirty FROM schema_migrations").Scan(&version, &dirty); err != nil || version != 9 || dirty {
+	if err := pool.QueryRow(ctx, "SELECT version,dirty FROM schema_migrations").Scan(&version, &dirty); err != nil || version != 10 || dirty {
 		t.Fatal("unexpected migration state")
 	}
 	users := user.NewPostgresRepository(pool)

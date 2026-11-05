@@ -58,6 +58,7 @@ type Task struct {
 	Version     int64              `json:"version"`
 	OwnerID     pgtype.UUID        `json:"owner_id"`
 	ProjectID   pgtype.UUID        `json:"project_id"`
+	PlanDate    pgtype.Date        `json:"plan_date"`
 }
 
 type User struct {

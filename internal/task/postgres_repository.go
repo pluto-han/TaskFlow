@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/pluto-han/taskflow/internal/planning"
 	"github.com/pluto-han/taskflow/internal/project"
 
 	db "github.com/pluto-han/taskflow/internal/db/sqlc"
@@ -51,6 +52,7 @@ func fromPgTimestamp(t pgtype.Timestamptz) *time.Time {
 func toDomainTask(row db.Task) *Task {
 	return &Task{
 		ID:          row.ID,
+		PlanDate:    fromPgDate(row.PlanDate),
 		ProjectID:   projectString(row.ProjectID),
 		OwnerID:     session.UserID(row.OwnerID.String()),
 		Title:       row.Title,
@@ -94,7 +96,7 @@ func (r *PostgresRepository) FindPage(
 		return nil, err
 	}
 	query.ListFilter, _ = normalizeFilter(query.ListFilter)
-	params := db.ListTasksParams{OwnerID: owner, PageLimit: int32(query.Limit), DueFrom: toPgTimestamp(query.DueFrom), DueBefore: toPgTimestamp(query.DueBefore)}
+	params := db.ListTasksParams{PlanDateFilter: toPgDate(query.PlanDate), OwnerID: owner, PageLimit: int32(query.Limit), DueFrom: toPgTimestamp(query.DueFrom), DueBefore: toPgTimestamp(query.DueBefore)}
 	if query.ProjectID != nil {
 		if *query.ProjectID == "none" {
 			params.Unassigned = true
@@ -130,6 +132,9 @@ func (r *PostgresRepository) FindPage(
 }
 
 func (r *PostgresRepository) Save(ctx context.Context, ownerID session.UserID, task *Task) error {
+	if err := validateTaskPlan(task); err != nil {
+		return err
+	}
 	projectID, err := projectUUID(task.ProjectID)
 	if err != nil {
 		return err
@@ -143,6 +148,7 @@ func (r *PostgresRepository) Save(ctx context.Context, ownerID session.UserID, t
 		return q.CreateTask(
 			ctx,
 			db.CreateTaskParams{
+				PlanDate:    toPgDate(task.PlanDate),
 				ProjectID:   projectID,
 				OwnerID:     owner,
 				ID:          task.ID,
@@ -182,6 +188,9 @@ func (r *PostgresRepository) Update(ctx context.Context, ownerID session.UserID,
 	}
 	var updated db.Task
 	err = r.write(ctx, ownerID, snapshot, task.ProjectID, func(q *db.Queries, current *db.Task) error {
+		if !sameProject(fromPgDate(current.PlanDate), task.PlanDate) || (current.PlanDate.Valid && task.ProjectID != nil) {
+			return ErrInvalidUpdate
+		}
 		if current.Version != task.Version {
 			return ErrTaskConflict
 		}
@@ -280,4 +289,22 @@ func mapProjectConstraint(err error) error {
 		return project.ErrNotFound
 	}
 	return err
+}
+
+func toPgDate(raw *string) pgtype.Date {
+	if raw == nil {
+		return pgtype.Date{}
+	}
+	value, err := planning.ParseDate(*raw)
+	if err != nil {
+		return pgtype.Date{}
+	} // callers validate before conversion
+	return pgtype.Date{Time: value, Valid: true}
+}
+func fromPgDate(value pgtype.Date) *string {
+	if !value.Valid {
+		return nil
+	}
+	raw := value.Time.Format(planning.DateLayout)
+	return &raw
 }

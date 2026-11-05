@@ -14,12 +14,13 @@ ROOT = Path(__file__).resolve().parents[1]
 SUITES = [
     ("TASKFLOW_TEST_DATABASE_URL", 12, 4),
     ("TASKFLOW_SESSION_TEST_DATABASE_URL", 13, 5),
-    ("TASKFLOW_TASK_TEST_DATABASE_URL", 14, 9),
-    ("TASKFLOW_PAGINATION_TEST_DATABASE_URL", 15, 9),
-    ("TASKFLOW_PROJECT_TEST_DATABASE_URL", 16, 9),
-    ("TASKFLOW_API_TEST_DATABASE_URL", 17, 9),
-    ("TASKFLOW_SHARING_TEST_DATABASE_URL", 20, 9),
-    ("TASKFLOW_RELIABILITY_TEST_DATABASE_URL", 21, 9),
+    ("TASKFLOW_TASK_TEST_DATABASE_URL", 14, 10),
+    ("TASKFLOW_PAGINATION_TEST_DATABASE_URL", 15, 10),
+    ("TASKFLOW_PROJECT_TEST_DATABASE_URL", 16, 10),
+    ("TASKFLOW_API_TEST_DATABASE_URL", 17, 10),
+    ("TASKFLOW_SHARING_TEST_DATABASE_URL", 20, 10),
+    ("TASKFLOW_RELIABILITY_TEST_DATABASE_URL", 21, 10),
+    ("TASKFLOW_TODAY_TEST_DATABASE_URL", 29, 10),
 ]
 
 
@@ -60,16 +61,41 @@ def round_tests(number, output):
             db = f"taskflow_lesson{lesson}_test"
             run(["docker", "exec", name, "createdb", "-U", "taskflow", db], capture=True)
             url = f"postgres://taskflow:{password}@127.0.0.1:{port}/{db}?sslmode=disable"
-            run(["migrate", "-path", "migrations", "-database", url, "goto", str(version)], capture=True, env=env)
+            run(["migrate", "-path", "migrations", "-database", url, "goto", str(9 if lesson == 29 else version)], capture=True, env=env)
             def sql(query):
                 return run(["docker", "exec", "-i", name, "psql", "-X", "-U", "taskflow", "-d", db,
                             "-At", "-v", "ON_ERROR_STOP=1"], capture=True, input=query)
+            if lesson == 29:
+                # Upgrade a nonempty v9 database, not just a clean v10 installation.
+                sql("""
+                    INSERT INTO users(id,email,password_hash) VALUES
+                      ('00000000-0000-4000-8000-000000000090','upgrade@example.com','fixture-only');
+                    INSERT INTO projects(id,owner_id,name) VALUES
+                      ('00000000-0000-4000-8000-000000000091','00000000-0000-4000-8000-000000000090','Preserved project');
+                    INSERT INTO tasks(id,title,priority,owner_id,project_id) VALUES
+                      ('upgrade-task','Preserved task',2,'00000000-0000-4000-8000-000000000090','00000000-0000-4000-8000-000000000091');
+                    INSERT INTO sessions(id,user_id,token_hash,expires_at) VALUES
+                      ('00000000-0000-4000-8000-000000000092','00000000-0000-4000-8000-000000000090',decode(repeat('ab',32),'hex'),now()+interval '1 day');
+                """)
+                snapshot_query = """SELECT json_build_object(
+                    'users',(SELECT json_agg(u ORDER BY id) FROM users u),
+                    'projects',(SELECT json_agg(p ORDER BY id) FROM projects p),
+                    'sessions',(SELECT json_agg(s ORDER BY id) FROM sessions s),
+                    'tasks',(SELECT json_agg(t ORDER BY id) FROM
+                      (SELECT id,title,description,completed,priority,created_at,due_date,version,owner_id,project_id FROM tasks) t));"""
+                before = sql(snapshot_query)
+                run(["migrate", "-path", "migrations", "-database", url, "goto", str(version)], capture=True, env=env)
+                if before != sql(snapshot_query):
+                    raise RuntimeError("v9 upgrade changed existing business data")
+                if sql("SELECT count(*) FROM tasks WHERE plan_date IS NOT NULL;") != "0":
+                    raise RuntimeError("v9 upgrade unexpectedly assigned historical plans")
+                print("PASS: v9 -> v10 preserves task/project/user/session data", flush=True)
             if sql("SELECT version::text || ':' || dirty::text FROM schema_migrations;") != f"{version}:false":
                 raise RuntimeError("migration did not reach a clean expected version")
             sql("CREATE TABLE taskflow_test_lease(run_id text NOT NULL); "
                 f"INSERT INTO taskflow_test_lease VALUES ('{marker}');")
             env[key] = url
-        print(f"Round {number}: eight fresh migrated databases; running race/coverage tests", flush=True)
+        print(f"Round {number}: {len(SUITES)} fresh migrated databases; running race/coverage tests", flush=True)
         profile = output / f"coverage-{number}.out"
         run(["go", "test", "-race", "-shuffle=on", "-count=1", "-timeout=120s", "-covermode=atomic",
              "-coverpkg=./internal/...", "-coverprofile=" + str(profile), "./internal/...", "./cmd/..."], env=env, timeout=300)

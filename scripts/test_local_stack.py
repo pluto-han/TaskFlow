@@ -112,6 +112,18 @@ def main():
         credentials = {'email': 'stack-smoke@example.com', 'password': 'local container smoke passphrase'}
         request('POST','/api/auth/register',credentials,expected=201)
         token = request('POST','/api/auth/login',credentials)['access_token']
+        today = request('GET', '/api/tasks/today', token=token)
+        assert today['timezone'] == 'Europe/Amsterdam'
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        accepted = datetime.fromisoformat(today['server_time'].replace('Z', '+00:00'))
+        assert accepted.astimezone(ZoneInfo('Europe/Amsterdam')).date().isoformat() == today['plan_date']
+        planned = request('POST', '/api/tasks/today', {
+            'plan_date': today['plan_date'], 'title': 'Planned smoke task', 'priority': 2}, token, 201)
+        assert planned['plan_date'] == today['plan_date'] and planned['project_id'] is None and not planned['can_move']
+        assert any(x['id'] == planned['id'] for x in request('GET', '/api/tasks/today', token=token)['items'])
+        request('PATCH', '/api/tasks/' + planned['id'], {'version': 1, 'completed': True}, token)
+        print('PASS: scratch Amsterdam calendar and today CRUD using runtime role', flush=True)
         project = request('POST','/api/projects',{'name':'Persistent project'},token,201)
         task = request('POST','/api/tasks',{'title':'Persistent task','priority':2,'project_id':project['id']},token,201)
         run(BASE + ['restart', 'postgres', 'api', 'web'])

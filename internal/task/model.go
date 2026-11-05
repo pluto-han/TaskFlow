@@ -7,6 +7,7 @@ import (
 )
 
 type Task struct {
+	PlanDate    *string        `json:"plan_date"`
 	CanMove     bool           `json:"can_move"`
 	ProjectID   *string        `json:"project_id"`
 	OwnerID     session.UserID `json:"-"`
@@ -30,6 +31,10 @@ func copyTime(value *time.Time) *time.Time {
 
 func cloneTask(task Task) Task {
 	task.DueDate = copyTime(task.DueDate)
+	if task.PlanDate != nil {
+		value := *task.PlanDate
+		task.PlanDate = &value
+	}
 	if task.ProjectID != nil {
 		value := *task.ProjectID
 		task.ProjectID = &value

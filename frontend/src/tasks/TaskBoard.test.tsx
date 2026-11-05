@@ -15,6 +15,7 @@ const authorize = <T,>(action: (token: string) => Promise<T>) => action("test");
 vi.mock("../auth/AuthProvider", () => ({ useAuth: () => ({ authorize }) }));
 const task: Task = {
   can_move: true,
+  plan_date: null,
   id: "one",
   title: "Task one",
   description: "",

@@ -25,6 +25,8 @@ func NewHandler(service *Service) *Handler {
 
 func writeTaskError(c *gin.Context, err error) {
 	switch {
+	case errors.Is(err, ErrPlanDayChanged):
+		httpapi.WriteError(c, http.StatusConflict, "PLAN_DAY_CHANGED", "The plan date has changed; refresh today and submit again")
 	case errors.Is(err, session.ErrUnauthorized):
 		c.Header("WWW-Authenticate", "Bearer")
 		httpapi.WriteError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Invalid credentials or session")
@@ -192,8 +194,50 @@ func Mount(router *gin.Engine, service *Service, authentication gin.HandlerFunc)
 	group := router.Group("/tasks", authentication)
 	group.Use(func(c *gin.Context) { c.Header("Cache-Control", "no-store"); c.Next() })
 	group.GET("", h.List)
+	group.GET("/today", h.ListToday)
+	group.POST("/today", h.CreateToday)
 	group.GET("/:id", h.GetByID)
 	group.POST("", h.Create)
 	group.PATCH("/:id", h.Update)
 	group.DELETE("/:id", h.Delete)
+}
+
+func (h *Handler) ListToday(c *gin.Context) {
+	owner, ok := authenticatedOwner(c)
+	if !ok {
+		return
+	}
+	options, err := ParseListOptions(c.Request.URL.RawQuery)
+	if err != nil {
+		writeTaskError(c, err)
+		return
+	}
+	page, err := h.service.ListToday(c.Request.Context(), owner, options)
+	if err != nil {
+		writeTaskError(c, err)
+		return
+	}
+	if page.NextCursor != "" {
+		c.Header("X-Next-Cursor", page.NextCursor)
+	}
+	c.JSON(http.StatusOK, page)
+}
+
+func (h *Handler) CreateToday(c *gin.Context) {
+	owner, ok := authenticatedOwner(c)
+	if !ok {
+		return
+	}
+	var input CreateTodayTaskRequest
+	if err := decodeTaskRequest(c, &input); err != nil {
+		httpapi.WriteError(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request body")
+		return
+	}
+	item, err := h.service.CreateToday(c.Request.Context(), owner, input)
+	if err != nil {
+		writeTaskError(c, err)
+		return
+	}
+	c.Header("Location", "/tasks/"+item.ID)
+	c.JSON(http.StatusCreated, item)
 }

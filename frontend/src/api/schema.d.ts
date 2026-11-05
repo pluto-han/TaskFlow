@@ -383,13 +383,37 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/tasks/today": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List private tasks planned for today
+         * @description Read-only Amsterdam day snapshot at request acceptance. No cleanup or task generation. project_id and plan_date filters are rejected. A cursor from a different business date returns 400 INVALID_QUERY. Completed tasks remain until the day changes. Re-fetch after next_day_at; requests accepted before midnight may finish after it and still describe the previous date.
+         */
+        get: operations["listTodayTasks"];
+        put?: never;
+        /**
+         * Create a private task planned for today
+         * @description The submitted plan_date is only an optimistic date check, not an arbitrary date assignment. Server acceptance time sets both date and created_at. Yesterday/future dates return 409 PLAN_DAY_CHANGED; malformed dates return 400. A request accepted before midnight can commit after midnight as a historical task; refresh using returned plan_date. No project or scheduling support.
+         */
+        post: operations["createTodayTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         ErrorDetail: {
             /** @enum {string} */
-            code: "AUTH_BUSY" | "EMAIL_ALREADY_EXISTS" | "FORBIDDEN" | "INTERNAL_ERROR" | "INVALID_INVITEE" | "INVALID_PROJECT" | "INVALID_QUERY" | "INVALID_REQUEST" | "INVALID_TASK" | "INVALID_USER" | "INVITATION_INVALID" | "LOGIN_RATE_LIMITED" | "METHOD_NOT_ALLOWED" | "NOT_READY" | "OWNER_REQUIRED" | "PROJECT_NOT_EMPTY" | "PROJECT_NOT_FOUND" | "REGISTRATION_BUSY" | "REQUEST_TIMEOUT" | "REQUEST_TOO_LARGE" | "ROUTE_NOT_FOUND" | "TASK_CONFLICT" | "TASK_NOT_FOUND" | "UNAUTHORIZED" | "HTTPS_REQUIRED" | "ORIGIN_NOT_ALLOWED" | "RATE_LIMITED";
+            code: "AUTH_BUSY" | "EMAIL_ALREADY_EXISTS" | "FORBIDDEN" | "INTERNAL_ERROR" | "INVALID_INVITEE" | "INVALID_PROJECT" | "INVALID_QUERY" | "INVALID_REQUEST" | "INVALID_TASK" | "INVALID_USER" | "INVITATION_INVALID" | "LOGIN_RATE_LIMITED" | "METHOD_NOT_ALLOWED" | "NOT_READY" | "OWNER_REQUIRED" | "PROJECT_NOT_EMPTY" | "PROJECT_NOT_FOUND" | "REGISTRATION_BUSY" | "REQUEST_TIMEOUT" | "REQUEST_TOO_LARGE" | "ROUTE_NOT_FOUND" | "TASK_CONFLICT" | "TASK_NOT_FOUND" | "UNAUTHORIZED" | "HTTPS_REQUIRED" | "ORIGIN_NOT_ALLOWED" | "RATE_LIMITED" | "PLAN_DAY_CHANGED";
             message: string;
         };
         Error: {
@@ -440,8 +464,13 @@ export interface components {
             version: number;
             /** Format: uuid */
             project_id: string | null;
-            /** @description True only for the creator. Server separately authorizes source and target projects. */
+            /** @description True only for the creator of an ordinary (plan_date=null) task. Planned tasks cannot join projects. */
             can_move: boolean;
+            /**
+             * Format: date
+             * @description Read-only Amsterdam plan date; null for ordinary tasks. Planned tasks are private and cannot join a project.
+             */
+            plan_date: string | null;
         };
         /** @description Title must contain non-whitespace text. Missing/null project_id means unclassified. Due dates must be RFC3339 within years 1–9999. */
         CreateTask: {
@@ -453,7 +482,7 @@ export interface components {
             /** Format: uuid */
             project_id?: string | null;
         };
-        /** @description At least one effective update is required. due_date/project_id: missing preserves, null clears, value sets. Other null fields preserve. Current version required; success increments it once, stale version gives 409. Title cannot be blank. */
+        /** @description At least one effective update is required. due_date/project_id: missing preserves, null clears, value sets. Other null fields preserve. Current version required; success increments it once, stale version gives 409. Title cannot be blank. plan_date is read-only and rejected if supplied. Non-null project_id for a planned task returns 400 INVALID_TASK. */
         UpdateTask: {
             title?: string | null;
             description?: string | null;
@@ -521,6 +550,35 @@ export interface components {
             accepted_at: string | null;
             /** @description Returned only once on creation. Do not log or persist. Share as URL fragment. */
             token?: string;
+        };
+        /** @description Creates a private task for today. No project_id, owner_id or recurrence fields are accepted, including null. No automatic deletion at midnight. */
+        CreateTodayTask: {
+            title: string;
+            description?: string;
+            priority: number;
+            /** Format: date-time */
+            due_date?: string | null;
+            /**
+             * Format: date
+             * @description Date displayed by GET /tasks/today. Must match Amsterdam date at server acceptance; otherwise 409 PLAN_DAY_CHANGED.
+             */
+            plan_date: string;
+        };
+        TodayPage: {
+            items: components["schemas"]["Task"][];
+            /** @description Empty when exhausted; otherwise same value as X-Next-Cursor. */
+            next_cursor: string;
+            /** Format: date */
+            plan_date: string;
+            /** @enum {string} */
+            timezone: "Europe/Amsterdam";
+            /** Format: date-time */
+            server_time: string;
+            /**
+             * Format: date-time
+             * @description Next Amsterdam midnight as a UTC instant; not necessarily 24 hours later.
+             */
+            next_day_at: string;
         };
     };
     responses: {
@@ -811,6 +869,8 @@ export interface operations {
                 due_before?: string;
                 /** @description Project UUID, or literal none for unclassified tasks. Omit for all own tasks. Invalid/empty/duplicate values return 400. Foreign or absent projects yield an empty array. Cursor is bound to this filter. */
                 project_id?: string;
+                /** @description Exact YYYY-MM-DD within years 0001–9999. Selects own planned tasks, including history. Empty, duplicate or invalid dates return 400. Bound into cursor scope. */
+                plan_date?: string;
             };
             header?: never;
             path?: never;
@@ -1507,6 +1567,97 @@ export interface operations {
             401: components["responses"]["Error401"];
             403: components["responses"]["Error403"];
             404: components["responses"]["Error404"];
+            409: components["responses"]["Error409"];
+            413: components["responses"]["Error413"];
+            429: components["responses"]["Error429"];
+            500: components["responses"]["Error500"];
+            503: components["responses"]["Error503"];
+            504: components["responses"]["Error504"];
+        };
+    };
+    listTodayTasks: {
+        parameters: {
+            query?: {
+                /** @description Page size. */
+                limit?: number;
+                /** @description Opaque X-Next-Cursor from previous response; keep the same filters and user. */
+                cursor?: string;
+                /** @description Literal true/false. */
+                completed?: boolean;
+                /** @description Priority filter. */
+                priority?: number;
+                /** @description Literal true/false; false cannot be combined with due ranges. */
+                has_due_date?: boolean;
+                /** @description Inclusive due date lower bound. */
+                due_from?: string;
+                /** @description Exclusive upper bound; must be greater than due_from. */
+                due_before?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated opaque correlation ID; incoming values are ignored. */
+                    "X-Request-ID"?: string;
+                    /** @description Opaque cursor for next page, omitted when exhausted. */
+                    "X-Next-Cursor"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TodayPage"];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            413: components["responses"]["Error413"];
+            429: components["responses"]["Error429"];
+            500: components["responses"]["Error500"];
+            503: components["responses"]["Error503"];
+            504: components["responses"]["Error504"];
+        };
+    };
+    createTodayTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "plan_date": "2026-11-05",
+                 *       "title": "Read Lesson 29",
+                 *       "priority": 2
+                 *     }
+                 */
+                "application/json": components["schemas"]["CreateTodayTask"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            201: {
+                headers: {
+                    /** @description Server-generated opaque correlation ID; incoming values are ignored. */
+                    "X-Request-ID"?: string;
+                    /** @description Created task/project URI. */
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Task"];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
             409: components["responses"]["Error409"];
             413: components["responses"]["Error413"];
             429: components["responses"]["Error429"];

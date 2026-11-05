@@ -1,13 +1,14 @@
 
 -- name: GetTask :one
-SELECT id, title, description, completed, priority, created_at, due_date, version, owner_id, project_id
+SELECT id, title, description, completed, priority, created_at, due_date, version, owner_id, project_id, plan_date
 FROM tasks
 WHERE tasks.id = $1 AND ((tasks.project_id IS NULL AND tasks.owner_id = $2) OR EXISTS (SELECT 1 FROM projects p WHERE p.id=tasks.project_id AND (p.owner_id=$2 OR EXISTS (SELECT 1 FROM project_memberships m WHERE m.project_id=p.id AND m.user_id=$2))));
 
 -- name: ListTasks :many
-SELECT id, title, description, completed, priority, created_at, due_date, version, owner_id, project_id
+SELECT id, title, description, completed, priority, created_at, due_date, version, owner_id, project_id, plan_date
 FROM tasks
 WHERE ((tasks.project_id IS NULL AND tasks.owner_id = sqlc.arg(owner_id)) OR EXISTS (SELECT 1 FROM projects p WHERE p.id=tasks.project_id AND (p.owner_id=sqlc.arg(owner_id) OR EXISTS (SELECT 1 FROM project_memberships m WHERE m.project_id=p.id AND m.user_id=sqlc.arg(owner_id)))))
+  AND (sqlc.narg(plan_date_filter)::date IS NULL OR (tasks.owner_id = sqlc.arg(owner_id) AND plan_date = sqlc.narg(plan_date_filter)))
   AND (NOT sqlc.arg(unassigned)::boolean OR project_id IS NULL)
   AND (sqlc.narg(project_filter)::uuid IS NULL OR project_id = sqlc.narg(project_filter))
   AND (sqlc.narg(completed_filter)::boolean IS NULL OR completed = sqlc.narg(completed_filter))
@@ -23,9 +24,9 @@ LIMIT sqlc.arg(page_limit)::integer;
 -- name: CreateTask :exec
 INSERT INTO tasks (
     id, title, description, completed,
-    priority, created_at, due_date, owner_id, project_id
+    priority, created_at, due_date, owner_id, project_id, plan_date
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
 
 -- name: UpdateTask :one
 UPDATE tasks
@@ -41,7 +42,7 @@ WHERE tasks.id = $1 AND tasks.version = $7 AND ((tasks.project_id IS NULL AND ta
  AND (tasks.project_id IS NOT DISTINCT FROM $9::uuid OR tasks.owner_id=$8)
  AND ($9::uuid IS NULL OR EXISTS (SELECT 1 FROM projects p WHERE p.id=$9 AND (p.owner_id=$8 OR EXISTS (SELECT 1 FROM project_memberships m WHERE m.project_id=p.id AND m.user_id=$8))))
 RETURNING id, title, description, completed,
-          priority, created_at, due_date, version, owner_id, project_id;
+          priority, created_at, due_date, version, owner_id, project_id, plan_date;
 
 -- name: DeleteTask :one
 DELETE FROM tasks
@@ -49,4 +50,4 @@ WHERE tasks.id = $1 AND ((tasks.project_id IS NULL AND tasks.owner_id = $2) OR E
 RETURNING id;
 
 -- name: LockTask :one
-SELECT id, title, description, completed, priority, created_at, due_date, version, owner_id, project_id FROM tasks WHERE tasks.id=$1 AND ((tasks.project_id IS NULL AND tasks.owner_id = $2) OR EXISTS (SELECT 1 FROM projects p WHERE p.id=tasks.project_id AND (p.owner_id=$2 OR EXISTS (SELECT 1 FROM project_memberships m WHERE m.project_id=p.id AND m.user_id=$2)))) FOR UPDATE;
+SELECT id, title, description, completed, priority, created_at, due_date, version, owner_id, project_id, plan_date FROM tasks WHERE tasks.id=$1 AND ((tasks.project_id IS NULL AND tasks.owner_id = $2) OR EXISTS (SELECT 1 FROM projects p WHERE p.id=tasks.project_id AND (p.owner_id=$2 OR EXISTS (SELECT 1 FROM project_memberships m WHERE m.project_id=p.id AND m.user_id=$2)))) FOR UPDATE;

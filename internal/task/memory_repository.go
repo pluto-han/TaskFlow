@@ -46,6 +46,9 @@ func (r *MemoryRepository) Save(ctx context.Context, ownerID session.UserID, tas
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	if err := validateTaskPlan(task); err != nil {
+		return err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -114,6 +117,12 @@ func (r *MemoryRepository) Update(ctx context.Context, ownerID session.UserID, t
 		return ErrTaskConflict
 	}
 
+	if err := validateTaskPlan(task); err != nil {
+		return err
+	}
+	if !sameProject(existing.PlanDate, task.PlanDate) {
+		return ErrInvalidUpdate
+	}
 	updated := *task
 	updated.OwnerID = ownerID
 	updated.Version++
@@ -144,6 +153,9 @@ func (r *MemoryRepository) Delete(ctx context.Context, ownerID session.UserID, i
 }
 
 func matchesFilter(task Task, filter ListFilter) bool {
+	if filter.PlanDate != nil && (task.PlanDate == nil || *task.PlanDate != *filter.PlanDate) {
+		return false
+	}
 	if filter.ProjectID != nil {
 		if *filter.ProjectID == "none" {
 			if task.ProjectID != nil {

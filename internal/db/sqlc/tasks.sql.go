@@ -15,9 +15,9 @@ import (
 const createTask = `-- name: CreateTask :exec
 INSERT INTO tasks (
     id, title, description, completed,
-    priority, created_at, due_date, owner_id, project_id
+    priority, created_at, due_date, owner_id, project_id, plan_date
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 `
 
 type CreateTaskParams struct {
@@ -30,6 +30,7 @@ type CreateTaskParams struct {
 	DueDate     pgtype.Timestamptz `json:"due_date"`
 	OwnerID     pgtype.UUID        `json:"owner_id"`
 	ProjectID   pgtype.UUID        `json:"project_id"`
+	PlanDate    pgtype.Date        `json:"plan_date"`
 }
 
 func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) error {
@@ -43,6 +44,7 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) error {
 		arg.DueDate,
 		arg.OwnerID,
 		arg.ProjectID,
+		arg.PlanDate,
 	)
 	return err
 }
@@ -66,7 +68,7 @@ func (q *Queries) DeleteTask(ctx context.Context, arg DeleteTaskParams) (string,
 }
 
 const getTask = `-- name: GetTask :one
-SELECT id, title, description, completed, priority, created_at, due_date, version, owner_id, project_id
+SELECT id, title, description, completed, priority, created_at, due_date, version, owner_id, project_id, plan_date
 FROM tasks
 WHERE tasks.id = $1 AND ((tasks.project_id IS NULL AND tasks.owner_id = $2) OR EXISTS (SELECT 1 FROM projects p WHERE p.id=tasks.project_id AND (p.owner_id=$2 OR EXISTS (SELECT 1 FROM project_memberships m WHERE m.project_id=p.id AND m.user_id=$2))))
 `
@@ -90,29 +92,32 @@ func (q *Queries) GetTask(ctx context.Context, arg GetTaskParams) (Task, error) 
 		&i.Version,
 		&i.OwnerID,
 		&i.ProjectID,
+		&i.PlanDate,
 	)
 	return i, err
 }
 
 const listTasks = `-- name: ListTasks :many
-SELECT id, title, description, completed, priority, created_at, due_date, version, owner_id, project_id
+SELECT id, title, description, completed, priority, created_at, due_date, version, owner_id, project_id, plan_date
 FROM tasks
 WHERE ((tasks.project_id IS NULL AND tasks.owner_id = $1) OR EXISTS (SELECT 1 FROM projects p WHERE p.id=tasks.project_id AND (p.owner_id=$1 OR EXISTS (SELECT 1 FROM project_memberships m WHERE m.project_id=p.id AND m.user_id=$1))))
-  AND (NOT $2::boolean OR project_id IS NULL)
-  AND ($3::uuid IS NULL OR project_id = $3)
-  AND ($4::boolean IS NULL OR completed = $4)
-  AND ($5::integer IS NULL OR priority = $5)
-  AND ($6::boolean IS NULL OR (due_date IS NOT NULL) = $6)
-  AND ($7::timestamptz IS NULL OR due_date >= $7)
-  AND ($8::timestamptz IS NULL OR due_date < $8)
-  AND ($9::timestamptz IS NULL OR
-       (created_at, id) < ($9::timestamptz, $10::text))
+  AND ($2::date IS NULL OR (tasks.owner_id = $1 AND plan_date = $2))
+  AND (NOT $3::boolean OR project_id IS NULL)
+  AND ($4::uuid IS NULL OR project_id = $4)
+  AND ($5::boolean IS NULL OR completed = $5)
+  AND ($6::integer IS NULL OR priority = $6)
+  AND ($7::boolean IS NULL OR (due_date IS NOT NULL) = $7)
+  AND ($8::timestamptz IS NULL OR due_date >= $8)
+  AND ($9::timestamptz IS NULL OR due_date < $9)
+  AND ($10::timestamptz IS NULL OR
+       (created_at, id) < ($10::timestamptz, $11::text))
 ORDER BY created_at DESC, id DESC
-LIMIT $11::integer
+LIMIT $12::integer
 `
 
 type ListTasksParams struct {
 	OwnerID         pgtype.UUID        `json:"owner_id"`
+	PlanDateFilter  pgtype.Date        `json:"plan_date_filter"`
 	Unassigned      bool               `json:"unassigned"`
 	ProjectFilter   pgtype.UUID        `json:"project_filter"`
 	CompletedFilter pgtype.Bool        `json:"completed_filter"`
@@ -128,6 +133,7 @@ type ListTasksParams struct {
 func (q *Queries) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, error) {
 	rows, err := q.db.Query(ctx, listTasks,
 		arg.OwnerID,
+		arg.PlanDateFilter,
 		arg.Unassigned,
 		arg.ProjectFilter,
 		arg.CompletedFilter,
@@ -157,6 +163,7 @@ func (q *Queries) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, e
 			&i.Version,
 			&i.OwnerID,
 			&i.ProjectID,
+			&i.PlanDate,
 		); err != nil {
 			return nil, err
 		}
@@ -169,7 +176,7 @@ func (q *Queries) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, e
 }
 
 const lockTask = `-- name: LockTask :one
-SELECT id, title, description, completed, priority, created_at, due_date, version, owner_id, project_id FROM tasks WHERE tasks.id=$1 AND ((tasks.project_id IS NULL AND tasks.owner_id = $2) OR EXISTS (SELECT 1 FROM projects p WHERE p.id=tasks.project_id AND (p.owner_id=$2 OR EXISTS (SELECT 1 FROM project_memberships m WHERE m.project_id=p.id AND m.user_id=$2)))) FOR UPDATE
+SELECT id, title, description, completed, priority, created_at, due_date, version, owner_id, project_id, plan_date FROM tasks WHERE tasks.id=$1 AND ((tasks.project_id IS NULL AND tasks.owner_id = $2) OR EXISTS (SELECT 1 FROM projects p WHERE p.id=tasks.project_id AND (p.owner_id=$2 OR EXISTS (SELECT 1 FROM project_memberships m WHERE m.project_id=p.id AND m.user_id=$2)))) FOR UPDATE
 `
 
 type LockTaskParams struct {
@@ -191,6 +198,7 @@ func (q *Queries) LockTask(ctx context.Context, arg LockTaskParams) (Task, error
 		&i.Version,
 		&i.OwnerID,
 		&i.ProjectID,
+		&i.PlanDate,
 	)
 	return i, err
 }
@@ -209,7 +217,7 @@ WHERE tasks.id = $1 AND tasks.version = $7 AND ((tasks.project_id IS NULL AND ta
  AND (tasks.project_id IS NOT DISTINCT FROM $9::uuid OR tasks.owner_id=$8)
  AND ($9::uuid IS NULL OR EXISTS (SELECT 1 FROM projects p WHERE p.id=$9 AND (p.owner_id=$8 OR EXISTS (SELECT 1 FROM project_memberships m WHERE m.project_id=p.id AND m.user_id=$8))))
 RETURNING id, title, description, completed,
-          priority, created_at, due_date, version, owner_id, project_id
+          priority, created_at, due_date, version, owner_id, project_id, plan_date
 `
 
 type UpdateTaskParams struct {
@@ -248,6 +256,7 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, e
 		&i.Version,
 		&i.OwnerID,
 		&i.ProjectID,
+		&i.PlanDate,
 	)
 	return i, err
 }

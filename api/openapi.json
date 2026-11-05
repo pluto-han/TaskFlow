@@ -368,6 +368,15 @@
               "type": "string"
             },
             "description": "Project UUID, or literal none for unclassified tasks. Omit for all own tasks. Invalid/empty/duplicate values return 400. Foreign or absent projects yield an empty array. Cursor is bound to this filter."
+          },
+          {
+            "name": "plan_date",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Exact YYYY-MM-DD within years 0001–9999. Selects own planned tasks, including history. Empty, duplicate or invalid dates return 400. Bound into cursor scope."
           }
         ]
       },
@@ -1628,6 +1637,202 @@
           }
         }
       }
+    },
+    "/tasks/today": {
+      "get": {
+        "operationId": "listTodayTasks",
+        "summary": "List private tasks planned for today",
+        "description": "Read-only Amsterdam day snapshot at request acceptance. No cleanup or task generation. project_id and plan_date filters are rejected. A cursor from a different business date returns 400 INVALID_QUERY. Completed tasks remain until the day changes. Re-fetch after next_day_at; requests accepted before midnight may finish after it and still describe the previous date.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated opaque correlation ID; incoming values are ignored.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Next-Cursor": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Opaque cursor for next page, omitted when exhausted."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TodayPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "description": "Page size."
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 2048
+            },
+            "description": "Opaque X-Next-Cursor from previous response; keep the same filters and user."
+          },
+          {
+            "name": "completed",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Literal true/false."
+          },
+          {
+            "name": "priority",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 3
+            },
+            "description": "Priority filter."
+          },
+          {
+            "name": "has_due_date",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Literal true/false; false cannot be combined with due ranges."
+          },
+          {
+            "name": "due_from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Inclusive due date lower bound."
+          },
+          {
+            "name": "due_before",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Exclusive upper bound; must be greater than due_from."
+          }
+        ]
+      },
+      "post": {
+        "operationId": "createTodayTask",
+        "summary": "Create a private task planned for today",
+        "description": "The submitted plan_date is only an optimistic date check, not an arbitrary date assignment. Server acceptance time sets both date and created_at. Yesterday/future dates return 409 PLAN_DAY_CHANGED; malformed dates return 400. A request accepted before midnight can commit after midnight as a historical task; refresh using returned plan_date. No project or scheduling support.",
+        "responses": {
+          "201": {
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated opaque correlation ID; incoming values are ignored.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Location": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Created task/project URI."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTodayTask"
+              },
+              "example": {
+                "plan_date": "2026-11-05",
+                "title": "Read Lesson 29",
+                "priority": 2
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1671,7 +1876,8 @@
               "UNAUTHORIZED",
               "HTTPS_REQUIRED",
               "ORIGIN_NOT_ALLOWED",
-              "RATE_LIMITED"
+              "RATE_LIMITED",
+              "PLAN_DAY_CHANGED"
             ]
           },
           "message": {
@@ -1837,7 +2043,13 @@
           },
           "can_move": {
             "type": "boolean",
-            "description": "True only for the creator. Server separately authorizes source and target projects."
+            "description": "True only for the creator of an ordinary (plan_date=null) task. Planned tasks cannot join projects."
+          },
+          "plan_date": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "Read-only Amsterdam plan date; null for ordinary tasks. Planned tasks are private and cannot join a project."
           }
         },
         "required": [
@@ -1850,7 +2062,8 @@
           "due_date",
           "version",
           "project_id",
-          "can_move"
+          "can_move",
+          "plan_date"
         ],
         "additionalProperties": false
       },
@@ -1927,7 +2140,7 @@
           "version"
         ],
         "additionalProperties": false,
-        "description": "At least one effective update is required. due_date/project_id: missing preserves, null clears, value sets. Other null fields preserve. Current version required; success increments it once, stale version gives 409. Title cannot be blank."
+        "description": "At least one effective update is required. due_date/project_id: missing preserves, null clears, value sets. Other null fields preserve. Current version required; success increments it once, stale version gives 409. Title cannot be blank. plan_date is read-only and rejected if supplied. Non-null project_id for a planned task returns 400 INVALID_TASK."
       },
       "Project": {
         "type": "object",
@@ -2101,6 +2314,82 @@
           }
         },
         "additionalProperties": false
+      },
+      "CreateTodayTask": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3
+          },
+          "due_date": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "plan_date": {
+            "type": "string",
+            "format": "date",
+            "description": "Date displayed by GET /tasks/today. Must match Amsterdam date at server acceptance; otherwise 409 PLAN_DAY_CHANGED."
+          }
+        },
+        "required": [
+          "title",
+          "priority",
+          "plan_date"
+        ],
+        "additionalProperties": false,
+        "description": "Creates a private task for today. No project_id, owner_id or recurrence fields are accepted, including null. No automatic deletion at midnight."
+      },
+      "TodayPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "next_cursor",
+          "plan_date",
+          "timezone",
+          "server_time",
+          "next_day_at"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Task"
+            }
+          },
+          "next_cursor": {
+            "type": "string",
+            "description": "Empty when exhausted; otherwise same value as X-Next-Cursor."
+          },
+          "plan_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "timezone": {
+            "type": "string",
+            "enum": [
+              "Europe/Amsterdam"
+            ]
+          },
+          "server_time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "next_day_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Next Amsterdam midnight as a UTC instant; not necessarily 24 hours later."
+          }
+        }
       }
     },
     "responses": {
@@ -2344,7 +2633,8 @@
       "EMAIL_ALREADY_EXISTS",
       "TASK_CONFLICT",
       "PROJECT_NOT_EMPTY",
-      "OWNER_REQUIRED"
+      "OWNER_REQUIRED",
+      "PLAN_DAY_CHANGED"
     ],
     "413": [
       "REQUEST_TOO_LARGE"

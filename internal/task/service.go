@@ -20,15 +20,20 @@ type ProjectReader interface {
 }
 
 type Service struct {
+	now      func() time.Time
 	projects ProjectReader
 	repo     Repository
 }
 
 func NewService(repo Repository, projects ProjectReader) *Service {
-	return &Service{repo: repo, projects: projects}
+	return &Service{repo: repo, projects: projects, now: time.Now}
 }
 
 func (s *Service) Create(ctx context.Context, ownerID session.UserID, input CreateTaskRequest) (*Task, error) {
+	return s.create(ctx, ownerID, input, nil, s.now())
+}
+
+func (s *Service) create(ctx context.Context, ownerID session.UserID, input CreateTaskRequest, planDate *string, now time.Time) (*Task, error) {
 
 	if ownerID == "" {
 		return nil, session.ErrUnauthorized
@@ -55,7 +60,8 @@ func (s *Service) Create(ctx context.Context, ownerID session.UserID, input Crea
 	}
 
 	newTask := &Task{
-		CanMove:     true,
+		CanMove:     planDate == nil,
+		PlanDate:    planDate,
 		ProjectID:   projectID,
 		OwnerID:     ownerID,
 		ID:          hex.EncodeToString(idBytes),
@@ -63,7 +69,7 @@ func (s *Service) Create(ctx context.Context, ownerID session.UserID, input Crea
 		Description: input.Description,
 		Priority:    input.Priority,
 		Completed:   false,
-		CreatedAt:   time.Now().UTC().Truncate(time.Microsecond),
+		CreatedAt:   now.UTC().Truncate(time.Microsecond),
 		DueDate:     copyTime(input.DueDate),
 		Version:     1,
 	}
@@ -85,7 +91,7 @@ func (s *Service) GetByID(ctx context.Context, ownerID session.UserID, id string
 
 	result, err := s.repo.FindByID(ctx, ownerID, id)
 	if err == nil {
-		result.CanMove = result.OwnerID == ownerID
+		result.CanMove = result.OwnerID == ownerID && result.PlanDate == nil
 	}
 	return result, err
 }
@@ -123,7 +129,7 @@ func (s *Service) List(ctx context.Context, ownerID session.UserID, options List
 		return TaskPage{}, err
 	}
 	for i := range rows {
-		rows[i].CanMove = rows[i].OwnerID == ownerID
+		rows[i].CanMove = rows[i].OwnerID == ownerID && rows[i].PlanDate == nil
 	}
 	page := TaskPage{Items: rows}
 	if page.Items == nil {
@@ -204,6 +210,9 @@ func (s *Service) Update(ctx context.Context, ownerID session.UserID, id string,
 	}
 
 	if input.ProjectID.Present {
+		if current.PlanDate != nil && input.ProjectID.Value != nil {
+			return nil, ErrInvalidUpdate
+		}
 		target, e := s.checkProject(ctx, ownerID, input.ProjectID.Value)
 		if e != nil {
 			return nil, e
@@ -221,7 +230,7 @@ func (s *Service) Update(ctx context.Context, ownerID session.UserID, id string,
 		return nil, err
 	}
 
-	current.CanMove = current.OwnerID == ownerID
+	current.CanMove = current.OwnerID == ownerID && current.PlanDate == nil
 	return current, nil
 }
 

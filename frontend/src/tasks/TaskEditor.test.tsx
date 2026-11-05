@@ -13,6 +13,7 @@ vi.mock("../auth/AuthProvider", () => ({
 }));
 const task: Task = {
   can_move: true,
+  plan_date: null,
   id: "task1",
   title: "Read",
   description: "",

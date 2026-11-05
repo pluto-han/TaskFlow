@@ -36,8 +36,8 @@ func TestProjectIntegration(t *testing.T) {
 	defer pool.Close()
 	var version int
 	var dirty bool
-	if err := pool.QueryRow(ctx, "SELECT version,dirty FROM schema_migrations").Scan(&version, &dirty); err != nil || version != 9 || dirty {
-		t.Fatal("requires clean migration 9")
+	if err := pool.QueryRow(ctx, "SELECT version,dirty FROM schema_migrations").Scan(&version, &dirty); err != nil || version != 10 || dirty {
+		t.Fatal("requires clean migration 10")
 	}
 	_, err = pool.Exec(ctx, "INSERT INTO users(id,email,password_hash) VALUES ($1,'project-a@example.com','test-only'),($2,'project-b@example.com','test-only')", string(testOwner), string(otherOwner))
 	if err != nil {
