@@ -7,12 +7,16 @@ import type { Task, Project, UpdateTask } from "../api/types";
 import { toLocalInput, toUTC, displayDate } from "./dates";
 
 export function TaskEditor({
+  todayDate,
+  refreshToday,
   task,
   projects,
   defaultProject,
   close,
   saved,
 }: {
+  todayDate?: string;
+  refreshToday?: () => Promise<string | null>;
   task?: Task;
   projects: Project[];
   defaultProject: string;
@@ -20,6 +24,8 @@ export function TaskEditor({
   saved(): void;
 }) {
   const { authorize } = useAuth();
+  const [draftDay, setDraftDay] = useState(todayDate);
+  const [dayConflict, setDayConflict] = useState(false);
   const [base, setBase] = useState(task);
   const [title, setTitle] = useState(task?.title || "");
   const [description, setDescription] = useState(task?.description || "");
@@ -34,7 +40,13 @@ export function TaskEditor({
   const [latest, setLatest] = useState<Task | null>(null);
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (busy || conflict) return;
+    if (
+      busy ||
+      conflict ||
+      dayConflict ||
+      (!base && !!draftDay && draftDay !== todayDate)
+    )
+      return;
     if (!title.trim()) {
       setError("请填写任务标题。");
       return;
@@ -49,7 +61,17 @@ export function TaskEditor({
     setBusy(true);
     setError("");
     try {
-      if (!base)
+      if (!base && draftDay) {
+        await authorize((token) =>
+          workspaceApi.createToday(token, {
+            plan_date: draftDay,
+            title: title.trim(),
+            description,
+            priority,
+            due_date: dueDate,
+          }),
+        );
+      } else if (!base)
         await authorize((token) =>
           workspaceApi.createTask(token, {
             title: title.trim(),
@@ -78,7 +100,9 @@ export function TaskEditor({
       }
       saved();
     } catch (err) {
-      if (err instanceof ApiError && err.status === 409) setConflict(true);
+      if (err instanceof ApiError && err.code === "PLAN_DAY_CHANGED")
+        setDayConflict(true);
+      else if (err instanceof ApiError && err.status === 409) setConflict(true);
       setError(errorMessage(err));
     } finally {
       setBusy(false);
@@ -114,6 +138,39 @@ export function TaskEditor({
         <div className="notice error" role="alert">
           {error}
         </div>
+      )}
+      {!base && draftDay && (dayConflict || draftDay !== todayDate) && (
+        <section className="notice" aria-label="计划日期变化">
+          <p>荷兰日期已变化，草稿已保留。确认新日期后再保存，不会自动提交。</p>
+          <button
+            type="button"
+            className="button secondary"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                const date = await refreshToday?.();
+                if (date) {
+                  setDraftDay(date);
+                  setDayConflict(false);
+                  setError("");
+                } else setError("暂时无法确认今天的日期，请重试。草稿已保留。");
+              } catch (err) {
+                setError(errorMessage(err));
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            刷新并确认计划日期
+          </button>
+        </section>
+      )}
+      {(base?.plan_date || draftDay) && (
+        <p className="hint">
+          计划日期：{base?.plan_date || draftDay} · 荷兰时间 /
+          Europe/Amsterdam。个人计划不能加入项目。
+        </p>
       )}
       {conflict && (
         <section className="notice" aria-label="版本冲突">
@@ -160,7 +217,7 @@ export function TaskEditor({
           项目内的任务对所有当前成员可见，成员可以编辑和删除。只有创建者可以移动或解除归类。
         </p>
       )}
-      {base && !base.can_move && (
+      {base && !base.can_move && !base.plan_date && (
         <p className="hint">你不是这项任务的创建者，不能改变所属项目。</p>
       )}
       <form onSubmit={(event) => void submit(event)} aria-busy={busy}>
@@ -198,25 +255,27 @@ export function TaskEditor({
               <option value={3}>高</option>
             </select>
           </div>
-          <div className="field">
-            <label htmlFor="task-project">所属项目</label>
-            <select
-              id="task-project"
-              value={project}
-              onChange={(e) => setProject(e.target.value)}
-              disabled={busy || (!!base && !base.can_move)}
-            >
-              <option value="">未归类</option>
-              {project && !projects.some((p) => p.id === project) && (
-                <option value={project}>当前项目（请刷新项目列表）</option>
-              )}
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          {!draftDay && !base?.plan_date && (
+            <div className="field">
+              <label htmlFor="task-project">所属项目</label>
+              <select
+                id="task-project"
+                value={project}
+                onChange={(e) => setProject(e.target.value)}
+                disabled={busy || (!!base && !base.can_move)}
+              >
+                <option value="">未归类</option>
+                {project && !projects.some((p) => p.id === project) && (
+                  <option value={project}>当前项目（请刷新项目列表）</option>
+                )}
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
         <div className="field">
           <label htmlFor="task-due">截止日期（本地时间）</label>
@@ -255,7 +314,12 @@ export function TaskEditor({
           <button
             type="submit"
             className="button primary"
-            disabled={busy || conflict}
+            disabled={
+              busy ||
+              conflict ||
+              dayConflict ||
+              (!base && !!draftDay && draftDay !== todayDate)
+            }
           >
             {busy ? "正在保存…" : "保存任务"}
           </button>

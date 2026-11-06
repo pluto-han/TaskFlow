@@ -16,6 +16,7 @@ vi.mock("../auth/AuthProvider", () => ({ useAuth: () => ({ authorize }) }));
 const task: Task = {
   can_move: true,
   plan_date: null,
+ recurrence_id: null,
   id: "one",
   title: "Task one",
   description: "",

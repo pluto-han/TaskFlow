@@ -38,8 +38,11 @@ button {
   cursor: pointer;
 }
 button:disabled {
-  cursor: wait;
+  cursor: not-allowed;
   opacity: 0.65;
+}
+[aria-busy="true"] button:disabled {
+  cursor: wait;
 }
 :focus-visible {
   outline: 3px solid #c28b3a;
@@ -631,6 +634,8 @@ h2 {
 }
 .filters {
   display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
   gap: 14px;
 }
 .filters label {
@@ -643,6 +648,7 @@ h2 {
   min-width: 130px;
 }
 .filters select,
+.filters input[type="date"],
 .field select,
 .field textarea {
   font: inherit;
@@ -652,6 +658,32 @@ h2 {
   border-radius: 8px;
   padding: 9px 12px;
   max-width: 100%;
+}
+.plan-date-filter {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+.plan-date-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.filters input[type="date"] {
+  min-width: 0;
+  min-height: 36px;
+  font-size: 0.72rem;
+}
+.plan-date-control .text-button {
+  white-space: nowrap;
+  font-size: 0.72rem;
+}
+.board-heading .plan-day {
+  margin: 8px 0 0;
+  color: #718074;
+  font-size: 0.72rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
 }
 .field select,
 .field textarea {
@@ -928,9 +960,17 @@ h2 {
     width: 100%;
     gap: 10px;
   }
-  .filters label {
+  .filters > label {
     flex: 1;
     min-width: 0;
+  }
+  .plan-date-filter {
+    flex-basis: 100%;
+  }
+  .plan-date-control input[type="date"] {
+    flex: 1;
+    width: 100%;
+    font-size: 0.8rem;
   }
   .filters select {
     min-width: 0;
@@ -1036,4 +1076,60 @@ h2 {
   .detail code {
     font-size: 0.8rem;
   }
+}
+
+.binding-command {
+  display: block;
+  overflow-wrap: anywhere;
+  margin: 12px 0;
+}
+.profile-card + .profile-card {
+  margin-top: 24px;
+}
+
+.discord-settings {
+  padding: 28px 32px;
+}
+.discord-settings > h2 {
+  margin: 0 0 16px;
+  font-size: 1.1rem;
+}
+.discord-settings .details {
+  padding: 0;
+}
+.discord-settings > .actions-buttons {
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+@media (max-width: 640px) {
+  .discord-settings {
+    padding: 24px 20px;
+  }
+}
+
+.reminder-option label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.field.reminder-option input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  padding: 0;
+  accent-color: #254f43;
+}
+.notification-history {
+  border-top: 1px solid #e8ede4;
+  margin-top: 24px;
+  padding-top: 20px;
+}
+.notification-history h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+.notification-history h4 {
+  margin: 0 0 6px;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
 }

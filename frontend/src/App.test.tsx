@@ -9,6 +9,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { beforeEach, expect, it, vi } from "vitest";
 import { App } from "./App";
+import { discordApi } from "./api/discord";
 import { api, ApiError } from "./api/client";
 
 const account = {
@@ -39,6 +40,16 @@ async function fillLogin() {
   return user;
 }
 beforeEach(() => {
+  vi.spyOn(discordApi, "notifications").mockResolvedValue([]);
+  vi.spyOn(discordApi, "status").mockResolvedValue({
+    enabled: false,
+    bound: false,
+    version: 1,
+    guild_id: null,
+    channel_id: null,
+    channel_name: null,
+    bound_at: null,
+  });
   vi.spyOn(api, "login").mockResolvedValue(session());
   vi.spyOn(api, "me").mockResolvedValue(account);
   vi.spyOn(api, "logout").mockResolvedValue(undefined);

@@ -2,23 +2,30 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "../auth/AuthProvider";
 import { workspaceApi, type Filters } from "../api/workspace";
 import { errorMessage, ApiError } from "../api/client";
-import type { Task, Project } from "../api/types";
+import type { Task, Project, TodayPage } from "../api/types";
 import { TaskEditor } from "./TaskEditor";
 import { DeleteDialog } from "./DeleteDialog";
 import { displayDate } from "./dates";
 
 export function TaskBoard({
+  today = false,
   filters,
   projects,
   title,
   setMutating,
 }: {
+  today?: boolean;
   filters: Filters;
   projects: Project[];
   title: string;
   setMutating(busy: boolean): void;
 }) {
   const { authorize } = useAuth();
+  const [day, setDay] = useState<TodayPage | null>(null);
+  const dayRef = useRef("");
+  const midnightTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
   const [items, setItems] = useState<Task[]>([]);
   const [now, setNow] = useState(() => Date.now());
   const [cursor, setCursor] = useState("");
@@ -30,18 +37,57 @@ export function TaskBoard({
   const [deleting, setDeleting] = useState<Task | null>(null);
   const controller = useRef<AbortController | null>(null);
   const locked = useRef(false);
+  const active = useRef(false);
   const load = useCallback(
-    async (after = "") => {
+    async function fetchPage(after = ""): Promise<string | null> {
+      if (!active.current) return null;
       controller.current?.abort();
       const request = new AbortController();
       controller.current = request;
+      const started = performance.now();
+      if (today && !after) {
+        clearTimeout(midnightTimer.current);
+        setItems([]);
+        setCursor("");
+      }
       setLoading(true);
       setError("");
       try {
-        const result = await authorize((token) =>
-          workspaceApi.tasks(token, filters, after, request.signal),
+        const response = await authorize<
+          TodayPage | { items: Task[]; next: string }
+        >((token) =>
+          today
+            ? workspaceApi.today(token, filters, after, request.signal)
+            : workspaceApi.tasks(token, filters, after, request.signal),
         );
-        if (request.signal.aborted) return;
+        if (request.signal.aborted) return null;
+        let result: { items: Task[]; next: string };
+        if ("plan_date" in response) {
+          // Use server duration, not the browser's wall clock or timezone.
+          const remaining =
+            Date.parse(response.next_day_at) -
+            Date.parse(response.server_time) -
+            (performance.now() - started);
+          if (!Number.isFinite(remaining))
+            throw new ApiError("INVALID_RESPONSE");
+          clearTimeout(midnightTimer.current);
+          if (remaining <= 0) {
+            setItems([]);
+            setCursor("");
+            setDay(null);
+            midnightTimer.current = setTimeout(() => void fetchPage(), 1000);
+            return null;
+          }
+          if (after && dayRef.current !== response.plan_date)
+            return await fetchPage();
+          dayRef.current = response.plan_date;
+          setDay(response);
+          midnightTimer.current = setTimeout(
+            () => void fetchPage(),
+            Math.min(remaining, 2147483647),
+          );
+          result = { items: response.items, next: response.next_cursor };
+        } else result = response;
         setItems((previous) =>
           after
             ? [
@@ -55,21 +101,48 @@ export function TaskBoard({
         setNow(Date.now());
         setCursor(result.next);
         setConflict(false);
+        return "plan_date" in response ? response.plan_date : null;
       } catch (err) {
-        if (!request.signal.aborted) setError(errorMessage(err));
+        if (!request.signal.aborted) {
+          if (
+            today &&
+            after &&
+            err instanceof ApiError &&
+            err.code === "INVALID_QUERY"
+          )
+            return await fetchPage();
+          setError(errorMessage(err));
+        }
+        return null;
       } finally {
         if (!request.signal.aborted) setLoading(false);
       }
     },
-    [authorize, filters],
+    [authorize, filters, today],
   );
   useEffect(() => {
     // Fetch state belongs to this keyed filter view; cleanup rejects stale pages.
     // Explicit fetch boundary; load also supports user-triggered refresh.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    active.current = true;
     void load();
-    return () => controller.current?.abort();
-  }, [load]);
+    const refresh = () => void load();
+    const visible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    if (today) {
+      window.addEventListener("focus", refresh);
+      window.addEventListener("online", refresh);
+      document.addEventListener("visibilitychange", visible);
+    }
+    return () => {
+      active.current = false;
+      controller.current?.abort();
+      clearTimeout(midnightTimer.current);
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("online", refresh);
+      document.removeEventListener("visibilitychange", visible);
+    };
+  }, [load, today]);
 
   async function toggle(item: Task) {
     if (locked.current || loading) return;
@@ -117,11 +190,16 @@ export function TaskBoard({
           <span className="eyebrow">MAKE ROOM FOR WHAT MATTERS</span>
           <h1 id="tasks-heading">{title}</h1>
           <p className="subtitle">一次一件事，向前一点点。</p>
+          {today && (
+            <p className="plan-day" role="status">
+              荷兰时间 / Europe/Amsterdam · {day?.plan_date || "正在确认日期…"}
+            </p>
+          )}
         </div>
         <button
           className="button primary"
           onClick={() => setEditor("new")}
-          disabled={!!pending}
+          disabled={!!pending || (today && (loading || !!error || !day))}
         >
           ＋ 新建任务
         </button>
@@ -190,8 +268,17 @@ export function TaskBoard({
                 </span>
                 <span>
                   {projects.find((p) => p.id === item.project_id)?.name ||
-                    (item.project_id ? "项目不可用" : "未归类")}
+                    (item.plan_date
+                      ? "个人计划"
+                      : item.project_id
+                        ? "项目不可用"
+                        : "未归类")}
                 </span>
+                {item.plan_date && (
+                  <time dateTime={item.plan_date}>
+                    计划日期：{item.plan_date}（荷兰）
+                  </time>
+                )}
                 {item.due_date && (
                   <time
                     className={
@@ -244,6 +331,8 @@ export function TaskBoard({
           task={editor === "new" ? undefined : editor}
           projects={projects}
           defaultProject={filters.project}
+          todayDate={today ? day?.plan_date : undefined}
+          refreshToday={today ? () => load() : undefined}
           close={() => setEditor(null)}
           saved={() => {
             setEditor(null);

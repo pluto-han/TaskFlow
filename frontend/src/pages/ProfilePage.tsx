@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { DiscordSettings } from "./DiscordSettings";
 import { Navigate } from "react-router";
 import { useAuth } from "../auth/AuthProvider";
 
@@ -93,6 +94,7 @@ export function ProfilePage() {
           </div>
         </div>
       </div>
+      <DiscordSettings key={auth.user.id} />
     </section>
   );
 }

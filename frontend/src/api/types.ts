@@ -13,3 +13,6 @@ export type CreateProject = components["schemas"]["CreateProject"];
 export type UpdateProject = components["schemas"]["UpdateProject"];
 export type Member = components["schemas"]["Member"];
 export type Invitation = components["schemas"]["Invitation"];
+
+export type TodayPage = components["schemas"]["TodayPage"];
+export type CreateTodayTask = components["schemas"]["CreateTodayTask"];

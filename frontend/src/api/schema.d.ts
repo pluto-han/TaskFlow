@@ -407,13 +407,140 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/recurrences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * listRecurrences
+         * @description Owner-only stable UUID keyset pagination. Unknown/empty/duplicate parameters rejected. Cursor bound to owner, not an authorization token. Scheduler is not implemented in Lesson 31.
+         */
+        get: operations["listRecurrences"];
+        put?: never;
+        /** createRecurrence */
+        post: operations["createRecurrence"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/recurrences/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * previewRecurrence
+         * @description Read-only preview (no database writes); supports past anchors to preview existing rules from Amsterdam today. Returns at most five dates; at year 9999 fewer may remain.
+         */
+        post: operations["previewRecurrence"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/recurrences/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** getRecurrence */
+        get: operations["getRecurrence"];
+        put?: never;
+        post?: never;
+        /** deleteRecurrence */
+        delete: operations["deleteRecurrence"];
+        options?: never;
+        head?: never;
+        /** updateRecurrence */
+        patch: operations["updateRecurrence"];
+        trace?: never;
+    };
+    "/integrations/discord": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getDiscordBinding"];
+        put?: never;
+        post?: never;
+        delete: operations["unbindDiscord"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/integrations/discord/code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Issues a code only for the authenticated user. Previous code is revoked. Max 3 per minute. */
+        post: operations["issueDiscordBindingCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/discord/interactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Dedicated signed callback. Ed25519(timestamp + original body), five-minute age and 30s future skew. No Bearer auth. Signed PING or guild-only /taskflow bind. */
+        post: operations["discordInteraction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/integrations/discord/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Most recent 50 notifications for the authenticated user. */
+        get: operations["listDiscordNotifications"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         ErrorDetail: {
             /** @enum {string} */
-            code: "AUTH_BUSY" | "EMAIL_ALREADY_EXISTS" | "FORBIDDEN" | "INTERNAL_ERROR" | "INVALID_INVITEE" | "INVALID_PROJECT" | "INVALID_QUERY" | "INVALID_REQUEST" | "INVALID_TASK" | "INVALID_USER" | "INVITATION_INVALID" | "LOGIN_RATE_LIMITED" | "METHOD_NOT_ALLOWED" | "NOT_READY" | "OWNER_REQUIRED" | "PROJECT_NOT_EMPTY" | "PROJECT_NOT_FOUND" | "REGISTRATION_BUSY" | "REQUEST_TIMEOUT" | "REQUEST_TOO_LARGE" | "ROUTE_NOT_FOUND" | "TASK_CONFLICT" | "TASK_NOT_FOUND" | "UNAUTHORIZED" | "HTTPS_REQUIRED" | "ORIGIN_NOT_ALLOWED" | "RATE_LIMITED" | "PLAN_DAY_CHANGED";
+            code: "AUTH_BUSY" | "EMAIL_ALREADY_EXISTS" | "FORBIDDEN" | "INTERNAL_ERROR" | "INVALID_INVITEE" | "INVALID_PROJECT" | "INVALID_QUERY" | "INVALID_REQUEST" | "INVALID_TASK" | "INVALID_USER" | "INVITATION_INVALID" | "LOGIN_RATE_LIMITED" | "METHOD_NOT_ALLOWED" | "NOT_READY" | "OWNER_REQUIRED" | "PROJECT_NOT_EMPTY" | "PROJECT_NOT_FOUND" | "REGISTRATION_BUSY" | "REQUEST_TIMEOUT" | "REQUEST_TOO_LARGE" | "ROUTE_NOT_FOUND" | "TASK_CONFLICT" | "TASK_NOT_FOUND" | "UNAUTHORIZED" | "HTTPS_REQUIRED" | "ORIGIN_NOT_ALLOWED" | "RATE_LIMITED" | "PLAN_DAY_CHANGED" | "INVALID_RECURRENCE" | "RECURRENCE_NOT_FOUND" | "RECURRENCE_CONFLICT" | "INVALID_DISCORD_BINDING" | "INVALID_DISCORD_INTERACTION" | "INVALID_DISCORD_SIGNATURE" | "DISCORD_BINDING_CONFLICT" | "DISCORD_CODE_RATE_LIMITED" | "DISCORD_DISABLED";
             message: string;
         };
         Error: {
@@ -471,6 +598,11 @@ export interface components {
              * @description Read-only Amsterdam plan date; null for ordinary tasks. Planned tasks are private and cannot join a project.
              */
             plan_date: string | null;
+            /**
+             * Format: uuid
+             * @description Read-only source rule; null for manual tasks.
+             */
+            recurrence_id: string | null;
         };
         /** @description Title must contain non-whitespace text. Missing/null project_id means unclassified. Due dates must be RFC3339 within years 1–9999. */
         CreateTask: {
@@ -579,6 +711,132 @@ export interface components {
              * @description Next Amsterdam midnight as a UTC instant; not necessarily 24 hours later.
              */
             next_day_at: string;
+        };
+        /** @description Amsterdam first day must be today or future. Every N civil days. No tasks are generated until Lesson 32 scheduler is enabled. */
+        CreateRecurrence: {
+            title: string;
+            description?: string;
+            priority: number;
+            /** Format: date */
+            anchor_date: string;
+            interval_days: number;
+            /** @description Enable Discord reminders for generated occurrences; requires a bound channel. */
+            reminder_enabled?: boolean;
+        };
+        /** @description At least one field required. Omitted/null optional fields preserve values. Changing interval requires anchor_date; any supplied anchor_date must be strictly after Amsterdam today. Changes affect future instances only. Resume skips past dates and respects existing receipts. Version conflict returns 409. */
+        UpdateRecurrence: {
+            /** Format: int64 */
+            version: number;
+            title?: string;
+            description?: string;
+            priority?: number;
+            /** Format: date */
+            anchor_date?: string;
+            interval_days?: number;
+            paused?: boolean;
+            /** @description Enable Discord reminders for generated occurrences; requires a bound channel. */
+            reminder_enabled?: boolean;
+        };
+        DeleteRecurrence: {
+            /** Format: int64 */
+            version: number;
+        };
+        PreviewRecurrenceRequest: {
+            /** Format: date */
+            anchor_date: string;
+            interval_days: number;
+        };
+        /** @description next_run_date is a persisted cursor, not a promise of execution. preview_dates is the next up to five aligned dates from max(today,next_run_date), or empty when paused. Source rule deletion never deletes tasks. */
+        Recurrence: {
+            /** Format: uuid */
+            id: string;
+            title: string;
+            description: string;
+            priority: number;
+            /** Format: date */
+            anchor_date: string;
+            interval_days: number;
+            /** Format: date */
+            next_run_date: string;
+            paused: boolean;
+            /** Format: int64 */
+            version: number;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+            preview_dates: string[];
+            /** @description Enable Discord reminders for generated occurrences; requires a bound channel. */
+            reminder_enabled: boolean;
+        };
+        RecurrencePreview: {
+            /** Format: date */
+            plan_date: string;
+            /** @enum {string} */
+            timezone: "Europe/Amsterdam";
+            dates: string[];
+        };
+        RecurrencePage: {
+            items: components["schemas"]["Recurrence"][];
+            next_cursor: string;
+            /** Format: date */
+            plan_date: string;
+            /** @enum {string} */
+            timezone: "Europe/Amsterdam";
+            /** @description Whether this API process has the recurrence scheduler enabled; not a guarantee of worker health. Default false. */
+            scheduler_enabled: boolean;
+        };
+        DiscordBinding: {
+            enabled: boolean;
+            /** Format: int64 */
+            version: number;
+            bound: boolean;
+            guild_id: string | null;
+            channel_id: string | null;
+            channel_name: string | null;
+            /** Format: date-time */
+            bound_at: string | null;
+        };
+        DiscordBindingCode: {
+            /** @description One-time bearer secret, shown only in this response. Never log or persist in browser storage. */
+            code: string;
+            /** Format: date-time */
+            expires_at: string;
+        };
+        UnbindDiscord: {
+            /** Format: int64 */
+            version: number;
+        };
+        /** @description Discord signed raw JSON. Verify timestamp + original bytes before parsing. Not a browser API. */
+        DiscordInteraction: {
+            type: number;
+            application_id: string;
+        } & {
+            [key: string]: unknown;
+        };
+        DiscordInteractionResponse: {
+            type: number;
+            data?: {
+                [key: string]: unknown;
+            };
+        } & {
+            [key: string]: unknown;
+        };
+        NotificationEvent: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            rule_id: string;
+            task_id: string;
+            /** Format: date */
+            scheduled_date: string;
+            title: string;
+            /** @enum {string} */
+            status: "pending" | "retrying" | "leased" | "sent" | "failed" | "expired" | "canceled";
+            attempts: number;
+            last_error: string;
+            /** Format: date-time */
+            created_at: string;
         };
     };
     responses: {
@@ -1664,6 +1922,332 @@ export interface operations {
             500: components["responses"]["Error500"];
             503: components["responses"]["Error503"];
             504: components["responses"]["Error504"];
+        };
+    };
+    listRecurrences: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecurrencePage"];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            413: components["responses"]["Error413"];
+            429: components["responses"]["Error429"];
+            500: components["responses"]["Error500"];
+            504: components["responses"]["Error504"];
+        };
+    };
+    createRecurrence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRecurrence"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Recurrence"];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            413: components["responses"]["Error413"];
+            429: components["responses"]["Error429"];
+            500: components["responses"]["Error500"];
+            504: components["responses"]["Error504"];
+        };
+    };
+    previewRecurrence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreviewRecurrenceRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecurrencePreview"];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            413: components["responses"]["Error413"];
+            429: components["responses"]["Error429"];
+            500: components["responses"]["Error500"];
+            504: components["responses"]["Error504"];
+        };
+    };
+    getRecurrence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Recurrence"];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
+            413: components["responses"]["Error413"];
+            429: components["responses"]["Error429"];
+            500: components["responses"]["Error500"];
+            504: components["responses"]["Error504"];
+        };
+    };
+    deleteRecurrence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeleteRecurrence"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
+            409: components["responses"]["Error409"];
+            413: components["responses"]["Error413"];
+            429: components["responses"]["Error429"];
+            500: components["responses"]["Error500"];
+            504: components["responses"]["Error504"];
+        };
+    };
+    updateRecurrence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateRecurrence"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Recurrence"];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
+            409: components["responses"]["Error409"];
+            413: components["responses"]["Error413"];
+            429: components["responses"]["Error429"];
+            500: components["responses"]["Error500"];
+            504: components["responses"]["Error504"];
+        };
+    };
+    getDiscordBinding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscordBinding"];
+                };
+            };
+            401: components["responses"]["Error401"];
+            500: components["responses"]["Error500"];
+            503: components["responses"]["Error503"];
+        };
+    };
+    unbindDiscord: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "version": 1
+                 *     }
+                 */
+                "application/json": components["schemas"]["UnbindDiscord"];
+            };
+        };
+        responses: {
+            /** @description Unbound; pending code revoked, binding generation incremented */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            409: components["responses"]["Error409"];
+            500: components["responses"]["Error500"];
+            503: components["responses"]["Error503"];
+        };
+    };
+    issueDiscordBindingCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscordBindingCode"];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            429: components["responses"]["Error429"];
+            500: components["responses"]["Error500"];
+            503: components["responses"]["Error503"];
+        };
+    };
+    discordInteraction: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-Signature-Ed25519": string;
+                "X-Signature-Timestamp": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DiscordInteraction"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscordInteractionResponse"];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            413: components["responses"]["Error413"];
+            429: components["responses"]["Error429"];
+            500: components["responses"]["Error500"];
+            503: components["responses"]["Error503"];
+        };
+    };
+    listDiscordNotifications: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Recent notification events */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationEvent"][];
+                };
+            };
+            401: components["responses"]["Error401"];
+            500: components["responses"]["Error500"];
+            503: components["responses"]["Error503"];
         };
     };
 }

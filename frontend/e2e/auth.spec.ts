@@ -2,6 +2,23 @@ import { test, expect } from "@playwright/test";
 
 test("login, revocation, refresh and responsive layout", async ({ page }) => {
   let expired = false;
+  await page.route(
+    "http://127.0.0.1:5173/api/integrations/discord/notifications",
+    (route) => route.fulfill({ json: [] }),
+  );
+  await page.route("http://127.0.0.1:5173/api/integrations/discord", (route) =>
+    route.fulfill({
+      json: {
+        enabled: false,
+        bound: false,
+        version: 1,
+        guild_id: null,
+        channel_id: null,
+        channel_name: null,
+        bound_at: null,
+      },
+    }),
+  );
   await page.route("**/api/auth/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path.endsWith("/login"))

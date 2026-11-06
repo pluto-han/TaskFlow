@@ -1,6 +1,8 @@
 import { request } from "./client";
 import type {
   Task,
+  TodayPage,
+  CreateTodayTask,
   CreateTask,
   UpdateTask,
   Project,
@@ -8,8 +10,28 @@ import type {
   UpdateProject,
 } from "./types";
 
-export type Filters = { project: string; completed: string; priority: string };
+export type Filters = {
+  project: string;
+  completed: string;
+  priority: string;
+  planDate?: string;
+};
 export const workspaceApi = {
+  today(token: string, filters: Filters, cursor = "", signal?: AbortSignal) {
+    const params = new URLSearchParams({ limit: "20" });
+    if (filters.completed) params.set("completed", filters.completed);
+    if (filters.priority) params.set("priority", filters.priority);
+    if (cursor) params.set("cursor", cursor);
+    return request<TodayPage>(
+      `/tasks/today?${params}`,
+      "GET",
+      undefined,
+      token,
+      signal,
+    );
+  },
+  createToday: (token: string, body: CreateTodayTask) =>
+    request<Task>("/tasks/today", "POST", body, token),
   async tasks(
     token: string,
     filters: Filters,
@@ -17,6 +39,7 @@ export const workspaceApi = {
     signal?: AbortSignal,
   ) {
     const params = new URLSearchParams({ limit: "20" });
+    if (filters.planDate) params.set("plan_date", filters.planDate);
     if (filters.project) params.set("project_id", filters.project);
     if (filters.completed) params.set("completed", filters.completed);
     if (filters.priority) params.set("priority", filters.priority);
