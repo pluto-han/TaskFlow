@@ -20,7 +20,7 @@ import (
 func TestSharingIntegration(t *testing.T) {
 	url := os.Getenv("TASKFLOW_SHARING_TEST_DATABASE_URL")
 	if url == "" {
-		t.Skip("set isolated loopback taskflow_lesson20_test database at migration 10")
+		t.Skip("set isolated loopback taskflow_lesson20_test database at migration 13")
 	}
 	cfg, e := pgxpool.ParseConfig(url)
 	if e != nil || cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Database != "taskflow_lesson20_test" {
@@ -36,7 +36,7 @@ func TestSharingIntegration(t *testing.T) {
 	defer pool.Close()
 	var version int
 	var dirty bool
-	if e = pool.QueryRow(ctx, "SELECT version,dirty FROM schema_migrations").Scan(&version, &dirty); e != nil || version != 10 || dirty {
+	if e = pool.QueryRow(ctx, "SELECT version,dirty FROM schema_migrations").Scan(&version, &dirty); e != nil || version != 13 || dirty {
 		t.Fatal("requires clean schema 9")
 	}
 	const stranger session.UserID = "00000000-0000-4000-8000-000000000003"

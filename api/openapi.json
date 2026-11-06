@@ -1833,6 +1833,527 @@
           }
         }
       }
+    },
+    "/recurrences": {
+      "get": {
+        "operationId": "listRecurrences",
+        "summary": "listRecurrences",
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurrencePage"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 1024
+            }
+          }
+        ],
+        "description": "Owner-only stable UUID keyset pagination. Unknown/empty/duplicate parameters rejected. Cursor bound to owner, not an authorization token. Scheduler is not implemented in Lesson 31."
+      },
+      "post": {
+        "operationId": "createRecurrence",
+        "summary": "createRecurrence",
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          },
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Recurrence"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRecurrence"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/recurrences/preview": {
+      "post": {
+        "operationId": "previewRecurrence",
+        "summary": "previewRecurrence",
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurrencePreview"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewRecurrenceRequest"
+              }
+            }
+          }
+        },
+        "description": "Read-only preview (no database writes); supports past anchors to preview existing rules from Amsterdam today. Returns at most five dates; at year 9999 fewer may remain."
+      }
+    },
+    "/recurrences/{id}": {
+      "get": {
+        "operationId": "getRecurrence",
+        "summary": "getRecurrence",
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Recurrence"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      },
+      "patch": {
+        "operationId": "updateRecurrence",
+        "summary": "updateRecurrence",
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Recurrence"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRecurrence"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "deleteRecurrence",
+        "summary": "deleteRecurrence",
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          },
+          "204": {
+            "description": "Success"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteRecurrence"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/integrations/discord": {
+      "get": {
+        "operationId": "getDiscordBinding",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscordBinding"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "unbindDiscord",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnbindDiscord"
+              },
+              "example": {
+                "version": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Unbound; pending code revoked, binding generation incremented"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        }
+      }
+    },
+    "/integrations/discord/code": {
+      "post": {
+        "operationId": "issueDiscordBindingCode",
+        "description": "Issues a code only for the authenticated user. Previous code is revoked. Max 3 per minute.",
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscordBindingCode"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        }
+      }
+    },
+    "/discord/interactions": {
+      "post": {
+        "operationId": "discordInteraction",
+        "security": [],
+        "description": "Dedicated signed callback. Ed25519(timestamp + original body), five-minute age and 30s future skew. No Bearer auth. Signed PING or guild-only /taskflow bind.",
+        "parameters": [
+          {
+            "name": "X-Signature-Ed25519",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Signature-Timestamp",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiscordInteraction"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscordInteractionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        }
+      }
+    },
+    "/integrations/discord/notifications": {
+      "get": {
+        "operationId": "listDiscordNotifications",
+        "description": "Most recent 50 notifications for the authenticated user.",
+        "responses": {
+          "200": {
+            "description": "Recent notification events",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationEvent"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1877,7 +2398,16 @@
               "HTTPS_REQUIRED",
               "ORIGIN_NOT_ALLOWED",
               "RATE_LIMITED",
-              "PLAN_DAY_CHANGED"
+              "PLAN_DAY_CHANGED",
+              "INVALID_RECURRENCE",
+              "RECURRENCE_NOT_FOUND",
+              "RECURRENCE_CONFLICT",
+              "INVALID_DISCORD_BINDING",
+              "INVALID_DISCORD_INTERACTION",
+              "INVALID_DISCORD_SIGNATURE",
+              "DISCORD_BINDING_CONFLICT",
+              "DISCORD_CODE_RATE_LIMITED",
+              "DISCORD_DISABLED"
             ]
           },
           "message": {
@@ -2050,6 +2580,12 @@
             "format": "date",
             "nullable": true,
             "description": "Read-only Amsterdam plan date; null for ordinary tasks. Planned tasks are private and cannot join a project."
+          },
+          "recurrence_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Read-only source rule; null for manual tasks."
           }
         },
         "required": [
@@ -2063,7 +2599,8 @@
           "version",
           "project_id",
           "can_move",
-          "plan_date"
+          "plan_date",
+          "recurrence_id"
         ],
         "additionalProperties": false
       },
@@ -2390,6 +2927,437 @@
             "description": "Next Amsterdam midnight as a UTC instant; not necessarily 24 hours later."
           }
         }
+      },
+      "CreateRecurrence": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "priority": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3
+          },
+          "anchor_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "interval_days": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 365
+          },
+          "reminder_enabled": {
+            "type": "boolean",
+            "description": "Enable Discord reminders for generated occurrences; requires a bound channel."
+          }
+        },
+        "required": [
+          "title",
+          "priority",
+          "anchor_date",
+          "interval_days"
+        ],
+        "additionalProperties": false,
+        "description": "Amsterdam first day must be today or future. Every N civil days. No tasks are generated until Lesson 32 scheduler is enabled."
+      },
+      "UpdateRecurrence": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "priority": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3
+          },
+          "anchor_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "interval_days": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 365
+          },
+          "paused": {
+            "type": "boolean"
+          },
+          "reminder_enabled": {
+            "type": "boolean",
+            "description": "Enable Discord reminders for generated occurrences; requires a bound channel."
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "additionalProperties": false,
+        "description": "At least one field required. Omitted/null optional fields preserve values. Changing interval requires anchor_date; any supplied anchor_date must be strictly after Amsterdam today. Changes affect future instances only. Resume skips past dates and respects existing receipts. Version conflict returns 409."
+      },
+      "DeleteRecurrence": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "additionalProperties": false
+      },
+      "PreviewRecurrenceRequest": {
+        "type": "object",
+        "properties": {
+          "anchor_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "interval_days": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 365
+          }
+        },
+        "required": [
+          "anchor_date",
+          "interval_days"
+        ],
+        "additionalProperties": false
+      },
+      "Recurrence": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "priority": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3
+          },
+          "anchor_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "interval_days": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 365
+          },
+          "next_run_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "paused": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "preview_dates": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "date"
+            },
+            "maxItems": 5
+          },
+          "reminder_enabled": {
+            "type": "boolean",
+            "description": "Enable Discord reminders for generated occurrences; requires a bound channel."
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "description",
+          "priority",
+          "anchor_date",
+          "interval_days",
+          "next_run_date",
+          "paused",
+          "version",
+          "created_at",
+          "updated_at",
+          "preview_dates",
+          "reminder_enabled"
+        ],
+        "additionalProperties": false,
+        "description": "next_run_date is a persisted cursor, not a promise of execution. preview_dates is the next up to five aligned dates from max(today,next_run_date), or empty when paused. Source rule deletion never deletes tasks."
+      },
+      "RecurrencePreview": {
+        "type": "object",
+        "properties": {
+          "plan_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "timezone": {
+            "type": "string",
+            "enum": [
+              "Europe/Amsterdam"
+            ]
+          },
+          "dates": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "date"
+            },
+            "maxItems": 5
+          }
+        },
+        "required": [
+          "plan_date",
+          "timezone",
+          "dates"
+        ],
+        "additionalProperties": false
+      },
+      "RecurrencePage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Recurrence"
+            }
+          },
+          "next_cursor": {
+            "type": "string"
+          },
+          "plan_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "timezone": {
+            "type": "string",
+            "enum": [
+              "Europe/Amsterdam"
+            ]
+          },
+          "scheduler_enabled": {
+            "type": "boolean",
+            "description": "Whether this API process has the recurrence scheduler enabled; not a guarantee of worker health. Default false."
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor",
+          "plan_date",
+          "timezone",
+          "scheduler_enabled"
+        ],
+        "additionalProperties": false
+      },
+      "DiscordBinding": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "bound": {
+            "type": "boolean"
+          },
+          "guild_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "channel_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "channel_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "bound_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "required": [
+          "enabled",
+          "version",
+          "bound",
+          "guild_id",
+          "channel_id",
+          "channel_name",
+          "bound_at"
+        ]
+      },
+      "DiscordBindingCode": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 43,
+            "maxLength": 43,
+            "description": "One-time bearer secret, shown only in this response. Never log or persist in browser storage."
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "code",
+          "expires_at"
+        ]
+      },
+      "UnbindDiscord": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "version"
+        ]
+      },
+      "DiscordInteraction": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "Discord signed raw JSON. Verify timestamp + original bytes before parsing. Not a browser API.",
+        "properties": {
+          "type": {
+            "type": "integer"
+          },
+          "application_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "application_id"
+        ]
+      },
+      "DiscordInteractionResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "type": {
+            "type": "integer"
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "NotificationEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "rule_id",
+          "task_id",
+          "scheduled_date",
+          "title",
+          "status",
+          "attempts",
+          "last_error",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "rule_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "task_id": {
+            "type": "string"
+          },
+          "scheduled_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "retrying",
+              "leased",
+              "sent",
+              "failed",
+              "expired",
+              "canceled"
+            ]
+          },
+          "attempts": {
+            "type": "integer"
+          },
+          "last_error": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
       }
     },
     "responses": {
@@ -2616,15 +3584,20 @@
       "INVALID_PROJECT",
       "INVALID_QUERY",
       "INVITATION_INVALID",
-      "INVALID_INVITEE"
+      "INVALID_INVITEE",
+      "INVALID_RECURRENCE",
+      "INVALID_DISCORD_BINDING",
+      "INVALID_DISCORD_INTERACTION"
     ],
     "401": [
-      "UNAUTHORIZED"
+      "UNAUTHORIZED",
+      "INVALID_DISCORD_SIGNATURE"
     ],
     "404": [
       "TASK_NOT_FOUND",
       "PROJECT_NOT_FOUND",
-      "ROUTE_NOT_FOUND"
+      "ROUTE_NOT_FOUND",
+      "RECURRENCE_NOT_FOUND"
     ],
     "405": [
       "METHOD_NOT_ALLOWED"
@@ -2634,14 +3607,17 @@
       "TASK_CONFLICT",
       "PROJECT_NOT_EMPTY",
       "OWNER_REQUIRED",
-      "PLAN_DAY_CHANGED"
+      "PLAN_DAY_CHANGED",
+      "RECURRENCE_CONFLICT",
+      "DISCORD_BINDING_CONFLICT"
     ],
     "413": [
       "REQUEST_TOO_LARGE"
     ],
     "429": [
       "LOGIN_RATE_LIMITED",
-      "RATE_LIMITED"
+      "RATE_LIMITED",
+      "DISCORD_CODE_RATE_LIMITED"
     ],
     "500": [
       "INTERNAL_ERROR"
@@ -2649,7 +3625,8 @@
     "503": [
       "AUTH_BUSY",
       "REGISTRATION_BUSY",
-      "NOT_READY"
+      "NOT_READY",
+      "DISCORD_DISABLED"
     ],
     "504": [
       "REQUEST_TIMEOUT"

@@ -6,13 +6,18 @@ import (
 )
 
 type Config struct {
-	Environment     string
-	PublicOrigin    string
-	TrustedProxies  string
-	HTTPAddr        string
-	MetricsAddr     string
-	DatabaseURL     string
-	ShutdownTimeout time.Duration
+	DiscordSender        string
+	DiscordBotToken      string
+	DiscordApplicationID string
+	DiscordPublicKey     string
+	RecurrenceScheduler  string
+	Environment          string
+	PublicOrigin         string
+	TrustedProxies       string
+	HTTPAddr             string
+	MetricsAddr          string
+	DatabaseURL          string
+	ShutdownTimeout      time.Duration
 }
 
 func Load() Config {
@@ -28,7 +33,11 @@ func Load() Config {
 		environment = "development"
 	}
 	return Config{
-		Environment: environment, PublicOrigin: os.Getenv("TASKFLOW_PUBLIC_ORIGIN"), TrustedProxies: os.Getenv("TASKFLOW_TRUSTED_PROXIES"),
+		DiscordSender:        os.Getenv("TASKFLOW_DISCORD_SENDER_ENABLED"),
+		DiscordApplicationID: os.Getenv("DISCORD_APPLICATION_ID"),
+		DiscordPublicKey:     os.Getenv("DISCORD_PUBLIC_KEY"),
+		RecurrenceScheduler:  os.Getenv("TASKFLOW_RECURRENCE_ENABLED"),
+		Environment:          environment, PublicOrigin: os.Getenv("TASKFLOW_PUBLIC_ORIGIN"), TrustedProxies: os.Getenv("TASKFLOW_TRUSTED_PROXIES"),
 		HTTPAddr:        addr,
 		MetricsAddr:     os.Getenv("TASKFLOW_METRICS_ADDR"),
 		DatabaseURL:     databaseURL,

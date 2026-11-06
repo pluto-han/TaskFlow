@@ -9,6 +9,7 @@ import sys
 import ssl
 import subprocess
 import time
+import tempfile
 import urllib.request
 import urllib.error
 
@@ -59,6 +60,10 @@ def main():
     model['services']['api']['networks']['edge']['ipv4_address'] = api_ip
     model['services']['api']['environment']['TASKFLOW_TRUSTED_PROXIES'] = web_ip+'/32,127.0.0.1/32'
     model['services']['api']['environment']['TASKFLOW_PUBLIC_ORIGIN'] = origin
+    model['services']['api']['environment']['TASKFLOW_RECURRENCE_ENABLED'] = 'false'
+    model['services']['api']['environment']['TASKFLOW_DISCORD_SENDER_ENABLED'] = 'false'
+    model['services']['api']['environment']['DISCORD_APPLICATION_ID'] = ''
+    model['services']['api']['environment']['DISCORD_PUBLIC_KEY'] = ''
     model['services']['web']['ports'] = [{'host_ip':'127.0.0.1','published':str(port),'target':8443,'protocol':'tcp'}]
     isolated = bad / 'compose.json'
     isolated.write_text(json.dumps(model))
@@ -112,6 +117,8 @@ def main():
         credentials = {'email': 'stack-smoke@example.com', 'password': 'local container smoke passphrase'}
         request('POST','/api/auth/register',credentials,expected=201)
         token = request('POST','/api/auth/login',credentials)['access_token']
+        assert request('GET', '/api/integrations/discord', token=token)['enabled'] is False
+        request('POST', '/api/integrations/discord/code', token=token, expected=503)
         today = request('GET', '/api/tasks/today', token=token)
         assert today['timezone'] == 'Europe/Amsterdam'
         from datetime import datetime
@@ -124,6 +131,24 @@ def main():
         assert any(x['id'] == planned['id'] for x in request('GET', '/api/tasks/today', token=token)['items'])
         request('PATCH', '/api/tasks/' + planned['id'], {'version': 1, 'completed': True}, token)
         print('PASS: scratch Amsterdam calendar and today CRUD using runtime role', flush=True)
+        rule = request('POST', '/api/recurrences', {
+            'title': 'Recurring smoke', 'priority': 2,
+            'anchor_date': today['plan_date'], 'interval_days': 3}, token, 201)
+        rules = request('GET', '/api/recurrences', token=token)
+        assert rules['scheduler_enabled'] is False
+        assert any(x['id'] == rule['id'] for x in rules['items'])
+        preview = request('POST', '/api/recurrences/preview', {
+            'anchor_date': today['plan_date'], 'interval_days': 3}, token)
+        assert preview['dates'] == rule['preview_dates']
+        paused = request('PATCH', '/api/recurrences/' + rule['id'],
+                         {'version': 1, 'paused': True}, token)
+        assert paused['paused'] and paused['preview_dates'] == []
+        request('PATCH', '/api/recurrences/' + rule['id'],
+                {'version': 1, 'paused': False}, token, 409)
+        request('DELETE', '/api/recurrences/' + rule['id'],
+                {'version': 2}, token, 204)
+        request('GET', '/api/recurrences/' + rule['id'], token=token, expected=404)
+        print('PASS: recurrence CRUD/preview/conflict using restricted runtime role', flush=True)
         project = request('POST','/api/projects',{'name':'Persistent project'},token,201)
         task = request('POST','/api/tasks',{'title':'Persistent task','priority':2,'project_id':project['id']},token,201)
         run(BASE + ['restart', 'postgres', 'api', 'web'])
@@ -139,6 +164,88 @@ def main():
         assert stored['title']=='Persistent task' and stored['version']==1
         from test_deploy_drill import drill
         drill(BASE, NAME, lambda: request('GET', '/api/tasks/'+task['id'], token=token))
+        # Enable only this disposable project's worker. The real dev stack stays untouched.
+        today = request('GET', '/api/tasks/today', token=token)
+        scheduled = request('POST', '/api/recurrences', {
+            'title': 'Background smoke', 'priority': 2,
+            'anchor_date': today['plan_date'], 'interval_days': 1}, token, 201)
+        assert not any(x.get('recurrence_id') == scheduled['id'] for x in today['items'])
+        # Ephemeral Ed25519 fixture: no real Discord key, token or network request.
+        fixture = tempfile.TemporaryDirectory(prefix='discord-smoke-', dir=ROOT / '.local')
+        fixture_dir = Path(fixture.name)
+        run(['openssl', 'genpkey', '-algorithm', 'ED25519', '-out', str(fixture_dir / 'key')])
+        run(['openssl', 'pkey', '-in', str(fixture_dir / 'key'), '-pubout', '-outform', 'DER', '-out', str(fixture_dir / 'public')])
+        model['services']['api']['environment']['DISCORD_APPLICATION_ID'] = '777'
+        model['services']['api']['environment']['DISCORD_PUBLIC_KEY'] = (fixture_dir / 'public').read_bytes()[-32:].hex()
+        model['services']['api']['environment']['TASKFLOW_RECURRENCE_ENABLED'] = 'true'
+        isolated.write_text(json.dumps(model))
+        run(BASE + ['up', '-d', '--no-deps', '--wait', '--wait-timeout', '120', 'api'])
+        for attempt in range(45):
+            generated = [x for x in request('GET', '/api/tasks/today', token=token)['items']
+                         if x.get('recurrence_id') == scheduled['id']]
+            if generated: break
+            time.sleep(1)
+        assert len(generated) == 1 and generated[0]['project_id'] is None
+        assert request('GET', '/api/recurrences', token=token)['scheduler_enabled'] is True
+        def interaction(payload, invalid=False):
+            body = json.dumps(payload).encode()
+            timestamp = str(int(time.time()))
+            (fixture_dir / 'message').write_bytes(timestamp.encode() + body)
+            run(['openssl', 'pkeyutl', '-sign', '-inkey', str(fixture_dir / 'key'),
+                 '-rawin', '-in', str(fixture_dir / 'message'), '-out', str(fixture_dir / 'signature')])
+            signature = (fixture_dir / 'signature').read_bytes().hex()
+            if invalid:
+                signature = '00' * 64
+            req = urllib.request.Request(origin + '/api/discord/interactions',
+                data=body, method='POST', headers={'Content-Type': 'application/json',
+                    'X-Signature-Ed25519': signature, 'X-Signature-Timestamp': timestamp,
+                    'Origin': 'https://discord-fixture.example'})
+            try:
+                response = urllib.request.urlopen(req, context=tls, timeout=10)
+            except urllib.error.HTTPError as error:
+                response = error
+            with response:
+                assert response.status == (401 if invalid else 200), 'signed fixture failed'
+                return json.loads(response.read())
+        assert interaction({'type': 1, 'application_id': '777'})['type'] == 1
+        interaction({'type': 1, 'application_id': '777'}, invalid=True)
+        code = request('POST', '/api/integrations/discord/code', token=token, expected=201)['code']
+        payload = {'id': '12345', 'application_id': '777', 'type': 2, 'guild_id': '111',
+            'channel_id': '222', 'channel': {'id': '222', 'type': 0, 'name': 'smoke'},
+            'member': {'permissions': '1040', 'user': {'id': '333'}},
+            'app_permissions': '3072', 'authorizing_integration_owners': {'0': '111'},
+            'data': {'name': 'taskflow', 'type': 1, 'options': [
+                {'name': 'bind', 'type': 1, 'options': [{'name': 'code', 'type': 3, 'value': code}]}]}}
+        assert interaction(payload)['data']['flags'] == 64
+        binding = request('GET', '/api/integrations/discord', token=token)
+        assert binding['bound'] and binding['channel_id'] == '222' and binding['version'] == 2
+        reminder_rule = request('POST', '/api/recurrences', {
+            'title': 'Outbox smoke', 'priority': 2, 'anchor_date': today['plan_date'],
+            'interval_days': 1, 'reminder_enabled': True}, token, 201)
+        for attempt in range(45):
+            events = request('GET', '/api/integrations/discord/notifications', token=token)
+            found = [event for event in events if event['rule_id'] == reminder_rule['id']]
+            if found: break
+            time.sleep(1)
+        assert len(found) == 1 and found[0]['status'] == 'pending'
+        assert found[0]['title'] == 'Outbox smoke'
+
+        request('DELETE', '/api/integrations/discord', {'version': 2}, token, 204)
+        events = request('GET', '/api/integrations/discord/notifications', token=token)
+        assert next(event for event in events if event['rule_id'] == reminder_rule['id'])['status'] == 'canceled'
+        print('PASS: runtime role creates pending outbox, unbinding cancels it; sender stayed disabled', flush=True)
+
+        interaction(payload)
+        assert not request('GET', '/api/integrations/discord', token=token)['bound']
+        fixture.cleanup()
+        print('PASS: signed PING/bind/unbind/replay via HTTPS and restricted runtime role', flush=True)
+
+        request('DELETE', '/api/tasks/' + generated[0]['id'], token=token, expected=204)
+        run(BASE + ['restart', 'api'])
+        run(BASE + ['up', '-d', '--no-deps', '--wait', '--wait-timeout', '120', 'api'])
+        assert not any(x.get('recurrence_id') == scheduled['id']
+                       for x in request('GET', '/api/tasks/today', token=token)['items'])
+        print('PASS: opt-in startup worker creates one owned task; restart does not recreate deleted task', flush=True)
         # Runtime role was checked at startup, migrations use a different login.
         role = run(BASE + ['exec','-T','postgres','psql','-X','-U','taskflow_migrator','-d','taskflow','-At','-c',
             "SELECT rolname||':'||rolsuper||':'||rolcreatedb FROM pg_roles WHERE rolname='taskflow_app'"]).stdout.strip()

@@ -7,18 +7,19 @@ import (
 )
 
 type Task struct {
-	PlanDate    *string        `json:"plan_date"`
-	CanMove     bool           `json:"can_move"`
-	ProjectID   *string        `json:"project_id"`
-	OwnerID     session.UserID `json:"-"`
-	ID          string         `json:"id"`
-	Title       string         `json:"title"`
-	Description string         `json:"description"`
-	Completed   bool           `json:"completed"`
-	Priority    int            `json:"priority"`
-	CreatedAt   time.Time      `json:"created_at"`
-	DueDate     *time.Time     `json:"due_date"`
-	Version     int64          `json:"version"`
+	RecurrenceID *string        `json:"recurrence_id"`
+	PlanDate     *string        `json:"plan_date"`
+	CanMove      bool           `json:"can_move"`
+	ProjectID    *string        `json:"project_id"`
+	OwnerID      session.UserID `json:"-"`
+	ID           string         `json:"id"`
+	Title        string         `json:"title"`
+	Description  string         `json:"description"`
+	Completed    bool           `json:"completed"`
+	Priority     int            `json:"priority"`
+	CreatedAt    time.Time      `json:"created_at"`
+	DueDate      *time.Time     `json:"due_date"`
+	Version      int64          `json:"version"`
 }
 
 func copyTime(value *time.Time) *time.Time {
@@ -31,6 +32,10 @@ func copyTime(value *time.Time) *time.Time {
 
 func cloneTask(task Task) Task {
 	task.DueDate = copyTime(task.DueDate)
+	if task.RecurrenceID != nil {
+		value := *task.RecurrenceID
+		task.RecurrenceID = &value
+	}
 	if task.PlanDate != nil {
 		value := *task.PlanDate
 		task.PlanDate = &value

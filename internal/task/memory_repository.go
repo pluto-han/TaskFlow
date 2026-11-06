@@ -46,6 +46,9 @@ func (r *MemoryRepository) Save(ctx context.Context, ownerID session.UserID, tas
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	if task.RecurrenceID != nil {
+		return ErrInvalidTask
+	}
 	if err := validateTaskPlan(task); err != nil {
 		return err
 	}
@@ -120,7 +123,7 @@ func (r *MemoryRepository) Update(ctx context.Context, ownerID session.UserID, t
 	if err := validateTaskPlan(task); err != nil {
 		return err
 	}
-	if !sameProject(existing.PlanDate, task.PlanDate) {
+	if !sameProject(existing.RecurrenceID, task.RecurrenceID) || !sameProject(existing.PlanDate, task.PlanDate) {
 		return ErrInvalidUpdate
 	}
 	updated := *task

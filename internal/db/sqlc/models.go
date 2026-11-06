@@ -10,6 +10,51 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type DiscordBinding struct {
+	OwnerID       pgtype.UUID        `json:"owner_id"`
+	Version       int64              `json:"version"`
+	GuildID       pgtype.Text        `json:"guild_id"`
+	ChannelID     pgtype.Text        `json:"channel_id"`
+	ChannelName   pgtype.Text        `json:"channel_name"`
+	DiscordUserID pgtype.Text        `json:"discord_user_id"`
+	BoundAt       pgtype.Timestamptz `json:"bound_at"`
+	CodeHash      []byte             `json:"code_hash"`
+	CodeExpiresAt pgtype.Timestamptz `json:"code_expires_at"`
+	RateStartedAt pgtype.Timestamptz `json:"rate_started_at"`
+	RateCount     int32              `json:"rate_count"`
+}
+
+type DiscordInteraction struct {
+	InteractionID string             `json:"interaction_id"`
+	OwnerID       pgtype.UUID        `json:"owner_id"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+}
+
+type NotificationCooldown struct {
+	Scope   string             `json:"scope"`
+	UntilAt pgtype.Timestamptz `json:"until_at"`
+}
+
+type NotificationOutbox struct {
+	ID             pgtype.UUID        `json:"id"`
+	OwnerID        pgtype.UUID        `json:"owner_id"`
+	RuleID         pgtype.UUID        `json:"rule_id"`
+	ScheduledDate  pgtype.Date        `json:"scheduled_date"`
+	TaskID         string             `json:"task_id"`
+	Title          string             `json:"title"`
+	ChannelID      string             `json:"channel_id"`
+	BindingVersion int64              `json:"binding_version"`
+	Status         string             `json:"status"`
+	Attempts       int32              `json:"attempts"`
+	NextAttemptAt  pgtype.Timestamptz `json:"next_attempt_at"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	LeaseToken     pgtype.UUID        `json:"lease_token"`
+	LeaseUntil     pgtype.Timestamptz `json:"lease_until"`
+	LastError      string             `json:"last_error"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Project struct {
 	ID          pgtype.UUID        `json:"id"`
 	OwnerID     pgtype.UUID        `json:"owner_id"`
@@ -38,6 +83,30 @@ type ProjectMembership struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
+type RecurrenceOccurrence struct {
+	RuleID        pgtype.UUID        `json:"rule_id"`
+	OwnerID       pgtype.UUID        `json:"owner_id"`
+	ScheduledDate pgtype.Date        `json:"scheduled_date"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+}
+
+type RecurrenceRule struct {
+	ID              pgtype.UUID        `json:"id"`
+	OwnerID         pgtype.UUID        `json:"owner_id"`
+	Title           string             `json:"title"`
+	Description     string             `json:"description"`
+	Priority        int32              `json:"priority"`
+	AnchorDate      pgtype.Date        `json:"anchor_date"`
+	IntervalDays    int32              `json:"interval_days"`
+	NextRunDate     pgtype.Date        `json:"next_run_date"`
+	Paused          bool               `json:"paused"`
+	DeletedAt       pgtype.Timestamptz `json:"deleted_at"`
+	Version         int64              `json:"version"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	ReminderEnabled bool               `json:"reminder_enabled"`
+}
+
 type Session struct {
 	ID        pgtype.UUID        `json:"id"`
 	UserID    pgtype.UUID        `json:"user_id"`
@@ -48,17 +117,18 @@ type Session struct {
 }
 
 type Task struct {
-	ID          string             `json:"id"`
-	Title       string             `json:"title"`
-	Description string             `json:"description"`
-	Completed   bool               `json:"completed"`
-	Priority    int32              `json:"priority"`
-	CreatedAt   time.Time          `json:"created_at"`
-	DueDate     pgtype.Timestamptz `json:"due_date"`
-	Version     int64              `json:"version"`
-	OwnerID     pgtype.UUID        `json:"owner_id"`
-	ProjectID   pgtype.UUID        `json:"project_id"`
-	PlanDate    pgtype.Date        `json:"plan_date"`
+	ID           string             `json:"id"`
+	Title        string             `json:"title"`
+	Description  string             `json:"description"`
+	Completed    bool               `json:"completed"`
+	Priority     int32              `json:"priority"`
+	CreatedAt    time.Time          `json:"created_at"`
+	DueDate      pgtype.Timestamptz `json:"due_date"`
+	Version      int64              `json:"version"`
+	OwnerID      pgtype.UUID        `json:"owner_id"`
+	ProjectID    pgtype.UUID        `json:"project_id"`
+	PlanDate     pgtype.Date        `json:"plan_date"`
+	RecurrenceID pgtype.UUID        `json:"recurrence_id"`
 }
 
 type User struct {

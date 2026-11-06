@@ -11,22 +11,41 @@ import (
 )
 
 type Querier interface {
+	AdvanceRecurrence(ctx context.Context, arg AdvanceRecurrenceParams) error
+	ConsumeDiscordCode(ctx context.Context, arg ConsumeDiscordCodeParams) error
 	CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error)
+	CreateRecurrence(ctx context.Context, arg CreateRecurrenceParams) (RecurrenceRule, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (CreateSessionRow, error)
 	CreateTask(ctx context.Context, arg CreateTaskParams) error
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteProject(ctx context.Context, arg DeleteProjectParams) (pgtype.UUID, error)
 	DeleteTask(ctx context.Context, arg DeleteTaskParams) (string, error)
+	EnsureDiscordBinding(ctx context.Context, ownerID pgtype.UUID) error
+	FindDiscordInteraction(ctx context.Context, interactionID string) (string, error)
 	GetActiveSession(ctx context.Context, tokenHash []byte) (GetActiveSessionRow, error)
+	GetDiscordBinding(ctx context.Context, ownerID pgtype.UUID) (DiscordBinding, error)
 	GetProject(ctx context.Context, arg GetProjectParams) (Project, error)
+	GetRecurrence(ctx context.Context, arg GetRecurrenceParams) (RecurrenceRule, error)
 	GetTask(ctx context.Context, arg GetTaskParams) (Task, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
+	InsertOccurrence(ctx context.Context, arg InsertOccurrenceParams) (int64, error)
+	InsertRecurringTask(ctx context.Context, arg InsertRecurringTaskParams) error
+	IssueDiscordCode(ctx context.Context, arg IssueDiscordCodeParams) error
+	LatestRecurrenceOccurrence(ctx context.Context, arg LatestRecurrenceOccurrenceParams) (pgtype.Date, error)
 	ListProjects(ctx context.Context, ownerID pgtype.UUID) ([]Project, error)
+	ListRecurrences(ctx context.Context, arg ListRecurrencesParams) ([]RecurrenceRule, error)
 	ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, error)
+	LockDiscordBinding(ctx context.Context, ownerID pgtype.UUID) (DiscordBinding, error)
+	LockDiscordCode(ctx context.Context, codeHash []byte) (DiscordBinding, error)
+	LockDueRecurrences(ctx context.Context, arg LockDueRecurrencesParams) ([]RecurrenceRule, error)
+	LockRecurrence(ctx context.Context, arg LockRecurrenceParams) (RecurrenceRule, error)
 	LockTask(ctx context.Context, arg LockTaskParams) (Task, error)
 	RevokeSession(ctx context.Context, arg RevokeSessionParams) (int64, error)
+	SaveDiscordInteraction(ctx context.Context, arg SaveDiscordInteractionParams) (int64, error)
+	UnbindDiscord(ctx context.Context, ownerID pgtype.UUID) error
 	UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error)
+	UpdateRecurrence(ctx context.Context, arg UpdateRecurrenceParams) (RecurrenceRule, error)
 	UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, error)
 }
 

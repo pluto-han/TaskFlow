@@ -51,17 +51,18 @@ func fromPgTimestamp(t pgtype.Timestamptz) *time.Time {
 
 func toDomainTask(row db.Task) *Task {
 	return &Task{
-		ID:          row.ID,
-		PlanDate:    fromPgDate(row.PlanDate),
-		ProjectID:   projectString(row.ProjectID),
-		OwnerID:     session.UserID(row.OwnerID.String()),
-		Title:       row.Title,
-		Description: row.Description,
-		Completed:   row.Completed,
-		Priority:    int(row.Priority),
-		CreatedAt:   row.CreatedAt,
-		DueDate:     fromPgTimestamp(row.DueDate),
-		Version:     row.Version,
+		ID:           row.ID,
+		PlanDate:     fromPgDate(row.PlanDate),
+		RecurrenceID: projectString(row.RecurrenceID),
+		ProjectID:    projectString(row.ProjectID),
+		OwnerID:      session.UserID(row.OwnerID.String()),
+		Title:        row.Title,
+		Description:  row.Description,
+		Completed:    row.Completed,
+		Priority:     int(row.Priority),
+		CreatedAt:    row.CreatedAt,
+		DueDate:      fromPgTimestamp(row.DueDate),
+		Version:      row.Version,
 	}
 }
 
@@ -132,6 +133,9 @@ func (r *PostgresRepository) FindPage(
 }
 
 func (r *PostgresRepository) Save(ctx context.Context, ownerID session.UserID, task *Task) error {
+	if task.RecurrenceID != nil {
+		return ErrInvalidTask
+	} // generated tasks need the occurrence transaction
 	if err := validateTaskPlan(task); err != nil {
 		return err
 	}
@@ -188,7 +192,7 @@ func (r *PostgresRepository) Update(ctx context.Context, ownerID session.UserID,
 	}
 	var updated db.Task
 	err = r.write(ctx, ownerID, snapshot, task.ProjectID, func(q *db.Queries, current *db.Task) error {
-		if !sameProject(fromPgDate(current.PlanDate), task.PlanDate) || (current.PlanDate.Valid && task.ProjectID != nil) {
+		if !sameProject(projectString(current.RecurrenceID), task.RecurrenceID) || !sameProject(fromPgDate(current.PlanDate), task.PlanDate) || (current.PlanDate.Valid && task.ProjectID != nil) {
 			return ErrInvalidUpdate
 		}
 		if current.Version != task.Version {

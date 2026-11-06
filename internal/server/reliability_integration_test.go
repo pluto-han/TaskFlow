@@ -44,7 +44,7 @@ func TestReliabilityHTTPIntegration(t *testing.T) {
 	defer pool.Close()
 	var version int
 	var dirty bool
-	if err = pool.QueryRow(ctx, "SELECT version,dirty FROM schema_migrations").Scan(&version, &dirty); err != nil || version != 10 || dirty {
+	if err = pool.QueryRow(ctx, "SELECT version,dirty FROM schema_migrations").Scan(&version, &dirty); err != nil || version != 13 || dirty {
 		t.Fatal("requires clean schema 9")
 	}
 

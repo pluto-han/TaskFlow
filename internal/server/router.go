@@ -7,22 +7,30 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/pluto-han/taskflow/internal/discord"
 	"github.com/pluto-han/taskflow/internal/httpapi"
+	"github.com/pluto-han/taskflow/internal/integration"
+	"github.com/pluto-han/taskflow/internal/notification"
 	"github.com/pluto-han/taskflow/internal/project"
+	"github.com/pluto-han/taskflow/internal/recurrence"
 	"github.com/pluto-han/taskflow/internal/session"
 	"github.com/pluto-han/taskflow/internal/task"
 	"github.com/pluto-han/taskflow/internal/user"
 )
 
 type Dependencies struct {
-	Metrics  httpapi.RequestObserver
-	Security httpapi.SecurityOptions
-	Users    *user.Service
-	Sessions *session.Service
-	Tasks    *task.Service
-	Projects *project.Service
-	Ping     func(context.Context) error
-	Logger   *slog.Logger
+	Notifications *notification.Service
+	Discord       *discord.Handler
+	Integrations  *integration.Service
+	Recurrences   *recurrence.Service
+	Metrics       httpapi.RequestObserver
+	Security      httpapi.SecurityOptions
+	Users         *user.Service
+	Sessions      *session.Service
+	Tasks         *task.Service
+	Projects      *project.Service
+	Ping          func(context.Context) error
+	Logger        *slog.Logger
 }
 
 func NewRouter(d Dependencies) *gin.Engine {
@@ -45,7 +53,11 @@ func NewRouter(d Dependencies) *gin.Engine {
 	session.Mount(router, d.Sessions)
 	router.POST("/auth/register", user.NewHandler(d.Users).Register)
 	authentication := session.NewHandler(d.Sessions).RequireSession
+	router.POST(discord.Path, d.Discord.Handle)
+	integration.Mount(router, d.Integrations, authentication)
+	notification.Mount(router, d.Notifications, authentication)
 	task.Mount(router, d.Tasks, authentication)
 	project.Mount(router, d.Projects, authentication)
+	recurrence.Mount(router, d.Recurrences, authentication)
 	return router
 }

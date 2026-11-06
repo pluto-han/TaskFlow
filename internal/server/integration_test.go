@@ -15,7 +15,10 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pluto-han/taskflow/internal/auth"
+	"github.com/pluto-han/taskflow/internal/integration"
+	"github.com/pluto-han/taskflow/internal/notification"
 	"github.com/pluto-han/taskflow/internal/project"
+	"github.com/pluto-han/taskflow/internal/recurrence"
 	"github.com/pluto-han/taskflow/internal/session"
 	"github.com/pluto-han/taskflow/internal/task"
 	"github.com/pluto-han/taskflow/internal/testdb"
@@ -112,8 +115,8 @@ func TestAPIExamplesIntegration(t *testing.T) {
 	defer pool.Close()
 	var version int
 	var dirty bool
-	if err := pool.QueryRow(ctx, "SELECT version,dirty FROM schema_migrations").Scan(&version, &dirty); err != nil || version != 10 || dirty {
-		t.Fatal("requires clean migration 10")
+	if err := pool.QueryRow(ctx, "SELECT version,dirty FROM schema_migrations").Scan(&version, &dirty); err != nil || version != 13 || dirty {
+		t.Fatal("requires clean migration 13")
 	}
 	users := user.NewPostgresRepository(pool)
 	projects := project.NewPostgresRepository(pool)
@@ -122,7 +125,7 @@ func TestAPIExamplesIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	var logs bytes.Buffer
-	r := NewRouter(Dependencies{Users: user.NewService(users, auth.PasswordHasher{}), Sessions: sessions, Tasks: task.NewService(task.NewPostgresRepository(pool), projects), Projects: project.NewService(projects), Ping: pool.Ping, Logger: slog.New(slog.NewJSONHandler(&logs, nil))})
+	r := NewRouter(Dependencies{Notifications: notification.NewService(pool, nil), Integrations: integration.NewService(pool, true), Recurrences: recurrence.NewServiceWithClock(recurrence.NewPostgresRepository(pool), func() time.Time { return time.Date(2026, 11, 5, 12, 0, 0, 0, time.UTC) }), Users: user.NewService(users, auth.PasswordHasher{}), Sessions: sessions, Tasks: task.NewService(task.NewPostgresRepository(pool), projects), Projects: project.NewService(projects), Ping: pool.Ping, Logger: slog.New(slog.NewJSONHandler(&logs, nil))})
 	d, tree := readContract(t)
 	paths := tree["paths"].(map[string]any)
 	sample := func(path, method string) string {
@@ -190,7 +193,7 @@ func TestAPIExamplesIntegration(t *testing.T) {
 	defer func() {
 		clean, stop := context.WithTimeout(context.Background(), 5*time.Second)
 		defer stop()
-		for _, table := range []string{"tasks", "projects", "users"} {
+		for _, table := range []string{"tasks", "notification_outbox", "recurrence_occurrences", "recurrence_rules", "discord_interactions", "discord_bindings", "projects", "users"} {
 			column := "owner_id"
 			if table == "users" {
 				column = "id"
@@ -223,6 +226,41 @@ func TestAPIExamplesIntegration(t *testing.T) {
 	request("DELETE", "/projects/"+pid, "/projects/{id}", "", 204)
 	request("GET", "/health/live", "/health/live", "", 200)
 	request("GET", "/health/ready", "/health/ready", "", 200)
+
+	rule := request("POST", "/recurrences", "/recurrences", `{"title":"Read","priority":2,"anchor_date":"2026-11-05","interval_days":3}`, 201)
+	rid := rule["id"].(string)
+	request("GET", "/recurrences", "/recurrences", "", 200)
+	request("GET", "/recurrences/"+rid, "/recurrences/{id}", "", 200)
+	request("POST", "/recurrences/preview", "/recurrences/preview", `{"anchor_date":"2026-11-05","interval_days":3}`, 200)
+	for _, body := range []string{
+		`{"title":"x","priority":2,"anchor_date":"2026-11-05","interval_days":1.5}`,
+		`{"owner_id":"forged","title":"x","priority":2,"anchor_date":"2026-11-05","interval_days":3}`,
+		`{"title":"x","priority":2,"anchor_date":"2026-11-05","interval_days":0}`,
+		`{"title":"x","priority":2,"anchor_date":"2026-11-05","interval_days":3} {}`,
+	} {
+		request("POST", "/recurrences", "/recurrences", body, 400)
+	}
+	request("GET", "/recurrences?limit=101", "/recurrences", "", 400)
+	request("GET", "/recurrences?limit=1&limit=2", "/recurrences", "", 400)
+	request("PATCH", "/recurrences/"+rid, "/recurrences/{id}", `{"version":1,"paused":true}`, 200)
+	request("PATCH", "/recurrences/"+rid, "/recurrences/{id}", `{"version":1,"paused":false}`, 409)
+	request("DELETE", "/recurrences/"+rid, "/recurrences/{id}", `{"version":2}`, 204)
+	request("GET", "/recurrences/"+rid, "/recurrences/{id}", "", 404)
+
+	request("GET", "/integrations/discord", "/integrations/discord", "", 200)
+	request("GET", "/integrations/discord/notifications", "/integrations/discord/notifications", "", 200)
+	bindingCode := request("POST", "/integrations/discord/code", "/integrations/discord/code", "", 201)
+	request("POST", "/integrations/discord/code", "/integrations/discord/code", `{ "owner_id": "forged" }`, 400)
+	request("POST", "/integrations/discord/code", "/integrations/discord/code", ` { } `, 201)
+	if len(bindingCode["code"].(string)) != 43 {
+		t.Fatal("invalid binding code")
+	}
+	request("DELETE", "/integrations/discord", "/integrations/discord", `{"version":1,"owner_id":"forged"}`, 400)
+	request("DELETE", "/integrations/discord", "/integrations/discord", `{"version":1}`, 204)
+	request("DELETE", "/integrations/discord", "/integrations/discord", `{"version":1}`, 409)
+	if strings.Contains(logs.String(), bindingCode["code"].(string)) {
+		t.Fatal("binding code in log")
+	}
 	request("POST", "/auth/logout", "/auth/logout", "", 204)
 	request("GET", "/auth/me", "/auth/me", "", 401)
 	for _, secret := range []string{credential, "a long learning passphrase", "learner@example.com", pid, tid} {

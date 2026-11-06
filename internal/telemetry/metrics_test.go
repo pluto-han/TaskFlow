@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pluto-han/taskflow/internal/httpapi"
@@ -74,5 +75,24 @@ func TestScrapeProbeHasDeadlineAndRegistryIsIndependent(t *testing.T) {
 	m.Handler().ServeHTTP(result, httptest.NewRequest("POST", "/metrics", nil))
 	if result.Code != 405 {
 		t.Fatal("write method accepted")
+	}
+}
+
+func TestSchedulerMetrics(t *testing.T) {
+	m := telemetry.New(nil, nil)
+	m.ObserveSchedule(true, 3, 2, time.Millisecond)
+	m.ObserveSchedule(false, 5, 5, time.Millisecond)
+	response := httptest.NewRecorder()
+	m.Handler().ServeHTTP(response, httptest.NewRequest("GET", "/metrics", nil))
+	for _, expected := range []string{
+		`taskflow_recurrence_scans_total{outcome="success"} 1`,
+		`taskflow_recurrence_scans_total{outcome="error"} 1`,
+		"taskflow_recurrence_generated_total 2",
+		"taskflow_recurrence_processed_total 3",
+		"taskflow_recurrence_last_success_timestamp_seconds",
+	} {
+		if !strings.Contains(response.Body.String(), expected) {
+			t.Fatal(expected)
+		}
 	}
 }

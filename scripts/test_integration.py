@@ -14,13 +14,17 @@ ROOT = Path(__file__).resolve().parents[1]
 SUITES = [
     ("TASKFLOW_TEST_DATABASE_URL", 12, 4),
     ("TASKFLOW_SESSION_TEST_DATABASE_URL", 13, 5),
-    ("TASKFLOW_TASK_TEST_DATABASE_URL", 14, 10),
-    ("TASKFLOW_PAGINATION_TEST_DATABASE_URL", 15, 10),
-    ("TASKFLOW_PROJECT_TEST_DATABASE_URL", 16, 10),
-    ("TASKFLOW_API_TEST_DATABASE_URL", 17, 10),
-    ("TASKFLOW_SHARING_TEST_DATABASE_URL", 20, 10),
-    ("TASKFLOW_RELIABILITY_TEST_DATABASE_URL", 21, 10),
-    ("TASKFLOW_TODAY_TEST_DATABASE_URL", 29, 10),
+    ("TASKFLOW_TASK_TEST_DATABASE_URL", 14, 13),
+    ("TASKFLOW_PAGINATION_TEST_DATABASE_URL", 15, 13),
+    ("TASKFLOW_PROJECT_TEST_DATABASE_URL", 16, 13),
+    ("TASKFLOW_API_TEST_DATABASE_URL", 17, 13),
+    ("TASKFLOW_SHARING_TEST_DATABASE_URL", 20, 13),
+    ("TASKFLOW_RELIABILITY_TEST_DATABASE_URL", 21, 13),
+    ("TASKFLOW_TODAY_TEST_DATABASE_URL", 29, 13),
+    ("TASKFLOW_RECURRENCE_TEST_DATABASE_URL", 31, 13),
+    ("TASKFLOW_SCHEDULER_TEST_DATABASE_URL", 32, 13),
+    ("TASKFLOW_DISCORD_TEST_DATABASE_URL", 33, 13),
+    ("TASKFLOW_NOTIFICATION_TEST_DATABASE_URL", 34, 13),
 ]
 
 
@@ -61,12 +65,12 @@ def round_tests(number, output):
             db = f"taskflow_lesson{lesson}_test"
             run(["docker", "exec", name, "createdb", "-U", "taskflow", db], capture=True)
             url = f"postgres://taskflow:{password}@127.0.0.1:{port}/{db}?sslmode=disable"
-            run(["migrate", "-path", "migrations", "-database", url, "goto", str(9 if lesson == 29 else version)], capture=True, env=env)
+            run(["migrate", "-path", "migrations", "-database", url, "goto", str(9 if lesson == 29 else 10 if lesson == 31 else 12 if lesson == 34 else version)], capture=True, env=env)
             def sql(query):
                 return run(["docker", "exec", "-i", name, "psql", "-X", "-U", "taskflow", "-d", db,
                             "-At", "-v", "ON_ERROR_STOP=1"], capture=True, input=query)
             if lesson == 29:
-                # Upgrade a nonempty v9 database, not just a clean v10 installation.
+                # Upgrade a nonempty v9 database, not just a clean current-schema installation.
                 sql("""
                     INSERT INTO users(id,email,password_hash) VALUES
                       ('00000000-0000-4000-8000-000000000090','upgrade@example.com','fixture-only');
@@ -89,7 +93,45 @@ def round_tests(number, output):
                     raise RuntimeError("v9 upgrade changed existing business data")
                 if sql("SELECT count(*) FROM tasks WHERE plan_date IS NOT NULL;") != "0":
                     raise RuntimeError("v9 upgrade unexpectedly assigned historical plans")
-                print("PASS: v9 -> v10 preserves task/project/user/session data", flush=True)
+                print("PASS: v9 -> current schema preserves task/project/user/session data", flush=True)
+            if lesson == 31:
+                sql("""
+                    INSERT INTO users(id,email,password_hash) VALUES
+                      ('00000000-0000-4000-8000-000000000090','upgrade31@example.com','fixture-only');
+                    INSERT INTO tasks(id,title,priority,owner_id,plan_date) VALUES
+                      ('upgrade-planned','Preserved planned task',2,'00000000-0000-4000-8000-000000000090','2026-11-04');
+                """)
+                before = sql("SELECT row_to_json(t) FROM tasks t WHERE id='upgrade-planned';")
+                run(["migrate", "-path", "migrations", "-database", url, "goto", str(version)], capture=True, env=env)
+                after = sql("SELECT (to_jsonb(t)-'recurrence_id')::text FROM tasks t WHERE id='upgrade-planned';")
+                if json.loads(before) != json.loads(after):
+                    raise RuntimeError("v10 upgrade changed planned task")
+                if sql("SELECT count(*) FROM tasks WHERE recurrence_id IS NOT NULL;") != "0":
+                    raise RuntimeError("v10 upgrade assigned recurrence sources")
+                sql("DELETE FROM tasks WHERE id='upgrade-planned'; DELETE FROM users WHERE email='upgrade31@example.com';")
+                print("PASS: v10 -> current preserves planned task and leaves recurrence source null", flush=True)
+            if lesson == 34:
+                sql("""
+                    INSERT INTO users(id,email,password_hash) VALUES
+                      ('00000000-0000-4000-8000-000000000090','upgrade34@example.com','fixture-only');
+                    INSERT INTO recurrence_rules(id,owner_id,title,priority,anchor_date,interval_days,next_run_date) VALUES
+                      ('00000000-0000-4000-8000-000000000091','00000000-0000-4000-8000-000000000090','Preserved rule',2,'2026-11-05',3,'2026-11-05');
+                    INSERT INTO discord_bindings(owner_id,guild_id,channel_id,channel_name,discord_user_id,bound_at) VALUES
+                      ('00000000-0000-4000-8000-000000000090','111','222','test','333',now());
+                """)
+                before = sql("""SELECT jsonb_build_object(
+                    'rule',(SELECT to_jsonb(r) FROM recurrence_rules r WHERE id='00000000-0000-4000-8000-000000000091'),
+                    'binding',(SELECT to_jsonb(b) FROM discord_bindings b WHERE owner_id='00000000-0000-4000-8000-000000000090'));""")
+                run(["migrate", "-path", "migrations", "-database", url, "goto", str(version)], capture=True, env=env)
+                after = sql("""SELECT jsonb_build_object(
+                    'rule',(SELECT to_jsonb(r)-'reminder_enabled' FROM recurrence_rules r WHERE id='00000000-0000-4000-8000-000000000091'),
+                    'binding',(SELECT to_jsonb(b) FROM discord_bindings b WHERE owner_id='00000000-0000-4000-8000-000000000090'));""")
+                if json.loads(before) != json.loads(after) or sql("SELECT count(*) FROM recurrence_rules WHERE reminder_enabled;") != "0":
+                    raise RuntimeError("v12 upgrade changed existing rule or binding")
+                if sql("SELECT count(*) FROM notification_outbox;") != "0":
+                    raise RuntimeError("v12 upgrade generated notifications")
+                sql("DELETE FROM discord_bindings WHERE owner_id='00000000-0000-4000-8000-000000000090'; DELETE FROM recurrence_rules WHERE id='00000000-0000-4000-8000-000000000091'; DELETE FROM users WHERE id='00000000-0000-4000-8000-000000000090';")
+                print("PASS: v12 -> v13 preserves binding and recurrence; reminders default off", flush=True)
             if sql("SELECT version::text || ':' || dirty::text FROM schema_migrations;") != f"{version}:false":
                 raise RuntimeError("migration did not reach a clean expected version")
             sql("CREATE TABLE taskflow_test_lease(run_id text NOT NULL); "

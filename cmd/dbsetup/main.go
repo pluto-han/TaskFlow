@@ -67,6 +67,11 @@ func setup() error {
  GRANT USAGE ON SCHEMA public TO taskflow_app;
  GRANT SELECT,INSERT ON users TO taskflow_app;
  GRANT SELECT,INSERT,UPDATE ON sessions TO taskflow_app;
+ GRANT SELECT,INSERT,UPDATE ON discord_bindings TO taskflow_app;
+ GRANT SELECT,INSERT ON discord_interactions TO taskflow_app;
+ GRANT SELECT,INSERT,UPDATE ON notification_outbox,notification_cooldowns TO taskflow_app;
+ GRANT SELECT,INSERT,UPDATE ON recurrence_rules TO taskflow_app;
+ GRANT SELECT,INSERT ON recurrence_occurrences TO taskflow_app;
  GRANT SELECT,INSERT,UPDATE,DELETE ON projects,tasks,project_memberships,project_invitations TO taskflow_app;`)
 	if err != nil {
 		return errors.New("runtime role provisioning failed")

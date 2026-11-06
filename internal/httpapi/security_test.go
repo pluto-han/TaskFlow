@@ -120,3 +120,29 @@ func TestWindowLimiterConcurrentAndBounded(t *testing.T) {
 		t.Fatal("window did not reset")
 	}
 }
+
+func TestDiscordOriginExceptionIsExact(t *testing.T) {
+	r := gin.New()
+	r.Use(Security(SecurityOptions{PublicOrigin: "https://tasks.example.com"}))
+	for _, path := range []string{"/discord/interactions", "/discord/interactions/other", "/tasks"} {
+		r.POST(path, func(c *gin.Context) { c.Status(204) })
+	}
+	r.GET("/discord/interactions", func(c *gin.Context) { c.Status(204) })
+	for _, tc := range []struct {
+		method, path string
+		want         int
+	}{
+		{"POST", "/discord/interactions", 204},
+		{"GET", "/discord/interactions", 403},
+		{"POST", "/discord/interactions/other", 403},
+		{"POST", "/tasks", 403},
+	} {
+		req := httptest.NewRequest(tc.method, tc.path, nil)
+		req.Header.Set("Origin", "https://other.example")
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+		if rec.Code != tc.want {
+			t.Fatal(tc, rec.Code)
+		}
+	}
+}

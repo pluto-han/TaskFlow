@@ -31,8 +31,8 @@ func TestTodayPostgresIntegration(t *testing.T) {
 	defer pool.Close()
 	var version int
 	var dirty bool
-	if err = pool.QueryRow(ctx, "SELECT version,dirty FROM schema_migrations").Scan(&version, &dirty); err != nil || version != 10 || dirty {
-		t.Fatal("requires clean schema 10")
+	if err = pool.QueryRow(ctx, "SELECT version,dirty FROM schema_migrations").Scan(&version, &dirty); err != nil || version != 13 || dirty {
+		t.Fatal("requires clean schema 13")
 	}
 	_, err = pool.Exec(ctx, "INSERT INTO users(id,email,password_hash) VALUES ($1,'today-a@example.com','test'),($2,'today-b@example.com','test')", string(testOwner), string(otherOwner))
 	if err != nil {

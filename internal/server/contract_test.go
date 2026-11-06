@@ -18,7 +18,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pluto-han/taskflow/internal/httpapi"
+	"github.com/pluto-han/taskflow/internal/integration"
+	"github.com/pluto-han/taskflow/internal/notification"
 	"github.com/pluto-han/taskflow/internal/project"
+	"github.com/pluto-han/taskflow/internal/recurrence"
 	"github.com/pluto-han/taskflow/internal/session"
 	"github.com/pluto-han/taskflow/internal/task"
 	"github.com/pluto-han/taskflow/internal/user"
@@ -106,7 +109,7 @@ func TestContractRoutesAndReferences(t *testing.T) {
 					t.Error("missing required path parameter")
 				}
 			}
-			public := strings.HasPrefix(path, "/health") || path == "/auth/register" || path == "/auth/login"
+			public := strings.HasPrefix(path, "/health") || path == "/auth/register" || path == "/auth/login" || path == "/discord/interactions"
 			if public && op.Security == nil {
 				t.Errorf("public route inherits bearer requirement: %s", path)
 			}
@@ -153,7 +156,7 @@ func TestContractRoutesAndReferences(t *testing.T) {
 
 func TestContractDTOFields(t *testing.T) {
 	d, _ := readContract(t)
-	for name, value := range map[string]any{"RegisterRequest": user.RegisterRequest{}, "LoginRequest": session.LoginRequest{}, "LoginResponse": session.LoginResponse{}, "User": user.UserResponse{}, "Task": task.Task{}, "CreateTask": task.CreateTaskRequest{}, "CreateTodayTask": task.CreateTodayTaskRequest{}, "TodayPage": task.TodayPage{}, "UpdateTask": task.UpdateTaskRequest{}, "Member": project.Member{}, "Invitation": project.Invitation{}, "InviteRequest": project.InviteRequest{}, "AcceptRequest": project.AcceptRequest{}, "Project": project.Project{}, "CreateProject": project.CreateRequest{}, "UpdateProject": project.UpdateRequest{}, "Error": httpapi.ErrorResponse{}, "ErrorDetail": httpapi.ErrorDetail{}} {
+	for name, value := range map[string]any{"NotificationEvent": notification.Event{}, "DiscordBinding": integration.Binding{}, "DiscordBindingCode": integration.Code{}, "UnbindDiscord": integration.UnbindRequest{}, "Recurrence": recurrence.Rule{}, "CreateRecurrence": recurrence.CreateRequest{}, "UpdateRecurrence": recurrence.UpdateRequest{}, "DeleteRecurrence": recurrence.DeleteRequest{}, "PreviewRecurrenceRequest": recurrence.PreviewRequest{}, "RecurrencePreview": recurrence.Preview{}, "RecurrencePage": recurrence.Page{}, "RegisterRequest": user.RegisterRequest{}, "LoginRequest": session.LoginRequest{}, "LoginResponse": session.LoginResponse{}, "User": user.UserResponse{}, "Task": task.Task{}, "CreateTask": task.CreateTaskRequest{}, "CreateTodayTask": task.CreateTodayTaskRequest{}, "TodayPage": task.TodayPage{}, "UpdateTask": task.UpdateTaskRequest{}, "Member": project.Member{}, "Invitation": project.Invitation{}, "InviteRequest": project.InviteRequest{}, "AcceptRequest": project.AcceptRequest{}, "Project": project.Project{}, "CreateProject": project.CreateRequest{}, "UpdateProject": project.UpdateRequest{}, "Error": httpapi.ErrorResponse{}, "ErrorDetail": httpapi.ErrorDetail{}} {
 		t.Run(name, func(t *testing.T) {
 			fields := map[string]bool{}
 			typ := reflect.TypeOf(value)
@@ -270,6 +273,9 @@ func TestRouterErrorAndHealthContracts(t *testing.T) {
 			rec := httptest.NewRecorder()
 			r.ServeHTTP(rec, req)
 			expected := 401
+			if path == "/discord/interactions" {
+				expected = 503
+			}
 			if strings.HasPrefix(path, "/health") {
 				expected = 200
 			} else if path == "/auth/login" || path == "/auth/register" {

@@ -68,7 +68,7 @@ func (q *Queries) DeleteTask(ctx context.Context, arg DeleteTaskParams) (string,
 }
 
 const getTask = `-- name: GetTask :one
-SELECT id, title, description, completed, priority, created_at, due_date, version, owner_id, project_id, plan_date
+SELECT id, title, description, completed, priority, created_at, due_date, version, owner_id, project_id, plan_date, recurrence_id
 FROM tasks
 WHERE tasks.id = $1 AND ((tasks.project_id IS NULL AND tasks.owner_id = $2) OR EXISTS (SELECT 1 FROM projects p WHERE p.id=tasks.project_id AND (p.owner_id=$2 OR EXISTS (SELECT 1 FROM project_memberships m WHERE m.project_id=p.id AND m.user_id=$2))))
 `
@@ -93,12 +93,13 @@ func (q *Queries) GetTask(ctx context.Context, arg GetTaskParams) (Task, error) 
 		&i.OwnerID,
 		&i.ProjectID,
 		&i.PlanDate,
+		&i.RecurrenceID,
 	)
 	return i, err
 }
 
 const listTasks = `-- name: ListTasks :many
-SELECT id, title, description, completed, priority, created_at, due_date, version, owner_id, project_id, plan_date
+SELECT id, title, description, completed, priority, created_at, due_date, version, owner_id, project_id, plan_date, recurrence_id
 FROM tasks
 WHERE ((tasks.project_id IS NULL AND tasks.owner_id = $1) OR EXISTS (SELECT 1 FROM projects p WHERE p.id=tasks.project_id AND (p.owner_id=$1 OR EXISTS (SELECT 1 FROM project_memberships m WHERE m.project_id=p.id AND m.user_id=$1))))
   AND ($2::date IS NULL OR (tasks.owner_id = $1 AND plan_date = $2))
@@ -164,6 +165,7 @@ func (q *Queries) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, e
 			&i.OwnerID,
 			&i.ProjectID,
 			&i.PlanDate,
+			&i.RecurrenceID,
 		); err != nil {
 			return nil, err
 		}
@@ -176,7 +178,7 @@ func (q *Queries) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, e
 }
 
 const lockTask = `-- name: LockTask :one
-SELECT id, title, description, completed, priority, created_at, due_date, version, owner_id, project_id, plan_date FROM tasks WHERE tasks.id=$1 AND ((tasks.project_id IS NULL AND tasks.owner_id = $2) OR EXISTS (SELECT 1 FROM projects p WHERE p.id=tasks.project_id AND (p.owner_id=$2 OR EXISTS (SELECT 1 FROM project_memberships m WHERE m.project_id=p.id AND m.user_id=$2)))) FOR UPDATE
+SELECT id, title, description, completed, priority, created_at, due_date, version, owner_id, project_id, plan_date, recurrence_id FROM tasks WHERE tasks.id=$1 AND ((tasks.project_id IS NULL AND tasks.owner_id = $2) OR EXISTS (SELECT 1 FROM projects p WHERE p.id=tasks.project_id AND (p.owner_id=$2 OR EXISTS (SELECT 1 FROM project_memberships m WHERE m.project_id=p.id AND m.user_id=$2)))) FOR UPDATE
 `
 
 type LockTaskParams struct {
@@ -199,6 +201,7 @@ func (q *Queries) LockTask(ctx context.Context, arg LockTaskParams) (Task, error
 		&i.OwnerID,
 		&i.ProjectID,
 		&i.PlanDate,
+		&i.RecurrenceID,
 	)
 	return i, err
 }
@@ -217,7 +220,7 @@ WHERE tasks.id = $1 AND tasks.version = $7 AND ((tasks.project_id IS NULL AND ta
  AND (tasks.project_id IS NOT DISTINCT FROM $9::uuid OR tasks.owner_id=$8)
  AND ($9::uuid IS NULL OR EXISTS (SELECT 1 FROM projects p WHERE p.id=$9 AND (p.owner_id=$8 OR EXISTS (SELECT 1 FROM project_memberships m WHERE m.project_id=p.id AND m.user_id=$8))))
 RETURNING id, title, description, completed,
-          priority, created_at, due_date, version, owner_id, project_id, plan_date
+          priority, created_at, due_date, version, owner_id, project_id, plan_date, recurrence_id
 `
 
 type UpdateTaskParams struct {
@@ -257,6 +260,7 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, e
 		&i.OwnerID,
 		&i.ProjectID,
 		&i.PlanDate,
+		&i.RecurrenceID,
 	)
 	return i, err
 }

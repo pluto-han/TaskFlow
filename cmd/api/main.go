@@ -16,7 +16,11 @@ import (
 
 	"github.com/pluto-han/taskflow/internal/auth"
 	"github.com/pluto-han/taskflow/internal/config"
+	"github.com/pluto-han/taskflow/internal/discord"
+	"github.com/pluto-han/taskflow/internal/integration"
+	"github.com/pluto-han/taskflow/internal/notification"
 	"github.com/pluto-han/taskflow/internal/project"
+	"github.com/pluto-han/taskflow/internal/recurrence"
 	"github.com/pluto-han/taskflow/internal/server"
 	"github.com/pluto-han/taskflow/internal/session"
 	"github.com/pluto-han/taskflow/internal/task"
@@ -33,6 +37,18 @@ func main() {
 	}
 	cfg := config.Load()
 	if err := cfg.ReadSecrets(); err != nil {
+		log.Fatal(err)
+	}
+	senderEnabled, err := cfg.NotificationToken()
+	if err != nil {
+		log.Fatal(err)
+	}
+	discordKey, discordApp, err := cfg.Discord()
+	if err != nil {
+		log.Fatal(err)
+	}
+	schedulerEnabled, err := cfg.RecurrenceEnabled()
+	if err != nil {
 		log.Fatal(err)
 	}
 	security, err := cfg.Security()
@@ -81,15 +97,20 @@ func main() {
 		log.Fatal("Could not initialize password verification")
 	}
 	metrics := telemetry.New(pool, pool.Ping)
+	bindings := integration.NewService(pool, len(discordKey) > 0)
 	router := server.NewRouter(server.Dependencies{
-		Security: security,
-		Metrics:  metrics,
-		Users:    user.NewService(userRepo, auth.PasswordHasher{}),
-		Sessions: sessionService,
-		Tasks:    service,
-		Projects: project.NewService(projectRepo),
-		Ping:     pool.Ping,
-		Logger:   slog.New(slog.NewJSONHandler(os.Stdout, nil)),
+		Notifications: notification.NewService(pool, nil),
+		Discord:       discord.NewHandler(discordKey, discordApp, bindings),
+		Integrations:  bindings,
+		Recurrences:   recurrence.NewServiceWithScheduler(recurrence.NewPostgresRepository(pool), schedulerEnabled),
+		Security:      security,
+		Metrics:       metrics,
+		Users:         user.NewService(userRepo, auth.PasswordHasher{}),
+		Sessions:      sessionService,
+		Tasks:         service,
+		Projects:      project.NewService(projectRepo),
+		Ping:          pool.Ping,
+		Logger:        slog.New(slog.NewJSONHandler(os.Stdout, nil)),
 	})
 
 	server := &http.Server{
@@ -126,6 +147,63 @@ func main() {
 		}()
 	}
 
+	workerDone := make(chan struct{})
+	if schedulerEnabled {
+		workerConfig, err := recurrence.WorkerPoolConfig(cfg.DatabaseURL)
+		if err != nil {
+			log.Print("Could not configure recurrence pool")
+			if metricsServer != nil {
+				_ = metricsServer.Close()
+			}
+			return
+		}
+		workerPool, err := pgxpool.NewWithConfig(shutdownCtx, workerConfig)
+		if err != nil {
+			log.Print("Could not initialize recurrence pool")
+			if metricsServer != nil {
+				_ = metricsServer.Close()
+			}
+			return
+		}
+		defer workerPool.Close()
+		worker := recurrence.NewScheduler(recurrence.NewPostgresRepository(workerPool), slog.Default(), metrics)
+		go func() { defer close(workerDone); worker.Run(shutdownCtx) }()
+	} else {
+		close(workerDone)
+	}
+
+	notificationDone := make(chan struct{})
+	if senderEnabled {
+		workerConfig, err := recurrence.WorkerPoolConfig(cfg.DatabaseURL)
+		if err != nil {
+			log.Print("Could not configure notification pool")
+			stop()
+			<-workerDone
+			return
+		}
+		workerConfig.ConnConfig.RuntimeParams["application_name"] = "taskflow-notification"
+		workerPool, err := pgxpool.NewWithConfig(shutdownCtx, workerConfig)
+		if err != nil {
+			log.Print("Could not initialize notification pool")
+			stop()
+			<-workerDone
+			return
+		}
+		sender, err := discord.NewMessageSender(cfg.DiscordBotToken, nil)
+		if err != nil {
+			log.Print("Invalid Discord bot token")
+			workerPool.Close()
+			stop()
+			<-workerDone
+			return
+		}
+		defer workerPool.Close()
+		worker := notification.NewService(workerPool, sender)
+		go func() { defer close(notificationDone); worker.Run(shutdownCtx) }()
+	} else {
+		close(notificationDone)
+	}
+
 	go func() {
 		log.Printf("TaskFlow listening on %s", cfg.HTTPAddr)
 
@@ -144,6 +222,7 @@ func main() {
 		log.Printf("HTTP server failed: %v", err)
 	}
 
+	stop() // Also cancel the worker when the HTTP listener fails.
 	ctx, cancel := context.WithTimeout(
 		context.Background(),
 		cfg.ShutdownTimeout,
@@ -163,5 +242,7 @@ func main() {
 			_ = metricsServer.Close()
 		}
 	}
+	<-notificationDone
+	<-workerDone // Batch context was canceled; wait before closing its pool.
 	log.Println("TaskFlow stopped")
 }

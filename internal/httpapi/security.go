@@ -97,7 +97,9 @@ func Security(options SecurityOptions) gin.HandlerFunc {
 			}
 			c.Header("Strict-Transport-Security", "max-age=31536000")
 		}
-		if origin := c.GetHeader("Origin"); options.PublicOrigin != "" && origin != "" && origin != options.PublicOrigin {
+		// Only the signed Discord POST has no browser Origin contract.
+		signedCallback := c.Request.Method == http.MethodPost && c.FullPath() == "/discord/interactions"
+		if origin := c.GetHeader("Origin"); !signedCallback && options.PublicOrigin != "" && origin != "" && origin != options.PublicOrigin {
 			WriteError(c, 403, "ORIGIN_NOT_ALLOWED", "Origin is not permitted")
 			c.Abort()
 			return
