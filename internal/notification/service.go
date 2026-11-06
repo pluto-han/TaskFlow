@@ -47,6 +47,7 @@ type Service struct {
 	logger     *slog.Logger
 	credential string
 	observer   Observer
+	now        func() time.Time
 }
 
 // WithObserver must be called before the worker starts.
@@ -57,7 +58,7 @@ func NewService(pool *pgxpool.Pool, sender Sender) *Service {
 	if item, ok := sender.(interface{ CredentialFingerprint() string }); ok {
 		credential = item.CredentialFingerprint()
 	}
-	return &Service{pool: pool, sender: sender, logger: slog.Default(), credential: credential}
+	return &Service{pool: pool, sender: sender, logger: slog.Default(), credential: credential, now: time.Now}
 }
 func (s *Service) List(ctx context.Context, owner string) ([]Event, error) {
 	rows, e := s.pool.Query(ctx, `SELECT id::text,rule_id::text,task_id,scheduled_date::text,title,CASE WHEN status IN ('pending','retrying','leased') AND expires_at<=now() THEN 'expired' ELSE status END,attempts,last_error,created_at
@@ -209,9 +210,9 @@ func (s *Service) finish(ctx context.Context, c *claim, result discord.SendResul
 	}
 	if sendErr == nil && tag.RowsAffected() == 1 && (result.Status == 429 || result.Status == 401 || result.Status == 403 || result.Status == 404 || (result.Status >= 200 && result.Status < 300 && result.RetryAfter > 0)) {
 		scope := "channel:" + c.Channel
-		until := time.Now().Add(delay)
+		until := s.now().Add(delay)
 		if result.Status >= 200 && result.Status < 300 {
-			until = time.Now().Add(result.RetryAfter)
+			until = s.now().Add(result.RetryAfter)
 		}
 		if result.Global {
 			scope = "global"

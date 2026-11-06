@@ -46,6 +46,30 @@ jobs:
           path: artifacts/lesson21/
           if-no-files-found: ignore
 
+  browser-flow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Prepare browser and frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npm run build
+      - name: Install migration CLI
+        run: go install -tags postgres github.com/golang-migrate/migrate/v4/cmd/migrate@v4.18.3
+      - name: Browser through real API and isolated Discord stub
+        run: python3 scripts/test_integration.py --repeat 1 --browser-e2e
+
   frontend-security:
     runs-on: ubuntu-latest
     timeout-minutes: 10

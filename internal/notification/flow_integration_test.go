@@ -2,10 +2,12 @@ package notification
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pluto-han/taskflow/internal/discord"
 	"github.com/pluto-han/taskflow/internal/planning"
@@ -16,8 +18,7 @@ import (
 )
 
 // The suite starts with a populated v9 fixture and upgrades it before this test.
-// PostgreSQL lease timestamps still use the database clock: the future event is
-// made due explicitly in this disposable database after advancing the calendar.
+// Only this guarded disposable database shadows SQL now() via its search_path.
 func TestLesson35TodayRecurrenceAndNotification(t *testing.T) {
 	raw := os.Getenv("TASKFLOW_FLOW_TEST_DATABASE_URL")
 	if raw == "" {
@@ -30,6 +31,22 @@ func TestLesson35TodayRecurrenceAndNotification(t *testing.T) {
 	testdb.Verify(t, cfg)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+	bootstrap, err := pgxpool.NewWithConfig(ctx, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = bootstrap.Exec(ctx, `CREATE SCHEMA lesson35_clock;
+CREATE TABLE lesson35_clock.time(value timestamptz NOT NULL);
+INSERT INTO lesson35_clock.time VALUES ('2026-11-05 12:00:00+00');
+CREATE FUNCTION lesson35_clock.now() RETURNS timestamptz LANGUAGE SQL STABLE AS 'SELECT value FROM lesson35_clock.time LIMIT 1'`)
+	bootstrap.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.AfterConnect = func(ctx context.Context, c *pgx.Conn) error {
+		_, err := c.Exec(ctx, "SET search_path = lesson35_clock, pg_catalog, public")
+		return err
+	}
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -45,8 +62,13 @@ func TestLesson35TodayRecurrenceAndNotification(t *testing.T) {
 	other := session.UserID("00000000-0000-4000-8000-000000000036")
 	exec("INSERT INTO users(id,email,password_hash) VALUES ($1,'flow-owner@example.com','fixture'),($2,'flow-other@example.com','fixture')", string(owner), string(other))
 	exec("INSERT INTO discord_bindings(owner_id,guild_id,channel_id,channel_name,discord_user_id,bound_at) VALUES($1,'111','222','test','333',now())", string(owner))
-	now := time.Now()
+	now := time.Date(2026, 11, 5, 12, 0, 0, 0, time.UTC)
 	clock := func() time.Time { return now }
+	advance := func(days int) {
+		t.Helper()
+		now = now.AddDate(0, 0, days)
+		exec("UPDATE lesson35_clock.time SET value=$1", now)
+	}
 	today := task.NewServiceWithClock(task.NewPostgresRepository(pool), nil, clock)
 	rules := recurrence.NewServiceWithClock(recurrence.NewPostgresRepository(pool), clock)
 	day := planning.At(now).PlanDate
@@ -74,6 +96,7 @@ func TestLesson35TodayRecurrenceAndNotification(t *testing.T) {
 	}
 	fake := &fakeSender{result: discord.SendResult{Status: 200}}
 	sender := NewService(pool, fake)
+	sender.now = clock
 	send := func() {
 		t.Helper()
 		found, err := sender.ProcessOne(ctx)
@@ -86,18 +109,43 @@ func TestLesson35TodayRecurrenceAndNotification(t *testing.T) {
 	list(owner, 2)
 	list(other, 0)
 	send()
-	now = now.AddDate(0, 0, 1)
+	advance(1)
 	scan(0)
 	list(owner, 0)
-	now = now.AddDate(0, 0, 2)
+	advance(2)
 	scan(1)
 	scan(0)
 	list(owner, 1)
 	list(other, 0)
-	// Only this isolated fixture is shifted: production DB clocks are untouched.
-	exec("UPDATE notification_outbox SET next_attempt_at=now(),expires_at=now()+interval '1 hour' WHERE status='pending'")
+	first, err := sender.claim(ctx)
+	if err != nil || first == nil {
+		t.Fatal("first lease", err)
+	}
+	now = now.Add(31 * time.Second)
+	exec("UPDATE lesson35_clock.time SET value=$1", now)
+	second, err := sender.claim(ctx)
+	if err != nil || second == nil || !second.Reclaimed || second.Token == first.Token {
+		t.Fatal("lease was not reclaimed", err)
+	}
+	if err := sender.finish(ctx, first, discord.SendResult{Status: 200}, nil); err != nil {
+		t.Fatal(err)
+	}
+	var status string
+	if err := pool.QueryRow(ctx, "SELECT status FROM notification_outbox WHERE id=$1", first.ID).Scan(&status); err != nil || status != "leased" {
+		t.Fatal("stale lease changed event", status, err)
+	}
+	now = now.Add(31 * time.Second)
+	exec("UPDATE lesson35_clock.time SET value=$1", now)
+	fake.err = errors.New("simulated network failure")
 	send()
-	if fake.calls != 2 || len(fake.channels) != 2 || fake.channels[0] != "222" || fake.users[0] != "333" {
+	fake.err = nil
+	if found, err := sender.ProcessOne(ctx); err != nil || found {
+		t.Fatalf("retry must wait for fake clock: found=%v err=%v", found, err)
+	}
+	now = now.Add(2 * time.Minute)
+	exec("UPDATE lesson35_clock.time SET value=$1", now)
+	send()
+	if fake.calls != 3 || len(fake.channels) != 3 || fake.channels[0] != "222" || fake.users[0] != "333" {
 		t.Fatal("wrong delivery count or binding target")
 	}
 	var history int

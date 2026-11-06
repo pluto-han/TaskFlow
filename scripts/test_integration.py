@@ -26,6 +26,7 @@ SUITES = [
     ("TASKFLOW_DISCORD_TEST_DATABASE_URL", 33, 13),
     ("TASKFLOW_NOTIFICATION_TEST_DATABASE_URL", 34, 13),
     ("TASKFLOW_FLOW_TEST_DATABASE_URL", 35, 13),
+    ("TASKFLOW_BROWSER_TEST_DATABASE_URL", 37, 13),
 ]
 
 
@@ -39,13 +40,15 @@ def run(args, *, env=None, capture=False, input=None, timeout=180):
     return result.stdout.strip() if capture else ""
 
 
-def round_tests(number, output):
+def round_tests(number, output, browser=False):
     marker = secrets.token_hex(16)
     name = "taskflow-tests-" + marker
     password = secrets.token_hex(24)
     env = {k: v for k, v in os.environ.items()
            if not k.startswith("PG") and not k.startswith("TASKFLOW_") and k != "DATABASE_URL"}
     env["TASKFLOW_INTEGRATION_RUN_ID"] = marker
+    if browser:
+        env["TASKFLOW_BROWSER_E2E"] = "1"
     # --rm and finally provide cleanup for success, test failure and interruption.
     try:
         run(["docker", "run", "--rm", "-d", "--name", name,
@@ -154,6 +157,7 @@ def round_tests(number, output):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repeat", type=int, default=3, help="fresh database rounds (default: 3)")
+    parser.add_argument("--browser-e2e", action="store_true", help="also run the isolated browser-to-stubbed-Discord flow")
     args = parser.parse_args()
     if not 1 <= args.repeat <= 20:
         parser.error("--repeat must be between 1 and 20")
@@ -171,7 +175,7 @@ def main():
     output = ROOT / "artifacts" / "lesson21" / secrets.token_hex(8)
     output.mkdir(parents=True, exist_ok=True)
     for number in range(1, args.repeat + 1):
-        round_tests(number, output)
+        round_tests(number, output, args.browser_e2e)
     print(f"All {args.repeat} isolated rounds passed. Coverage: {output.relative_to(ROOT)}/")
 
 
