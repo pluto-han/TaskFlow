@@ -354,6 +354,192 @@
         "overrides": []
       },
       "options": {}
+    },
+    {
+      "id": 12,
+      "title": "Background workers enabled",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "taskflow-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 48,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "taskflow_recurrence_scheduler_enabled{job=\"taskflow\"} or taskflow_notification_sender_enabled{job=\"taskflow\"}",
+          "instant": true,
+          "format": "time_series",
+          "legendFormat": "{{__name__}} {{outcome}} {{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 13,
+      "title": "Seconds since successful background poll",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "taskflow-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 48,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(time() - taskflow_recurrence_last_success_timestamp_seconds{job=\"taskflow\"}) and on(job,instance) (taskflow_recurrence_scheduler_enabled{job=\"taskflow\"} == 1) or (time() - taskflow_notification_last_success_timestamp_seconds{job=\"taskflow\"}) and on(job,instance) (taskflow_notification_sender_enabled{job=\"taskflow\"} == 1)",
+          "instant": false,
+          "format": "time_series",
+          "legendFormat": "{{__name__}} {{outcome}} {{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 14,
+      "title": "Eligible notifications and oldest wait",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "taskflow-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 56,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "taskflow_notification_ready_events{job=\"taskflow\"} or taskflow_notification_oldest_ready_age_seconds{job=\"taskflow\"}",
+          "instant": false,
+          "format": "time_series",
+          "legendFormat": "{{__name__}} {{outcome}} {{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 15,
+      "title": "Discord send attempts by outcome",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "taskflow-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 56,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (outcome) (rate(taskflow_notification_send_total{job=\"taskflow\"}[5m]))",
+          "instant": false,
+          "format": "time_series",
+          "legendFormat": "{{__name__}} {{outcome}} {{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 16,
+      "title": "Lease reclaims / second",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "taskflow-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 64,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(taskflow_notification_lease_reclaims_total{job=\"taskflow\"}[5m])",
+          "instant": false,
+          "format": "time_series",
+          "legendFormat": "{{__name__}} {{outcome}} {{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 17,
+      "title": "Recurrence tasks generated / second",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "taskflow-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 64,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(taskflow_recurrence_generated_total{job=\"taskflow\"}[5m])",
+          "instant": false,
+          "format": "time_series",
+          "legendFormat": "{{__name__}} {{outcome}} {{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "options": {}
     }
   ]
 }

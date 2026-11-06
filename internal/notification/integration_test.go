@@ -3,7 +3,9 @@ package notification
 import (
 	"context"
 	"errors"
+	"net/http/httptest"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -14,6 +16,7 @@ import (
 	"github.com/pluto-han/taskflow/internal/planning"
 	"github.com/pluto-han/taskflow/internal/recurrence"
 	"github.com/pluto-han/taskflow/internal/session"
+	"github.com/pluto-han/taskflow/internal/telemetry"
 	"github.com/pluto-han/taskflow/internal/testdb"
 )
 
@@ -103,7 +106,8 @@ func TestNotificationPostgres(t *testing.T) {
 		}
 	}
 	fake := &fakeSender{result: discord.SendResult{Status: 200}}
-	sender := NewService(pool, fake)
+	metrics := telemetry.New(pool, nil)
+	sender := NewService(pool, fake).WithObserver(metrics)
 	t.Run("atomic rollback", func(t *testing.T) {
 		id := makeRule()
 		exec("CREATE FUNCTION fail_outbox() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'fail'; END $$")
@@ -119,6 +123,11 @@ func TestNotificationPostgres(t *testing.T) {
 		gen()
 		if count("SELECT count(*) FROM notification_outbox WHERE rule_id=$1", id) != 1 {
 			t.Fatal("missing outbox")
+		}
+		response := httptest.NewRecorder()
+		metrics.Handler().ServeHTTP(response, httptest.NewRequest("GET", "/metrics", nil))
+		if !strings.Contains(response.Body.String(), "taskflow_notification_ready_events 1") {
+			t.Fatal("queue scrape did not report the eligible event")
 		}
 	})
 	t.Run("concurrent workers and completed task", func(t *testing.T) {
@@ -148,6 +157,13 @@ func TestNotificationPostgres(t *testing.T) {
 		fake.mu.Unlock()
 		if count("SELECT count(*) FROM notification_outbox WHERE status='sent'") != 2 {
 			t.Fatal("lost or repeated messages")
+		}
+		response := httptest.NewRecorder()
+		metrics.Handler().ServeHTTP(response, httptest.NewRequest("GET", "/metrics", nil))
+		for _, expected := range []string{"taskflow_notification_ready_events 0", `taskflow_notification_send_total{outcome="success"} 2`} {
+			if !strings.Contains(response.Body.String(), expected) {
+				t.Fatal("missing metric", expected)
+			}
 		}
 		a, e := sender.List(ctx, string(owner))
 		if e != nil || len(a) != 2 {

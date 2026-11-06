@@ -31,6 +31,12 @@ type Event struct {
 type claim struct {
 	Event
 	Token, Channel, MentionUser string
+	Reclaimed                   bool
+}
+type Observer interface {
+	ObserveNotificationPoll(bool)
+	ObserveNotificationSend(int, bool)
+	ObserveNotificationReclaim()
 }
 type Sender interface {
 	Send(context.Context, string, string, string, string) (discord.SendResult, error)
@@ -40,7 +46,11 @@ type Service struct {
 	sender     Sender
 	logger     *slog.Logger
 	credential string
+	observer   Observer
 }
+
+// WithObserver must be called before the worker starts.
+func (s *Service) WithObserver(observer Observer) *Service { s.observer = observer; return s }
 
 func NewService(pool *pgxpool.Pool, sender Sender) *Service {
 	credential := "default"
@@ -102,7 +112,7 @@ func (s *Service) claim(ctx context.Context) (*claim, error) {
 	}
 	var c claim
 	e = tx.QueryRow(ctx, `WITH candidate AS (
- SELECT o.id FROM notification_outbox o
+ SELECT o.id, o.status='leased' AS reclaimed FROM notification_outbox o
  WHERE (o.status IN ('pending','retrying') OR (o.status='leased' AND o.lease_until<=now()))
  AND o.next_attempt_at<=now() AND o.expires_at>now()
  AND NOT EXISTS(SELECT 1 FROM notification_cooldowns cd WHERE cd.scope IN ('global','channel:'||o.channel_id,'credential:'||$2) AND cd.until_at>now())
@@ -110,8 +120,8 @@ func (s *Service) claim(ctx context.Context) (*claim, error) {
  UPDATE notification_outbox o SET status='leased',lease_token=$1,lease_until=now()+interval '30 seconds',
  attempts=attempts+1,updated_at=now()
  FROM candidate WHERE o.id=candidate.id
- RETURNING o.id::text,o.rule_id::text,o.task_id,o.scheduled_date::text,o.title,o.status,o.attempts,o.last_error,o.created_at,o.lease_token::text,o.channel_id`, token, s.credential).
-		Scan(&c.ID, &c.RuleID, &c.TaskID, &c.ScheduledDate, &c.Title, &c.Status, &c.Attempts, &c.LastError, &c.CreatedAt, &c.Token, &c.Channel)
+ RETURNING o.id::text,o.rule_id::text,o.task_id,o.scheduled_date::text,o.title,o.status,o.attempts,o.last_error,o.created_at,o.lease_token::text,o.channel_id,candidate.reclaimed`, token, s.credential).
+		Scan(&c.ID, &c.RuleID, &c.TaskID, &c.ScheduledDate, &c.Title, &c.Status, &c.Attempts, &c.LastError, &c.CreatedAt, &c.Token, &c.Channel, &c.Reclaimed)
 	if errors.Is(e, pgx.ErrNoRows) {
 		if e = tx.Commit(ctx); e != nil {
 			return nil, e
@@ -244,12 +254,18 @@ func (s *Service) ProcessOne(ctx context.Context) (bool, error) {
 	if e != nil || c == nil {
 		return false, e
 	}
+	if c.Reclaimed && s.observer != nil {
+		s.observer.ObserveNotificationReclaim()
+	}
 	valid, e := s.preflight(ctx, c)
 	if e != nil || !valid {
 		return true, e
 	}
 	nonce := c.ID[:8] + c.ID[9:13] + c.ID[14:18] + c.ID[19:23] + c.ID[24:28] // stable and at most 25 characters
 	result, sendErr := s.sender.Send(ctx, c.Channel, nonce, c.Title, c.MentionUser)
+	if s.observer != nil {
+		s.observer.ObserveNotificationSend(result.Status, sendErr != nil)
+	}
 	if ctx.Err() != nil {
 		return true, ctx.Err()
 	}
@@ -275,6 +291,9 @@ func (s *Service) Run(ctx context.Context) {
 		cancel()
 		if ctx.Err() != nil {
 			return
+		}
+		if s.observer != nil {
+			s.observer.ObserveNotificationPoll(e == nil)
 		}
 		if e != nil {
 			s.logger.Warn("notification_worker_failed")

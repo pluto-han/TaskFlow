@@ -3,6 +3,7 @@ package telemetry
 
 import (
 	"context"
+	"math"
 	"net/http"
 	"strconv"
 	"time"
@@ -19,6 +20,12 @@ type Metrics struct {
 	scheduleProcessed   prometheus.Counter
 	scheduleDuration    prometheus.Histogram
 	scheduleLastSuccess prometheus.Gauge
+	schedulerEnabled    prometheus.Gauge
+	senderEnabled       prometheus.Gauge
+	senderLastSuccess   prometheus.Gauge
+	senderPolls         *prometheus.CounterVec
+	senderResults       *prometheus.CounterVec
+	leaseReclaims       prometheus.Counter
 	registry            *prometheus.Registry
 	requests            *prometheus.CounterVec
 	duration            *prometheus.HistogramVec
@@ -34,9 +41,44 @@ func New(pool *pgxpool.Pool, ping func(context.Context) error) *Metrics {
 	m.scheduleProcessed = prometheus.NewCounter(prometheus.CounterOpts{Name: "taskflow_recurrence_processed_total", Help: "Rules observed advanced by committed scans."})
 	m.scheduleDuration = prometheus.NewHistogram(prometheus.HistogramOpts{Name: "taskflow_recurrence_batch_duration_seconds", Help: "Background scan duration.", Buckets: []float64{.01, .05, .1, .5, 1, 2, 5}})
 	m.scheduleLastSuccess = prometheus.NewGauge(prometheus.GaugeOpts{Name: "taskflow_recurrence_last_success_timestamp_seconds", Help: "Unix time of last successful scan; zero before first success."})
-	m.registry.MustRegister(m.scheduleScans, m.scheduleGenerated, m.scheduleProcessed, m.scheduleDuration, m.scheduleLastSuccess)
+	m.schedulerEnabled = prometheus.NewGauge(prometheus.GaugeOpts{Name: "taskflow_recurrence_scheduler_enabled", Help: "Whether the recurrence scheduler is enabled."})
+	m.senderEnabled = prometheus.NewGauge(prometheus.GaugeOpts{Name: "taskflow_notification_sender_enabled", Help: "Whether the notification sender is enabled."})
+	m.senderLastSuccess = prometheus.NewGauge(prometheus.GaugeOpts{Name: "taskflow_notification_last_success_timestamp_seconds", Help: "Unix time of last successful sender poll, including idle polls."})
+	m.senderPolls = prometheus.NewCounterVec(prometheus.CounterOpts{Name: "taskflow_notification_polls_total", Help: "Sender polls by outcome."}, []string{"outcome"})
+	m.senderResults = prometheus.NewCounterVec(prometheus.CounterOpts{Name: "taskflow_notification_send_total", Help: "Discord send attempts by bounded outcome; not an accounting ledger."}, []string{"outcome"})
+	m.leaseReclaims = prometheus.NewCounter(prometheus.CounterOpts{Name: "taskflow_notification_lease_reclaims_total", Help: "Expired notification leases reclaimed."})
+	for _, outcome := range []string{"success", "error"} {
+		m.senderPolls.WithLabelValues(outcome)
+	}
+	for _, outcome := range []string{"success", "rate_limited", "rejected", "server_error", "network_error"} {
+		m.senderResults.WithLabelValues(outcome)
+	}
+	m.registry.MustRegister(m.scheduleScans, m.scheduleGenerated, m.scheduleProcessed, m.scheduleDuration, m.scheduleLastSuccess, m.schedulerEnabled, m.senderEnabled, m.senderLastSuccess, m.senderPolls, m.senderResults, m.leaseReclaims)
 	m.registry.MustRegister(m.requests, m.duration, collectors.NewGoCollector(), collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 	if pool != nil {
+		// Scrapes are bounded; NaN distinguishes a failed query from an empty queue.
+		queue := func(age bool) float64 {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			var count int64
+			var seconds float64
+			err := pool.QueryRow(ctx, `SELECT count(*), COALESCE(EXTRACT(EPOCH FROM (now()-min(o.next_attempt_at))),0)::float8
+FROM notification_outbox o JOIN recurrence_rules r ON r.id=o.rule_id AND r.owner_id=o.owner_id
+JOIN discord_bindings b ON b.owner_id=o.owner_id AND b.channel_id=o.channel_id AND b.version=o.binding_version
+WHERE (o.status IN ('pending','retrying') OR (o.status='leased' AND o.lease_until<=now()))
+AND o.next_attempt_at<=now() AND o.expires_at>now() AND o.attempts<8
+AND r.deleted_at IS NULL AND NOT r.paused AND r.reminder_enabled
+AND NOT EXISTS(SELECT 1 FROM notification_cooldowns c WHERE c.scope IN ('global','channel:'||o.channel_id) AND c.until_at>now())`).Scan(&count, &seconds)
+			if err != nil {
+				return math.NaN()
+			}
+			if age {
+				return seconds
+			}
+			return float64(count)
+		}
+		m.registry.MustRegister(prometheus.NewGaugeFunc(prometheus.GaugeOpts{Name: "taskflow_notification_ready_events", Help: "Currently eligible unsent events; excludes inactive rules, expired events and global/channel cooldowns."}, func() float64 { return queue(false) }))
+		m.registry.MustRegister(prometheus.NewGaugeFunc(prometheus.GaugeOpts{Name: "taskflow_notification_oldest_ready_age_seconds", Help: "Seconds since oldest eligible event became due; zero when empty."}, func() float64 { return queue(true) }))
 		for name, value := range map[string]func() float64{
 			"acquired_connections": func() float64 { return float64(pool.Stat().AcquiredConns()) },
 			"idle_connections":     func() float64 { return float64(pool.Stat().IdleConns()) },
@@ -58,6 +100,45 @@ func New(pool *pgxpool.Pool, ping func(context.Context) error) *Metrics {
 	}
 	return m
 }
+
+func (m *Metrics) SetWorkers(scheduler, sender bool) {
+	if scheduler {
+		m.schedulerEnabled.Set(1)
+	} else {
+		m.schedulerEnabled.Set(0)
+	}
+	if sender {
+		m.senderEnabled.Set(1)
+	} else {
+		m.senderEnabled.Set(0)
+	}
+}
+
+func (m *Metrics) ObserveNotificationPoll(ok bool) {
+	outcome := "error"
+	if ok {
+		outcome = "success"
+		m.senderLastSuccess.SetToCurrentTime()
+	}
+	m.senderPolls.WithLabelValues(outcome).Inc()
+}
+
+func (m *Metrics) ObserveNotificationSend(status int, failed bool) {
+	outcome := "rejected"
+	switch {
+	case failed:
+		outcome = "network_error"
+	case status >= 200 && status < 300:
+		outcome = "success"
+	case status == 429:
+		outcome = "rate_limited"
+	case status >= 500:
+		outcome = "server_error"
+	}
+	m.senderResults.WithLabelValues(outcome).Inc()
+}
+
+func (m *Metrics) ObserveNotificationReclaim() { m.leaseReclaims.Inc() }
 
 // Observe accepts sanitized method/route values from the HTTP observer, never URLs.
 func (m *Metrics) Observe(method, route string, status int, elapsed time.Duration) {

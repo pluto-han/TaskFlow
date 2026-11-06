@@ -25,6 +25,7 @@ SUITES = [
     ("TASKFLOW_SCHEDULER_TEST_DATABASE_URL", 32, 13),
     ("TASKFLOW_DISCORD_TEST_DATABASE_URL", 33, 13),
     ("TASKFLOW_NOTIFICATION_TEST_DATABASE_URL", 34, 13),
+    ("TASKFLOW_FLOW_TEST_DATABASE_URL", 35, 13),
 ]
 
 
@@ -65,11 +66,11 @@ def round_tests(number, output):
             db = f"taskflow_lesson{lesson}_test"
             run(["docker", "exec", name, "createdb", "-U", "taskflow", db], capture=True)
             url = f"postgres://taskflow:{password}@127.0.0.1:{port}/{db}?sslmode=disable"
-            run(["migrate", "-path", "migrations", "-database", url, "goto", str(9 if lesson == 29 else 10 if lesson == 31 else 12 if lesson == 34 else version)], capture=True, env=env)
+            run(["migrate", "-path", "migrations", "-database", url, "goto", str(9 if lesson in (29, 35) else 10 if lesson == 31 else 12 if lesson == 34 else version)], capture=True, env=env)
             def sql(query):
                 return run(["docker", "exec", "-i", name, "psql", "-X", "-U", "taskflow", "-d", db,
                             "-At", "-v", "ON_ERROR_STOP=1"], capture=True, input=query)
-            if lesson == 29:
+            if lesson in (29, 35):
                 # Upgrade a nonempty v9 database, not just a clean current-schema installation.
                 sql("""
                     INSERT INTO users(id,email,password_hash) VALUES

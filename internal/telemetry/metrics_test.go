@@ -96,3 +96,37 @@ func TestSchedulerMetrics(t *testing.T) {
 		}
 	}
 }
+
+func TestNotificationMetricsAreBounded(t *testing.T) {
+	m := telemetry.New(nil, nil)
+	m.SetWorkers(true, false)
+	m.ObserveNotificationPoll(true)
+	m.ObserveNotificationPoll(false)
+	m.ObserveNotificationReclaim()
+	for _, status := range []int{200, 429, 403, 500, 999} {
+		m.ObserveNotificationSend(status, false)
+	}
+	m.ObserveNotificationSend(0, true)
+	r := httptest.NewRecorder()
+	m.Handler().ServeHTTP(r, httptest.NewRequest("GET", "/metrics", nil))
+	for _, expected := range []string{
+		"taskflow_recurrence_scheduler_enabled 1", "taskflow_notification_sender_enabled 0",
+		`taskflow_notification_polls_total{outcome="success"} 1`,
+		`taskflow_notification_polls_total{outcome="error"} 1`,
+		`taskflow_notification_send_total{outcome="success"} 1`,
+		`taskflow_notification_send_total{outcome="rate_limited"} 1`,
+		`taskflow_notification_send_total{outcome="rejected"} 1`,
+		`taskflow_notification_send_total{outcome="server_error"} 2`,
+		`taskflow_notification_send_total{outcome="network_error"} 1`,
+		"taskflow_notification_lease_reclaims_total 1",
+	} {
+		if !strings.Contains(r.Body.String(), expected) {
+			t.Fatal("missing", expected)
+		}
+	}
+	for _, forbidden := range []string{"user_id=", "channel_id=", "rule_id="} {
+		if strings.Contains(r.Body.String(), forbidden) {
+			t.Fatal("sensitive label", forbidden)
+		}
+	}
+}

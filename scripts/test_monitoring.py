@@ -113,7 +113,11 @@ func main(){m:=telemetry.New(nil,func(context.Context)error{return nil});m.Obser
             except urllib.error.HTTPError as error:
                 assert error.code==401
             dashboard=get(grafana+'/api/dashboards/uid/taskflow-overview',True)
-            assert len(dashboard['dashboard']['panels'])==11
+            titles = {panel['title'] for panel in dashboard['dashboard']['panels']}
+            assert {'API scrape availability', 'Database readiness',
+                    'Background workers enabled', 'Seconds since successful background poll',
+                    'Eligible notifications and oldest wait', 'Discord send attempts by outcome',
+                    'Lease reclaims / second', 'Recurrence tasks generated / second'} <= titles
             def query(expr):
                 return get(prometheus+'/api/v1/query?'+urllib.parse.urlencode({'query':expr}))['data']['result']
             eventually(lambda:query('taskflow_database_ready == 1'))

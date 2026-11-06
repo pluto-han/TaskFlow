@@ -188,6 +188,175 @@
           "exp_alerts": []
         }
       ]
+    },
+    {
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "taskflow_recurrence_scheduler_enabled{job=\"taskflow\",instance=\"api:9091\"}",
+          "values": "1x60"
+        },
+        {
+          "series": "taskflow_recurrence_last_success_timestamp_seconds{job=\"taskflow\",instance=\"api:9091\"}",
+          "values": "1x60"
+        },
+        {
+          "series": "taskflow_notification_sender_enabled{job=\"taskflow\",instance=\"api:9091\"}",
+          "values": "1x60"
+        },
+        {
+          "series": "taskflow_notification_last_success_timestamp_seconds{job=\"taskflow\",instance=\"api:9091\"}",
+          "values": "1x60"
+        },
+        {
+          "series": "taskflow_notification_ready_events{job=\"taskflow\",instance=\"api:9091\"}",
+          "values": "1x60"
+        },
+        {
+          "series": "taskflow_notification_oldest_ready_age_seconds{job=\"taskflow\",instance=\"api:9091\"}",
+          "values": "600x60"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "13m",
+          "alertname": "TaskFlowSchedulerStopped",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "job": "taskflow",
+                "instance": "api:9091",
+                "severity": "warning"
+              },
+              "exp_annotations": {
+                "summary": "Enabled recurrence scheduler has not completed a scan for ten minutes"
+              }
+            }
+          ]
+        },
+        {
+          "eval_time": "13m",
+          "alertname": "TaskFlowNotificationWorkerStopped",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "job": "taskflow",
+                "instance": "api:9091",
+                "severity": "warning"
+              },
+              "exp_annotations": {
+                "summary": "Enabled notification sender has not completed a poll for three minutes"
+              }
+            }
+          ]
+        },
+        {
+          "eval_time": "13m",
+          "alertname": "TaskFlowNotificationBacklog",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "job": "taskflow",
+                "instance": "api:9091",
+                "severity": "warning"
+              },
+              "exp_annotations": {
+                "summary": "Eligible notifications have been waiting for more than five minutes"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "taskflow_recurrence_scheduler_enabled{job=\"taskflow\",instance=\"api:9091\"}",
+          "values": "0x60"
+        },
+        {
+          "series": "taskflow_recurrence_last_success_timestamp_seconds{job=\"taskflow\",instance=\"api:9091\"}",
+          "values": "1x60"
+        },
+        {
+          "series": "taskflow_notification_sender_enabled{job=\"taskflow\",instance=\"api:9091\"}",
+          "values": "0x60"
+        },
+        {
+          "series": "taskflow_notification_last_success_timestamp_seconds{job=\"taskflow\",instance=\"api:9091\"}",
+          "values": "1x60"
+        },
+        {
+          "series": "taskflow_notification_ready_events{job=\"taskflow\",instance=\"api:9091\"}",
+          "values": "0x60"
+        },
+        {
+          "series": "taskflow_notification_oldest_ready_age_seconds{job=\"taskflow\",instance=\"api:9091\"}",
+          "values": "600x60"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "13m",
+          "alertname": "TaskFlowSchedulerStopped",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "13m",
+          "alertname": "TaskFlowNotificationWorkerStopped",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "13m",
+          "alertname": "TaskFlowNotificationBacklog",
+          "exp_alerts": []
+        }
+      ]
+    },
+    {
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "taskflow_notification_sender_enabled{job=\"taskflow\",instance=\"api:9091\"}",
+          "values": "1x48"
+        },
+        {
+          "series": "taskflow_notification_send_total{job=\"taskflow\",instance=\"api:9091\",outcome=\"rejected\"}",
+          "values": "0+1x48"
+        },
+        {
+          "series": "taskflow_notification_ready_events{job=\"taskflow\",instance=\"api:9091\"}",
+          "values": "0x48"
+        },
+        {
+          "series": "taskflow_notification_oldest_ready_age_seconds{job=\"taskflow\",instance=\"api:9091\"}",
+          "values": "0x48"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "10m",
+          "alertname": "TaskFlowNotificationSendFailure",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "job": "taskflow",
+                "instance": "api:9091",
+                "severity": "warning"
+              },
+              "exp_annotations": {
+                "summary": "Discord notification attempts have failed in the last ten minutes"
+              }
+            }
+          ]
+        },
+        {
+          "eval_time": "10m",
+          "alertname": "TaskFlowNotificationBacklog",
+          "exp_alerts": []
+        }
+      ]
     }
   ]
 }

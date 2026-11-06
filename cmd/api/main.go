@@ -97,6 +97,7 @@ func main() {
 		log.Fatal("Could not initialize password verification")
 	}
 	metrics := telemetry.New(pool, pool.Ping)
+	metrics.SetWorkers(schedulerEnabled, senderEnabled)
 	bindings := integration.NewService(pool, len(discordKey) > 0)
 	router := server.NewRouter(server.Dependencies{
 		Notifications: notification.NewService(pool, nil),
@@ -198,7 +199,7 @@ func main() {
 			return
 		}
 		defer workerPool.Close()
-		worker := notification.NewService(workerPool, sender)
+		worker := notification.NewService(workerPool, sender).WithObserver(metrics)
 		go func() { defer close(notificationDone); worker.Run(shutdownCtx) }()
 	} else {
 		close(notificationDone)

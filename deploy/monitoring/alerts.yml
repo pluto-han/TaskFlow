@@ -1,6 +1,30 @@
 groups:
   - name: taskflow
     rules:
+      - alert: TaskFlowSchedulerStopped
+        expr: taskflow_recurrence_scheduler_enabled{job="taskflow"} == 1 and on(job, instance) (time() - taskflow_recurrence_last_success_timestamp_seconds{job="taskflow"} > 600)
+        for: 2m
+        labels: {severity: warning}
+        annotations:
+          summary: Enabled recurrence scheduler has not completed a scan for ten minutes
+      - alert: TaskFlowNotificationWorkerStopped
+        expr: taskflow_notification_sender_enabled{job="taskflow"} == 1 and on(job, instance) (time() - taskflow_notification_last_success_timestamp_seconds{job="taskflow"} > 180)
+        for: 2m
+        labels: {severity: warning}
+        annotations:
+          summary: Enabled notification sender has not completed a poll for three minutes
+      - alert: TaskFlowNotificationBacklog
+        expr: taskflow_notification_sender_enabled{job="taskflow"} == 1 and on(job, instance) (taskflow_notification_ready_events{job="taskflow"} > 0) and on(job, instance) (taskflow_notification_oldest_ready_age_seconds{job="taskflow"} > 300)
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: Eligible notifications have been waiting for more than five minutes
+      - alert: TaskFlowNotificationSendFailure
+        expr: (sum by (job, instance) (increase(taskflow_notification_send_total{job="taskflow",outcome=~"rejected|server_error|network_error"}[10m])) > 0) and on(job, instance) (taskflow_notification_sender_enabled{job="taskflow"} == 1)
+        for: 1m
+        labels: {severity: warning}
+        annotations:
+          summary: Discord notification attempts have failed in the last ten minutes
       - alert: TaskFlowUnavailable
         expr: up{job="taskflow"} == 0 or absent(up{job="taskflow"})
         for: 2m
