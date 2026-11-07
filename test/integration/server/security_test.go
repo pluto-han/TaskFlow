@@ -1,4 +1,4 @@
-package server
+package server_test
 
 import (
 	"fmt"
@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/pluto-han/taskflow/internal/server"
 )
 
 // Exercise the actual production registration/login routes, before any expensive
@@ -17,7 +19,7 @@ func TestAuthRateLimitsCannotBeBypassedByForwardedIP(t *testing.T) {
 		limit int
 	}{{"/auth/register", 10}, {"/auth/login", 20}} {
 		t.Run(tc.path, func(t *testing.T) {
-			r := NewRouter(Dependencies{Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+			r := server.NewRouter(server.Dependencies{Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
 			for n := 0; n <= tc.limit; n++ {
 				req := httptest.NewRequest("POST", tc.path, strings.NewReader("not JSON"))
 				req.Header.Set("Content-Type", "application/json")

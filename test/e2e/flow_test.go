@@ -1,5 +1,5 @@
 // Package browserflow runs a real browser and router against disposable PostgreSQL.
-package browserflow
+package e2e_test
 
 import (
 	"bytes"
@@ -167,7 +167,7 @@ func TestBrowserDiscordFlow(t *testing.T) {
 	mux.Handle("/", http.FileServer(http.Dir(dist)))
 	app := httptest.NewServer(mux)
 	defer app.Close()
-	cmd := exec.CommandContext(ctx, "npx", "playwright", "test", "e2e/flow-live.spec.ts", "--config", "playwright.flow.config.ts")
+	cmd := exec.CommandContext(ctx, "npx", "playwright", "test", "test/e2e/flow-live.spec.ts", "--config", "playwright.flow.config.ts")
 	cmd.Dir = filepath.Join(root, "frontend")
 	cmd.Env = append(os.Environ(), "TASKFLOW_FLOW_BASE_URL="+app.URL)
 	cmd.Stdout = os.Stdout

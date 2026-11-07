@@ -1,12 +1,12 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
-import { RecurrenceBoard, RecurrenceEditor } from "./RecurrenceBoard";
+import { RecurrenceBoard, RecurrenceEditor } from "../../../src/tasks/RecurrenceBoard";
 import { MemoryRouter } from "react-router";
-import { discordApi } from "../api/discord";
-import { recurrenceApi, type Recurrence } from "../api/recurrences";
-import { ApiError } from "../api/client";
+import { discordApi } from "../../../src/api/discord";
+import { recurrenceApi, type Recurrence } from "../../../src/api/recurrences";
+import { ApiError } from "../../../src/api/client";
 const authorize = <T,>(action: (token: string) => Promise<T>) => action("test");
-vi.mock("../auth/AuthProvider", () => ({ useAuth: () => ({ authorize }) }));
+vi.mock("../../../src/auth/AuthProvider", () => ({ useAuth: () => ({ authorize }) }));
 const rule: Recurrence = {
   reminder_enabled: false,
   id: "r",

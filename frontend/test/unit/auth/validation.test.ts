@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validate } from "./validation";
+import { validate } from "../../../src/auth/validation";
 
 describe("form validation", () => {
   it("matches password character/byte limits without trimming passwords", () => {

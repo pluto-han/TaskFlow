@@ -15,3 +15,5 @@ __pycache__/
 
 # Local production simulation secrets, certificates and compose overrides
 .local/
+
+.vscode

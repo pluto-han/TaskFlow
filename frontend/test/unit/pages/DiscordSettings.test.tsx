@@ -7,11 +7,11 @@ import {
   within,
 } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
-import { DiscordSettings } from "./DiscordSettings";
-import { discordApi } from "../api/discord";
-import { ApiError } from "../api/client";
+import { DiscordSettings } from "../../../src/pages/DiscordSettings";
+import { discordApi } from "../../../src/api/discord";
+import { ApiError } from "../../../src/api/client";
 const authorize = <T,>(action: (token: string) => Promise<T>) => action("test");
-vi.mock("../auth/AuthProvider", () => ({ useAuth: () => ({ authorize }) }));
+vi.mock("../../../src/auth/AuthProvider", () => ({ useAuth: () => ({ authorize }) }));
 beforeEach(() => {
   vi.spyOn(discordApi, "notifications").mockResolvedValue([]);
 });

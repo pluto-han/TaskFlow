@@ -2,7 +2,7 @@ import contextlib
 import io
 import unittest
 from unittest.mock import patch
-import register_discord_commands as commands
+from scripts import register_discord_commands as commands
 
 
 class RegistrationTests(unittest.TestCase):

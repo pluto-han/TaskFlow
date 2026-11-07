@@ -23,16 +23,16 @@ jobs:
           git diff --exit-code -- internal/db/sqlc
           test -z "$(git ls-files --others --exclude-standard -- internal/db/sqlc)"
       - name: Discord command registration safety
-        run: python3 -m unittest discover -s scripts -p "test_register_discord_commands.py" -v
+        run: python3 -m unittest discover -s test/python -p "test_register_discord_commands.py" -v
       - name: CD safety regression tests
         run: |
-          python3 -m unittest discover -s scripts -p "test_deploy_release.py" -v
-          python3 -m unittest discover -s scripts -p "test_prepare_monitoring.py" -v
+          python3 -m unittest discover -s test/python -p "test_deploy_release.py" -v
+          python3 -m unittest discover -s test/python -p "test_prepare_monitoring.py" -v
       - name: Unit tests and static checks
         run: |
-          test -z "$(gofmt -l cmd internal)"
-          go vet ./cmd/... ./internal/...
-          go test ./cmd/... ./internal/...
+          test -z "$(gofmt -l cmd internal test)"
+          go vet ./cmd/... ./internal/... ./test/...
+          go test ./cmd/... ./internal/... ./test/...
       - name: Go dependency vulnerability scan
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
@@ -100,7 +100,7 @@ jobs:
       - name: Build pinned multi-stage images
         run: docker compose -f compose.production.yaml build --pull
       - name: Verify migration gate and persistent container stack
-        run: python3 scripts/test_local_stack.py
+        run: python3 -m test.python.test_local_stack
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -110,7 +110,7 @@ jobs:
           python3 scripts/check_monitoring_rules.py
       - name: Monitoring and isolated deployment failure drills
         run: |
-          python3 scripts/test_monitoring.py
+          python3 -m test.python.test_monitoring
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -6,13 +6,13 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
-import { TaskBoard } from "./TaskBoard";
-import { workspaceApi } from "../api/workspace";
-import { ApiError } from "../api/client";
-import type { Task } from "../api/types";
+import { TaskBoard } from "../../../src/tasks/TaskBoard";
+import { workspaceApi } from "../../../src/api/workspace";
+import { ApiError } from "../../../src/api/client";
+import type { Task } from "../../../src/api/types";
 
 const authorize = <T,>(action: (token: string) => Promise<T>) => action("test");
-vi.mock("../auth/AuthProvider", () => ({ useAuth: () => ({ authorize }) }));
+vi.mock("../../../src/auth/AuthProvider", () => ({ useAuth: () => ({ authorize }) }));
 const task: Task = {
   can_move: true,
   plan_date: null,

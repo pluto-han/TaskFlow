@@ -2,11 +2,11 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { beforeEach, expect, it, vi } from "vitest";
-import { InvitePage } from "./InvitePage";
-import { sharingApi } from "../api/sharing";
-import { ApiError } from "../api/client";
+import { InvitePage } from "../../../src/pages/InvitePage";
+import { sharingApi } from "../../../src/api/sharing";
+import { ApiError } from "../../../src/api/client";
 const state = vi.hoisted(() => ({ loggedIn: true }));
-vi.mock("../auth/AuthProvider", () => ({
+vi.mock("../../../src/auth/AuthProvider", () => ({
   useAuth: () => ({
     user: state.loggedIn ? { email: "recipient@example.com" } : null,
     authorize: <T,>(action: (token: string) => Promise<T>) => action("session"),

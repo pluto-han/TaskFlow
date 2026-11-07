@@ -1,4 +1,4 @@
-package server
+package server_test
 
 import (
 	"context"
@@ -22,6 +22,7 @@ import (
 	"github.com/pluto-han/taskflow/internal/notification"
 	"github.com/pluto-han/taskflow/internal/project"
 	"github.com/pluto-han/taskflow/internal/recurrence"
+	"github.com/pluto-han/taskflow/internal/server"
 	"github.com/pluto-han/taskflow/internal/session"
 	"github.com/pluto-han/taskflow/internal/task"
 	"github.com/pluto-han/taskflow/internal/user"
@@ -57,7 +58,7 @@ type document struct {
 
 func readContract(t *testing.T) (document, map[string]any) {
 	t.Helper()
-	raw, err := os.ReadFile("../../api/openapi.json")
+	raw, err := os.ReadFile("../../../api/openapi.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +70,7 @@ func readContract(t *testing.T) (document, map[string]any) {
 	return d, tree
 }
 func testRouter() *gin.Engine {
-	return NewRouter(Dependencies{Users: user.NewService(nil, nil), Ping: func(context.Context) error { return nil }, Logger: slog.New(slog.NewJSONHandler(io.Discard, nil))})
+	return server.NewRouter(server.Dependencies{Users: user.NewService(nil, nil), Ping: func(context.Context) error { return nil }, Logger: slog.New(slog.NewJSONHandler(io.Discard, nil))})
 }
 
 func TestContractRoutesAndReferences(t *testing.T) {
@@ -189,7 +190,7 @@ func TestContractErrorCodes(t *testing.T) {
 	d, _ := readContract(t)
 	actual := map[string]string{}
 	statusNames := map[string]string{"StatusForbidden": "403", "StatusBadRequest": "400", "StatusUnauthorized": "401", "StatusNotFound": "404", "StatusMethodNotAllowed": "405", "StatusConflict": "409", "StatusRequestEntityTooLarge": "413", "StatusTooManyRequests": "429", "StatusInternalServerError": "500", "StatusServiceUnavailable": "503", "StatusGatewayTimeout": "504"}
-	err := filepath.WalkDir("..", func(path string, entry os.DirEntry, err error) error {
+	err := filepath.WalkDir("../../../internal", func(path string, entry os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}

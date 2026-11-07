@@ -5,7 +5,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
-import deploy_release as cd
+from scripts import deploy_release as cd
 
 
 def request():

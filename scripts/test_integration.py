@@ -144,7 +144,7 @@ def round_tests(number, output, browser=False):
         print(f"Round {number}: {len(SUITES)} fresh migrated databases; running race/coverage tests", flush=True)
         profile = output / f"coverage-{number}.out"
         run(["go", "test", "-race", "-shuffle=on", "-count=1", "-timeout=120s", "-covermode=atomic",
-             "-coverpkg=./internal/...", "-coverprofile=" + str(profile), "./internal/...", "./cmd/..."], env=env, timeout=300)
+             "-coverpkg=./internal/...", "-coverprofile=" + str(profile), "./internal/...", "./cmd/...", "./test/..."], env=env, timeout=300)
         report = run(["go", "tool", "cover", "-func=" + str(profile)], capture=True)
         (output / f"coverage-{number}.txt").write_text(report + "\n")
         print(report.splitlines()[-1], flush=True)

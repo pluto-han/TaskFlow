@@ -14,5 +14,5 @@
     "noUnusedParameters": true,
     "types": ["vite/client", "vitest/globals", "node"]
   },
-  "include": ["src", "*.ts", "e2e"]
+  "include": ["src", "*.ts", "test"]
 }

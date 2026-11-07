@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { toLocalInput, toUTC } from "./dates";
+import { toLocalInput, toUTC } from "../../../src/tasks/dates";
 
 it("round-trips local calendar input through UTC and preserves null", () => {
   const local = "2026-07-15T14:30:20";

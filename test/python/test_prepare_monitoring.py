@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 from types import SimpleNamespace
-import prepare_monitoring as prep
+from scripts import prepare_monitoring as prep
 
 
 class PrepareTests(unittest.TestCase):

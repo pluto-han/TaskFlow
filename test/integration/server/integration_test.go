@@ -1,4 +1,4 @@
-package server
+package server_test
 
 import (
 	"bytes"
@@ -19,6 +19,7 @@ import (
 	"github.com/pluto-han/taskflow/internal/notification"
 	"github.com/pluto-han/taskflow/internal/project"
 	"github.com/pluto-han/taskflow/internal/recurrence"
+	"github.com/pluto-han/taskflow/internal/server"
 	"github.com/pluto-han/taskflow/internal/session"
 	"github.com/pluto-han/taskflow/internal/task"
 	"github.com/pluto-han/taskflow/internal/testdb"
@@ -125,7 +126,7 @@ func TestAPIExamplesIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	var logs bytes.Buffer
-	r := NewRouter(Dependencies{Notifications: notification.NewService(pool, nil), Integrations: integration.NewService(pool, true), Recurrences: recurrence.NewServiceWithClock(recurrence.NewPostgresRepository(pool), func() time.Time { return time.Date(2026, 11, 5, 12, 0, 0, 0, time.UTC) }), Users: user.NewService(users, auth.PasswordHasher{}), Sessions: sessions, Tasks: task.NewService(task.NewPostgresRepository(pool), projects), Projects: project.NewService(projects), Ping: pool.Ping, Logger: slog.New(slog.NewJSONHandler(&logs, nil))})
+	r := server.NewRouter(server.Dependencies{Notifications: notification.NewService(pool, nil), Integrations: integration.NewService(pool, true), Recurrences: recurrence.NewServiceWithClock(recurrence.NewPostgresRepository(pool), func() time.Time { return time.Date(2026, 11, 5, 12, 0, 0, 0, time.UTC) }), Users: user.NewService(users, auth.PasswordHasher{}), Sessions: sessions, Tasks: task.NewService(task.NewPostgresRepository(pool), projects), Projects: project.NewService(projects), Ping: pool.Ping, Logger: slog.New(slog.NewJSONHandler(&logs, nil))})
 	d, tree := readContract(t)
 	paths := tree["paths"].(map[string]any)
 	sample := func(path, method string) string {

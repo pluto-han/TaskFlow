@@ -5,9 +5,9 @@ from pathlib import Path
 import subprocess
 import tempfile
 from unittest.mock import patch
-import deploy_release as cd
+from scripts import deploy_release as cd
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def drill(base, project, read_task):
@@ -40,5 +40,5 @@ def drill(base, project, read_task):
 
 
 if __name__=='__main__':
-    import test_local_stack
+    from test.python import test_local_stack
     test_local_stack.main()

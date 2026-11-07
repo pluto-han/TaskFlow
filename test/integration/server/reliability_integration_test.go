@@ -1,4 +1,4 @@
-package server
+package server_test
 
 import (
 	"context"
@@ -18,6 +18,7 @@ import (
 	"github.com/pluto-han/taskflow/internal/auth"
 	"github.com/pluto-han/taskflow/internal/config"
 	"github.com/pluto-han/taskflow/internal/project"
+	"github.com/pluto-han/taskflow/internal/server"
 	"github.com/pluto-han/taskflow/internal/session"
 	"github.com/pluto-han/taskflow/internal/task"
 	"github.com/pluto-han/taskflow/internal/testdb"
@@ -100,7 +101,7 @@ func TestReliabilityHTTPIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv := httptest.NewServer(NewRouter(Dependencies{Users: user.NewService(users, auth.PasswordHasher{}), Sessions: sessions, Projects: project.NewService(projects), Tasks: task.NewService(task.NewPostgresRepository(pool), projects), Ping: pool.Ping, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))}))
+	srv := httptest.NewServer(server.NewRouter(server.Dependencies{Users: user.NewService(users, auth.PasswordHasher{}), Sessions: sessions, Projects: project.NewService(projects), Tasks: task.NewService(task.NewPostgresRepository(pool), projects), Ping: pool.Ping, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))}))
 	defer srv.Close()
 	client := srv.Client()
 	client.Timeout = 5 * time.Second

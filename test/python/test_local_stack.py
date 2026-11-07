@@ -13,7 +13,7 @@ import tempfile
 import urllib.request
 import urllib.error
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 NAME = 'taskflow-smoke-' + secrets.token_hex(5)
 ARTIFACTS = ROOT / 'artifacts' / 'lesson23'
 SECRETS = ROOT / '.local' / 'stack'
@@ -162,7 +162,7 @@ def main():
             raise RuntimeError('stack did not recover after restart')
         stored = request('GET','/api/tasks/'+task['id'],token=token)
         assert stored['title']=='Persistent task' and stored['version']==1
-        from test_deploy_drill import drill
+        from test.python.test_deploy_drill import drill
         drill(BASE, NAME, lambda: request('GET', '/api/tasks/'+task['id'], token=token))
         # Enable only this disposable project's worker. The real dev stack stays untouched.
         today = request('GET', '/api/tasks/today', token=token)

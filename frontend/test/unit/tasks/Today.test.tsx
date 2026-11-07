@@ -7,14 +7,14 @@ import {
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router";
-import { TaskBoard } from "./TaskBoard";
-import { TaskEditor } from "./TaskEditor";
-import { WorkspacePage } from "../pages/WorkspacePage";
-import { workspaceApi } from "../api/workspace";
-import { ApiError } from "../api/client";
-import type { Task, TodayPage } from "../api/types";
+import { TaskBoard } from "../../../src/tasks/TaskBoard";
+import { TaskEditor } from "../../../src/tasks/TaskEditor";
+import { WorkspacePage } from "../../../src/pages/WorkspacePage";
+import { workspaceApi } from "../../../src/api/workspace";
+import { ApiError } from "../../../src/api/client";
+import type { Task, TodayPage } from "../../../src/api/types";
 const authorize = <T,>(action: (token: string) => Promise<T>) => action("test");
-vi.mock("../auth/AuthProvider", () => ({
+vi.mock("../../../src/auth/AuthProvider", () => ({
   useAuth: () => ({ authorize, user: { id: "user" } }),
 }));
 const item: Task = {

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { api, ApiError, errorMessage } from "./client";
+import { api, ApiError, errorMessage } from "../../../src/api/client";
 
 afterEach(() => vi.unstubAllGlobals());
 describe("API transport", () => {
@@ -74,7 +74,7 @@ describe("API transport", () => {
 });
 
 it("reads the pagination header without losing project filters", async () => {
-  const { workspaceApi } = await import("./workspace");
+  const { workspaceApi } = await import("../../../src/api/workspace");
   const fetcher = vi
     .fn()
     .mockResolvedValue(

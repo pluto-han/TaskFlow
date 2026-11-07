@@ -8,9 +8,9 @@ import {
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { beforeEach, expect, it, vi } from "vitest";
-import { App } from "./App";
-import { discordApi } from "./api/discord";
-import { api, ApiError } from "./api/client";
+import { App } from "../../src/App";
+import { discordApi } from "../../src/api/discord";
+import { api, ApiError } from "../../src/api/client";
 
 const account = {
   id: "00000000-0000-4000-8000-000000000001",
@@ -220,7 +220,7 @@ it("expires the session locally without waiting for another API call", async () 
 });
 
 it("clears authentication when a task request returns 401", async () => {
-  const { workspaceApi } = await import("./api/workspace");
+  const { workspaceApi } = await import("../../src/api/workspace");
   vi.spyOn(workspaceApi, "projects").mockResolvedValue([]);
   vi.spyOn(workspaceApi, "tasks").mockRejectedValue(
     new ApiError("UNAUTHORIZED", 401),

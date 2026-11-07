@@ -1,12 +1,12 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
-import { TaskEditor } from "./TaskEditor";
-import { workspaceApi } from "../api/workspace";
-import { ApiError } from "../api/client";
-import type { Task } from "../api/types";
+import { TaskEditor } from "../../../src/tasks/TaskEditor";
+import { workspaceApi } from "../../../src/api/workspace";
+import { ApiError } from "../../../src/api/client";
+import type { Task } from "../../../src/api/types";
 
-vi.mock("../auth/AuthProvider", () => ({
+vi.mock("../../../src/auth/AuthProvider", () => ({
   useAuth: () => ({
     authorize: <T,>(action: (token: string) => Promise<T>) => action("test"),
   }),
