@@ -16,11 +16,13 @@ export function toUTC(value: string): string | null {
     date.getFullYear() > 9999 ||
     toLocalInput(date.toISOString()).slice(0, value.length) !== value
   )
-    throw new Error("请输入有效的本地日期和时间（夏令时跳过的时刻不可用）。");
+    throw new Error(
+      "Enter a valid local date and time. Times skipped by daylight saving are not available.",
+    );
   return date.toISOString();
 }
 export const displayDate = (value: string) =>
-  new Intl.DateTimeFormat("zh-CN", {
+  new Intl.DateTimeFormat("en-GB", {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));

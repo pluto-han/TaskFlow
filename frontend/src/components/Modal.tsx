@@ -39,7 +39,7 @@ export function Modal({
           type="button"
           onClick={close}
           disabled={busy}
-          aria-label="关闭对话框"
+          aria-label="Close dialog"
         >
           ×
         </button>

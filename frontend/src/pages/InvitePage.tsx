@@ -30,30 +30,38 @@ export function InvitePage({
   return (
     <section className="profile">
       <span className="eyebrow">WORK TOGETHER</span>
-      <h1>项目邀请</h1>
+      <h1>Project invitation</h1>
       {joined ? (
         <>
-          <p role="status">已加入项目。你可以查看、编辑和删除项目中的任务。</p>
+          <p role="status">
+            You are part of the project now. You can view, edit, and delete its
+            tasks.
+          </p>
           <Link className="button primary" to="/tasks">
-            打开工作空间
+            Open workspace
           </Link>
         </>
       ) : !token ? (
         <p role="alert">
-          邀请链接不可用。刷新会清除暂存的邀请，请重新打开原链接。
+          This invitation is not available. Refreshing clears it from this tab;
+          please open the original link again.
         </p>
       ) : !user ? (
         <>
-          <p>请先登录接收邀请的账号。此邀请不能转交给其他账号使用。</p>
+          <p>
+            Sign in with the account this invitation was sent to. It cannot be
+            passed to another account.
+          </p>
           <Link className="button primary" to="/login?next=invite">
-            登录后接受邀请
+            Sign in to accept
           </Link>
         </>
       ) : (
         <>
-          <p>当前账号：{user.email}</p>
+          <p>Signed in as: {user.email}</p>
           <p>
-            接受后，你将以成员身份加入，能够查看、编辑和删除该项目中的任务。
+            Joining gives you access to view, edit, and delete tasks in this
+            project.
           </p>
           {error && (
             <div className="notice error" role="alert">
@@ -65,7 +73,7 @@ export function InvitePage({
             disabled={busy}
             onClick={() => void accept()}
           >
-            {busy ? "正在加入…" : "接受邀请"}
+            {busy ? "Joining…" : "Accept invitation"}
           </button>
         </>
       )}

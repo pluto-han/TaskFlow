@@ -84,8 +84,8 @@ function Workspace() {
   // A deleted selected project returns to all tasks via the explicit delete action.
   return (
     <div className="workspace">
-      <aside className="project-sidebar" aria-label="项目导航">
-        <span className="eyebrow">你的工作空间</span>
+      <aside className="project-sidebar" aria-label="Project navigation">
+        <span className="eyebrow">Your workspace</span>
         <button
           className={`project-link ${!recurrences && !today && !project ? "selected" : ""}`}
           disabled={mutating}
@@ -95,7 +95,7 @@ function Workspace() {
             filter({ project: "", completed, priority });
           }}
         >
-          全部任务 <span>↗</span>
+          All tasks <span>↗</span>
         </button>
         <button
           className={`project-link ${today ? "selected" : ""}`}
@@ -108,7 +108,7 @@ function Workspace() {
             filter({ project: "", completed, priority });
           }}
         >
-          今日任务
+          Today
         </button>
         <button
           className={`project-link ${!recurrences && !today && project === "none" ? "selected" : ""}`}
@@ -119,7 +119,7 @@ function Workspace() {
             filter({ project: "none", completed, priority });
           }}
         >
-          未归类
+          Unassigned
         </button>
         <button
           className={`project-link ${recurrences ? "selected" : ""}`}
@@ -129,13 +129,13 @@ function Workspace() {
           }}
           disabled={mutating}
         >
-          循环任务
+          Recurring tasks
         </button>
         <div className="sidebar-heading">
-          <h2>项目</h2>
+          <h2>Projects</h2>
           <button
             className="icon-button"
-            aria-label="刷新项目列表"
+            aria-label="Refresh projects"
             disabled={mutating}
             onClick={() => void loadProjects()}
           >
@@ -144,7 +144,7 @@ function Workspace() {
           {!recurrences && !today && (
             <button
               className="icon-button"
-              aria-label="新建项目"
+              aria-label="New project"
               onClick={() => setEditor("new")}
               disabled={mutating}
             >
@@ -152,20 +152,20 @@ function Workspace() {
             </button>
           )}
         </div>
-        {loading && <p role="status">正在加载项目…</p>}
+        {loading && <p role="status">Loading projects…</p>}
         {projectError && (
           <div role="alert" className="notice error">
             {projectError}
             <button className="text-button" onClick={() => void loadProjects()}>
-              重试项目列表
+              Try loading projects again
             </button>
           </div>
         )}
         {!loading && !projectError && projects.length === 0 && (
           <p className="hint">
             {today || recurrences
-              ? "暂无项目。可在全部任务中创建项目。"
-              : "还没有项目，试着创建一个。"}
+              ? "No projects yet. You can create one from All tasks."
+              : "Give your next idea a place to grow. Start a project."}
           </p>
         )}
         {projects.map((p) => (
@@ -193,43 +193,45 @@ function Workspace() {
             <div className="workspace-toolbar">
               <div className="filters">
                 <label>
-                  状态
+                  Status
                   <select
-                    aria-label="筛选完成状态"
+                    aria-label="Filter by status"
                     value={completed}
                     disabled={mutating}
                     onChange={(e) =>
                       filter({ project, completed: e.target.value, priority })
                     }
                   >
-                    <option value="">全部状态</option>
-                    <option value="false">未完成</option>
-                    <option value="true">已完成</option>
+                    <option value="">All statuses</option>
+                    <option value="false">Incomplete</option>
+                    <option value="true">Completed</option>
                   </select>
                 </label>
                 <label>
-                  优先级
+                  Priority
                   <select
-                    aria-label="筛选优先级"
+                    aria-label="Filter by priority"
                     value={priority}
                     disabled={mutating}
                     onChange={(e) =>
                       filter({ project, completed, priority: e.target.value })
                     }
                   >
-                    <option value="">全部优先级</option>
-                    <option value="3">高</option>
-                    <option value="2">中</option>
-                    <option value="1">低</option>
+                    <option value="">All priorities</option>
+                    <option value="3">High</option>
+                    <option value="2">Medium</option>
+                    <option value="1">Low</option>
                   </select>
                 </label>
                 {!recurrences && !today && !project && (
                   <div className="plan-date-filter">
-                    <label htmlFor="plan-date-filter">计划日期（历史）</label>
+                    <label htmlFor="plan-date-filter">
+                      Planned date (history)
+                    </label>
                     <div className="plan-date-control">
                       <input
                         id="plan-date-filter"
-                        aria-label="筛选计划日期"
+                        aria-label="Filter by planned date"
                         type="date"
                         min="0001-01-01"
                         max="9999-12-31"
@@ -243,7 +245,7 @@ function Workspace() {
                           disabled={mutating}
                           onClick={() => setPlanDate("")}
                         >
-                          清除日期筛选
+                          Clear date filter
                         </button>
                       )}
                     </div>
@@ -257,7 +259,7 @@ function Workspace() {
                     disabled={mutating}
                     onClick={() => setSharing(selected)}
                   >
-                    成员与邀请
+                    Members & invitations
                   </button>
                   {selected.role === "owner" && (
                     <>
@@ -266,14 +268,14 @@ function Workspace() {
                         disabled={mutating}
                         onClick={() => setEditor(selected)}
                       >
-                        编辑项目
+                        Edit project
                       </button>
                       <button
                         className="text-button danger-text"
                         disabled={mutating}
                         onClick={() => setDeleting(selected)}
                       >
-                        删除项目
+                        Delete project
                       </button>
                     </>
                   )}
@@ -294,9 +296,9 @@ function Workspace() {
               projects={projects}
               title={
                 today
-                  ? "今日任务"
+                  ? "Today"
                   : selected?.name ||
-                    (project === "none" ? "未归类" : "全部任务")
+                    (project === "none" ? "Unassigned" : "All tasks")
               }
               setMutating={setMutating}
             />
@@ -322,7 +324,7 @@ function Workspace() {
       )}
       {deleting && (
         <DeleteDialog
-          title="删除项目"
+          title="Delete project"
           name={deleting.name}
           project
           close={() => setDeleting(null)}

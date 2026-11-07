@@ -32,9 +32,11 @@ export function DeleteDialog({
   }
   return (
     <Modal title={title} busy={busy} close={close}>
-      <p>确定删除「{name}」？此操作无法撤销。</p>
+      <p>Delete “{name}”? This cannot be undone.</p>
       {project && (
-        <p className="hint">项目内有任务时无法删除，请先移走或删除任务。</p>
+        <p className="hint">
+          Move or delete the tasks in this project before deleting it.
+        </p>
       )}
       {error && (
         <div className="notice error" role="alert">
@@ -43,14 +45,14 @@ export function DeleteDialog({
       )}
       <div className="modal-actions">
         <button className="button secondary" disabled={busy} onClick={close}>
-          取消
+          Cancel
         </button>
         <button
           className="button danger"
           disabled={busy}
           onClick={() => void confirm()}
         >
-          {busy ? "正在删除…" : "确认删除"}
+          {busy ? "Deleting…" : "Confirm delete"}
         </button>
       </div>
     </Modal>

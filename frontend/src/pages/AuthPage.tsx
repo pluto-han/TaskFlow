@@ -69,40 +69,42 @@ export function AuthPage({ register = false }: { register?: boolean }) {
 
   return (
     <div className="auth-layout">
-      <aside className="story" aria-label="TaskFlow 简介">
+      <aside className="story" aria-label="About TaskFlow">
         <span className="eyebrow">A LITTLE ROOM TO FOCUS</span>
         <h2>
-          给重要的事，
+          Make room
           <br />
-          留一点空间。
+          for what matters.
         </h2>
         <p>
-          从一个清晰的开始，
+          Begin with a little clarity.
           <br />
-          找到自己的节奏。
+          Find a rhythm of your own.
         </p>
         <div className="art" aria-hidden="true">
           <span />
           <span />
           <span />
         </div>
-        <p className="story-bottom">少一点分心，多一点从容。</p>
+        <p className="story-bottom">Less noise. More room to breathe.</p>
       </aside>
       <section className="auth-card" aria-labelledby="auth-heading">
         <span className="eyebrow">YOUR PERSONAL SPACE</span>
-        <h1 id="auth-heading">{register ? "开启你的空间" : "欢迎回来。"}</h1>
+        <h1 id="auth-heading">
+          {register ? "Make yourself a little space" : "Welcome back."}
+        </h1>
         <p className="subtitle">
           {register
-            ? "创建一个账号，从这里开始。"
-            : "登录 TaskFlow，回到你的个人空间。"}
+            ? "A fresh start, and a little space of your own."
+            : "Step back into your space."}
         </p>
         {registered ? (
           <>
             <div className="notice" role="status">
-              注册成功！现在可以使用新账号登录。
+              Your space is ready. Sign in to make it your own.
             </div>
             <Link className="button primary wide" to={"/login" + suffix}>
-              前往登录
+              Continue to sign in
             </Link>
           </>
         ) : (
@@ -124,7 +126,7 @@ export function AuthPage({ register = false }: { register?: boolean }) {
               aria-busy={submitting}
             >
               <div className="field">
-                <label htmlFor="email">邮箱地址</label>
+                <label htmlFor="email">Email address</label>
                 <input
                   id="email"
                   name="email"
@@ -147,7 +149,7 @@ export function AuthPage({ register = false }: { register?: boolean }) {
                 )}
               </div>
               <div className="field">
-                <label htmlFor="password">密码</label>
+                <label htmlFor="password">Password</label>
                 <input
                   id="password"
                   name="password"
@@ -173,14 +175,15 @@ export function AuthPage({ register = false }: { register?: boolean }) {
                 ) : (
                   register && (
                     <p className="hint" id="password-hint">
-                      使用 15–128 个字符，建议选择容易记住的长密码。
+                      Use 15–128 characters. A few memorable words can make a
+                      good passphrase.
                     </p>
                   )
                 )}
               </div>
               {register && (
                 <div className="field">
-                  <label htmlFor="confirm">确认密码</label>
+                  <label htmlFor="confirm">Confirm password</label>
                   <input
                     id="confirm"
                     name="confirm"
@@ -210,23 +213,25 @@ export function AuthPage({ register = false }: { register?: boolean }) {
                 {submitting && <span className="spinner" aria-hidden="true" />}
                 {submitting
                   ? register
-                    ? "正在创建…"
-                    : "正在登录…"
+                    ? "Creating your space…"
+                    : "Signing in…"
                   : register
-                    ? "创建账号"
-                    : "登录"}
+                    ? "Create account"
+                    : "Sign in"}
                 <span aria-hidden="true">→</span>
               </button>
             </form>
             <p className="auth-switch">
-              {register ? "已经有账号？" : "还没有账号？"}{" "}
+              {register ? "Already have an account?" : "New here?"}{" "}
               <Link to={(register ? "/login" : "/register") + suffix}>
-                {register ? "去登录" : "创建账号"}
+                {register ? "Sign in" : "Create account"}
               </Link>
             </p>
           </>
         )}
-        <p className="footnote">登录仅在当前页面有效，刷新后需重新登录。</p>
+        <p className="footnote">
+          Your session stays in this tab. Refreshing the page will sign you out.
+        </p>
       </section>
     </div>
   );

@@ -80,25 +80,33 @@ test("recurrence management keeps existing styling and works on mobile", async (
     return route.fulfill({ status: 404 });
   });
   await page.goto("/login");
-  await page.getByLabel("邮箱").fill("recurrence@example.com");
+  await page.getByLabel("Email address").fill("recurrence@example.com");
   await page
-    .getByLabel("密码", { exact: true })
+    .getByLabel("Password", { exact: true })
     .fill("a long learning passphrase");
-  await page.getByRole("button", { name: "登录", exact: true }).click();
-  await page.getByRole("link", { name: "任务", exact: true }).click();
-  await page.getByRole("button", { name: "循环任务", exact: true }).click();
-  await page.getByRole("button", { name: "新建循环规则" }).click();
-  await page.getByLabel("任务标题").fill("每三天阅读");
-  await page.getByLabel("每隔几天").fill("3");
-  await page.getByLabel("Discord 频道提醒").check();
-  await expect(page.getByText(/周期预览：2026-11-05/)).toBeVisible();
-  await page.getByRole("button", { name: "保存规则" }).click();
-  await expect(page.getByRole("heading", { name: "每三天阅读" })).toBeVisible();
-  await expect(page.getByText("Discord 提醒", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "暂停", exact: true }).click();
-  await expect(page.getByText("每 3 天 · 已暂停")).toBeVisible();
-  await page.getByRole("button", { name: "恢复", exact: true }).click();
-  await expect(page.getByText("每 3 天 · 启用")).toBeVisible();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByRole("link", { name: "Tasks", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Recurring tasks", exact: true })
+    .click();
+  await page.getByRole("button", { name: "New recurring task" }).click();
+  await page
+    .getByLabel("Task title")
+    .fill("A little reading, every three days");
+  await page.getByLabel("Repeat every (days)").fill("3");
+  await page.getByLabel("Discord channel reminder").check();
+  await expect(page.getByText(/Schedule preview: 2026-11-05/)).toBeVisible();
+  await page.getByRole("button", { name: "Save schedule" }).click();
+  await expect(
+    page.getByRole("heading", { name: "A little reading, every three days" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Discord reminder", { exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Pause", exact: true }).click();
+  await expect(page.getByText("Every 3 days · Paused")).toBeVisible();
+  await page.getByRole("button", { name: "Resume", exact: true }).click();
+  await expect(page.getByText("Every 3 days · Active")).toBeVisible();
   await page.setViewportSize({ width: 375, height: 812 });
   expect(
     await page.evaluate(
@@ -109,10 +117,12 @@ test("recurrence management keeps existing styling and works on mobile", async (
     path: "test-results/lesson31-mobile.png",
     fullPage: true,
   });
-  await page.getByRole("button", { name: "删除", exact: true }).click();
-  await expect(page.getByText(/已有任务和历史记录会保留/)).toBeVisible();
-  await page.getByRole("button", { name: "确认删除" }).click();
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "还没有循环规则" }),
+    page.getByText(/Your existing tasks and history will stay/),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Confirm delete" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Room for a new rhythm" }),
   ).toBeVisible();
 });

@@ -24,8 +24,12 @@ it("requires explicit acceptance and clears the in-memory invitation after succe
     </MemoryRouter>,
   );
   expect(sharingApi.accept).not.toHaveBeenCalled();
-  await userEvent.click(screen.getByRole("button", { name: "接受邀请" }));
-  expect(await screen.findByRole("status")).toHaveTextContent("已加入项目");
+  await userEvent.click(
+    screen.getByRole("button", { name: "Accept invitation" }),
+  );
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    "You are part of the project now",
+  );
   expect(sharingApi.accept).toHaveBeenCalledWith(
     "session",
     "invitation-secret",
@@ -40,10 +44,9 @@ it("keeps the invitation in memory while directing unauthenticated users to logi
       <InvitePage token="secret" consumed={vi.fn()} />
     </MemoryRouter>,
   );
-  expect(screen.getByRole("link", { name: "登录后接受邀请" })).toHaveAttribute(
-    "href",
-    "/login?next=invite",
-  );
+  expect(
+    screen.getByRole("link", { name: "Sign in to accept" }),
+  ).toHaveAttribute("href", "/login?next=invite");
   expect(screen.queryByText("secret")).not.toBeInTheDocument();
 });
 it("shows a generic failure for used/revoked/wrong-recipient tokens", async () => {
@@ -56,7 +59,11 @@ it("shows a generic failure for used/revoked/wrong-recipient tokens", async () =
       <InvitePage token="secret" consumed={consumed} />
     </MemoryRouter>,
   );
-  await userEvent.click(screen.getByRole("button", { name: "接受邀请" }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("邀请已失效");
+  await userEvent.click(
+    screen.getByRole("button", { name: "Accept invitation" }),
+  );
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "This invitation has expired",
+  );
   expect(consumed).not.toHaveBeenCalled();
 });

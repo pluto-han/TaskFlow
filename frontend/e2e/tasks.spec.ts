@@ -6,8 +6,8 @@ test("workspace pagination, filtering and mobile layout", async ({ page }) => {
   const task = {
     can_move: true,
     id: "task-a",
-    title: "为重要的事留出时间",
-    description: "整理今天的想法，专注做好一件事。",
+    title: "Make time for what matters",
+    description: "Gather today’s thoughts. Give one thing your full attention.",
     completed: false,
     priority: 3,
     project_id: null,
@@ -38,7 +38,7 @@ test("workspace pagination, filtering and mobile layout", async ({ page }) => {
         json: [
           {
             id: "11111111-1111-4111-8111-111111111111",
-            name: "个人成长",
+            name: "Room to grow",
             role: "owner",
             description: "",
             created_at: task.created_at,
@@ -53,7 +53,7 @@ test("workspace pagination, filtering and mobile layout", async ({ page }) => {
           {
             ...task,
             id: "task-b",
-            title: "读完一本书",
+            title: "Finish a book",
             priority: 1,
             due_date: null,
           },
@@ -65,22 +65,24 @@ test("workspace pagination, filtering and mobile layout", async ({ page }) => {
     });
   });
   await page.goto("/login");
-  await page.getByLabel("邮箱地址").fill("learner@example.com");
-  await page.getByLabel("密码", { exact: true }).fill("a long test passphrase");
-  await page.getByRole("button", { name: "登录", exact: true }).click();
-  await page.getByRole("link", { name: "任务", exact: true }).click();
+  await page.getByLabel("Email address").fill("learner@example.com");
+  await page
+    .getByLabel("Password", { exact: true })
+    .fill("a long test passphrase");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByRole("link", { name: "Tasks", exact: true }).click();
   await expect(page.getByRole("heading", { name: task.title })).toBeVisible();
-  await page.getByRole("button", { name: "加载更多" }).click();
-  await expect(page.getByRole("heading", { name: "读完一本书" })).toBeVisible();
+  await page.getByRole("button", { name: "Load more" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Finish a book" }),
+  ).toBeVisible();
   await page.screenshot({
     path: "test-results/tasks-desktop.png",
     fullPage: true,
   });
-  await page
-    .getByRole("button", { name: "个人成长", exact: true })
-    .click();
-  await expect(page.getByText("这里还没有任务")).toBeVisible();
-  await page.getByRole("button", { name: "全部任务", exact: false }).click();
+  await page.getByRole("button", { name: "Room to grow", exact: true }).click();
+  await expect(page.getByText("No tasks here yet")).toBeVisible();
+  await page.getByRole("button", { name: "All tasks", exact: false }).click();
   await expect(page.getByRole("heading", { name: task.title })).toBeVisible();
   await page.setViewportSize({ width: 375, height: 812 });
   expect(
@@ -92,22 +94,22 @@ test("workspace pagination, filtering and mobile layout", async ({ page }) => {
     path: "test-results/tasks-mobile.png",
     fullPage: true,
   });
-  await page.getByRole("button", { name: "编辑任务：" + task.title }).click();
+  await page.getByRole("button", { name: "Edit task: " + task.title }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
-  await expect(page.getByLabel("截止日期（本地时间）")).toHaveValue(
+  await expect(page.getByLabel("Due date (local time)")).toHaveValue(
     /^2026-12-15T10:30(:00)?$/,
   );
   await page.screenshot({
     path: "test-results/task-editor-mobile.png",
     fullPage: true,
   });
-  await page.getByLabel("截止日期（本地时间）").fill("2026-03-29T02:30");
-  await page.getByRole("button", { name: "保存任务" }).click();
-  await expect(page.getByRole("alert")).toContainText("夏令时");
+  await page.getByLabel("Due date (local time)").fill("2026-03-29T02:30");
+  await page.getByRole("button", { name: "Save task" }).click();
+  await expect(page.getByRole("alert")).toContainText("daylight saving");
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).not.toBeVisible();
   await expect(
-    page.getByRole("button", { name: "编辑任务：" + task.title }),
+    page.getByRole("button", { name: "Edit task: " + task.title }),
   ).toBeFocused();
 });
 
@@ -120,79 +122,99 @@ test("actual project/task CRUD, ownership filtering, null deadline and deletion 
   );
   await page.goto("/register");
   const email = `tasks-${Date.now()}@example.com`;
-  await page.getByLabel("邮箱地址").fill(email);
+  await page.getByLabel("Email address").fill(email);
   await page
-    .getByLabel("密码", { exact: true })
+    .getByLabel("Password", { exact: true })
     .fill("a long live task passphrase");
-  await page.getByLabel("确认密码").fill("a long live task passphrase");
-  await page.getByRole("button", { name: "创建账号" }).click();
-  await page.getByRole("link", { name: "前往登录" }).click();
-  await page.getByLabel("邮箱地址").fill(email);
+  await page.getByLabel("Confirm password").fill("a long live task passphrase");
+  await page.getByRole("button", { name: "Create account" }).click();
+  await page.getByRole("link", { name: "Continue to sign in" }).click();
+  await page.getByLabel("Email address").fill(email);
   await page
-    .getByLabel("密码", { exact: true })
+    .getByLabel("Password", { exact: true })
     .fill("a long live task passphrase");
-  await page.getByRole("button", { name: "登录", exact: true }).click();
-  await page.getByRole("link", { name: "任务", exact: true }).click();
-  await expect(page.getByText("这里还没有任务")).toBeVisible();
-  await page.getByRole("button", { name: "新建项目", exact: true }).click();
-  await page.getByLabel("项目名称").fill("学习计划");
-  await page.getByLabel("项目描述").fill("浏览器验收");
-  await page.getByRole("button", { name: "保存项目" }).click();
-  await page.getByRole("button", { name: "学习计划", exact: true }).click();
-  await page.getByRole("button", { name: "编辑项目", exact: true }).click();
-  await page.getByLabel("项目描述").fill("更新项目描述");
-  await page.getByRole("button", { name: "保存项目" }).click();
-  await expect(page.getByText("更新项目描述", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "新建任务", exact: false }).click();
-  await page.getByLabel("任务标题").fill("完成 Lesson 19");
-  await page.getByLabel("描述", { exact: true }).fill("从浏览器创建");
-  await page.getByLabel("优先级", { exact: true }).selectOption("3");
-  await page.getByLabel("截止日期（本地时间）").fill("2026-12-15T10:30");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByRole("link", { name: "Tasks", exact: true }).click();
+  await expect(page.getByText("No tasks here yet")).toBeVisible();
+  await page.getByRole("button", { name: "New project", exact: true }).click();
+  await page.getByLabel("Project name").fill("Learning plan");
+  await page.getByLabel("Project description").fill("Browser acceptance test");
+  await page.getByRole("button", { name: "Save project" }).click();
+  await page
+    .getByRole("button", { name: "Learning plan", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Edit project", exact: true }).click();
+  await page
+    .getByLabel("Project description")
+    .fill("Updated project description");
+  await page.getByRole("button", { name: "Save project" }).click();
+  await expect(
+    page.getByText("Updated project description", { exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "New task", exact: false }).click();
+  await page.getByLabel("Task title").fill("Finish Lesson 19");
+  await page
+    .getByLabel("Description", { exact: true })
+    .fill("Created in the browser");
+  await page.getByLabel("Priority", { exact: true }).selectOption("3");
+  await page.getByLabel("Due date (local time)").fill("2026-12-15T10:30");
   const createdResponse = page.waitForResponse(
     (response) =>
       response.url().endsWith("/api/tasks") &&
       response.request().method() === "POST",
   );
-  await page.getByRole("button", { name: "保存任务" }).click();
+  await page.getByRole("button", { name: "Save task" }).click();
   const created = await (await createdResponse).json();
   expect(created.due_date).toBe("2026-12-15T09:30:00Z");
   expect(created.project_id).not.toBeNull();
   await expect(
-    page.getByRole("heading", { name: "完成 Lesson 19" }),
+    page.getByRole("heading", { name: "Finish Lesson 19" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "删除项目", exact: true }).click();
-  await page.getByRole("button", { name: "确认删除" }).click();
-  await expect(page.getByRole("alert")).toContainText("项目仍有任务");
-  await page.getByRole("button", { name: "取消", exact: true }).click();
   await page
-    .getByRole("checkbox", { name: "完成任务：完成 Lesson 19" })
+    .getByRole("button", { name: "Delete project", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Confirm delete" }).click();
+  await expect(page.getByRole("alert")).toContainText(
+    "This project still has tasks",
+  );
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page
+    .getByRole("checkbox", { name: "Complete task: Finish Lesson 19" })
     .check();
   await expect(page.getByRole("checkbox")).toBeEnabled();
   await expect(page.getByRole("checkbox")).toBeChecked();
-  await page.getByRole("button", { name: "编辑任务：完成 Lesson 19" }).click();
-  await page.getByRole("button", { name: "清除截止日期" }).click();
-  await page.getByLabel("所属项目").selectOption("");
+  await page
+    .getByRole("button", { name: "Edit task: Finish Lesson 19" })
+    .click();
+  await page.getByRole("button", { name: "Clear due date" }).click();
+  await page.getByLabel("Project", { exact: true }).selectOption("");
   const patch = page.waitForRequest(
     (request) =>
       request.url().includes("/api/tasks/") && request.method() === "PATCH",
   );
-  await page.getByRole("button", { name: "保存任务" }).click();
+  await page.getByRole("button", { name: "Save task" }).click();
   expect((await patch).postDataJSON()).toEqual({
     version: 2,
     due_date: null,
     project_id: null,
   });
-  await expect(page.getByText("这里还没有任务")).toBeVisible();
-  await page.getByRole("button", { name: "删除项目", exact: true }).click();
-  await page.getByRole("button", { name: "确认删除" }).click();
+  await expect(page.getByText("No tasks here yet")).toBeVisible();
+  await page
+    .getByRole("button", { name: "Delete project", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Confirm delete" }).click();
   await expect(page.getByRole("dialog")).not.toBeVisible();
-  await page.getByRole("button", { name: "未归类", exact: true }).click();
-  await page.getByRole("button", { name: "删除任务：完成 Lesson 19" }).click();
-  await page.getByRole("button", { name: "取消", exact: true }).click();
+  await page.getByRole("button", { name: "Unassigned", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Delete task: Finish Lesson 19" })
+    .click();
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "完成 Lesson 19" }),
+    page.getByRole("heading", { name: "Finish Lesson 19" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "删除任务：完成 Lesson 19" }).click();
-  await page.getByRole("button", { name: "确认删除" }).click();
-  await expect(page.getByText("这里还没有任务")).toBeVisible();
+  await page
+    .getByRole("button", { name: "Delete task: Finish Lesson 19" })
+    .click();
+  await page.getByRole("button", { name: "Confirm delete" }).click();
+  await expect(page.getByText("No tasks here yet")).toBeVisible();
 });

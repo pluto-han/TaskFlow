@@ -50,13 +50,13 @@ test("login, revocation, refresh and responsive layout", async ({ page }) => {
     fullPage: true,
   });
   async function login() {
-    await page.getByLabel("邮箱地址").fill("learner@example.com");
+    await page.getByLabel("Email address").fill("learner@example.com");
     await page
-      .getByLabel("密码", { exact: true })
+      .getByLabel("Password", { exact: true })
       .fill("a long test passphrase");
-    await page.getByRole("button", { name: "登录", exact: true }).click();
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
     await expect(
-      page.getByRole("heading", { name: "你的个人空间" }),
+      page.getByRole("heading", { name: "A space of your own" }),
     ).toBeVisible();
   }
   await login();
@@ -75,12 +75,16 @@ test("login, revocation, refresh and responsive layout", async ({ page }) => {
   await expect(page).toHaveURL(/\/login$/);
   await login();
   expired = true;
-  await page.getByRole("button", { name: "刷新资料" }).click();
-  await expect(page.getByRole("status")).toContainText("登录已失效");
+  await page.getByRole("button", { name: "Refresh profile" }).click();
+  await expect(page.getByRole("status")).toContainText(
+    "Your session has ended",
+  );
   expired = false;
   await login();
-  await page.getByRole("button", { name: "退出登录" }).click();
-  await expect(page.getByRole("status")).toContainText("已安全退出");
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await expect(page.getByRole("status")).toContainText(
+    "You have signed out safely",
+  );
   await page.setViewportSize({ width: 375, height: 812 });
   await page.screenshot({
     path: "test-results/login-mobile.png",
@@ -91,9 +95,9 @@ test("login, revocation, refresh and responsive layout", async ({ page }) => {
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true);
-  await page.getByRole("link", { name: "创建账号" }).click();
-  await page.getByRole("button", { name: "创建账号" }).click();
-  await expect(page.getByLabel("邮箱地址")).toBeFocused();
+  await page.getByRole("link", { name: "Create account" }).click();
+  await page.getByRole("button", { name: "Create account" }).click();
+  await expect(page.getByLabel("Email address")).toBeFocused();
   await page.screenshot({
     path: "test-results/register-mobile.png",
     fullPage: true,
@@ -109,24 +113,28 @@ test("actual API registration/login/profile/logout through Vite proxy", async ({
   );
   const email = `browser-${Date.now()}@example.com`;
   await page.goto("/register");
-  await page.getByLabel("邮箱地址").fill(email);
+  await page.getByLabel("Email address").fill(email);
   await page
-    .getByLabel("密码", { exact: true })
+    .getByLabel("Password", { exact: true })
     .fill("a long live browser passphrase");
-  await page.getByLabel("确认密码").fill("a long live browser passphrase");
-  await page.getByRole("button", { name: "创建账号" }).click();
-  await expect(page.getByRole("status")).toContainText("注册成功");
-  await page.getByRole("link", { name: "前往登录" }).click();
-  await page.getByLabel("邮箱地址").fill(email);
   await page
-    .getByLabel("密码", { exact: true })
+    .getByLabel("Confirm password")
     .fill("a long live browser passphrase");
-  await page.getByRole("button", { name: "登录", exact: true }).click();
+  await page.getByRole("button", { name: "Create account" }).click();
+  await expect(page.getByRole("status")).toContainText("Your space is ready");
+  await page.getByRole("link", { name: "Continue to sign in" }).click();
+  await page.getByLabel("Email address").fill(email);
+  await page
+    .getByLabel("Password", { exact: true })
+    .fill("a long live browser passphrase");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page.getByRole("heading", { name: email })).toBeVisible();
-  await page.getByRole("button", { name: "刷新资料" }).click();
-  await expect(page.getByRole("button", { name: "退出登录" })).toBeEnabled();
-  await page.getByRole("button", { name: "退出登录" }).click();
-  await expect(page.getByRole("status")).toContainText("已安全退出");
+  await page.getByRole("button", { name: "Refresh profile" }).click();
+  await expect(page.getByRole("button", { name: "Sign out" })).toBeEnabled();
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await expect(page.getByRole("status")).toContainText(
+    "You have signed out safely",
+  );
   expect(
     await page.evaluate(() => localStorage.length + sessionStorage.length),
   ).toBe(0);

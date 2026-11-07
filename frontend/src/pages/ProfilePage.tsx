@@ -4,7 +4,7 @@ import { Navigate } from "react-router";
 import { useAuth } from "../auth/AuthProvider";
 
 const date = (value: string | number) =>
-  new Intl.DateTimeFormat("zh-CN", {
+  new Intl.DateTimeFormat("en-GB", {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
@@ -18,10 +18,10 @@ export function ProfilePage() {
       <div className="profile-heading">
         <div>
           <span className="eyebrow">YOUR ACCOUNT</span>
-          <h1 id="profile-heading">你的个人空间</h1>
-          <p className="subtitle">很高兴再次见到你。</p>
+          <h1 id="profile-heading">A space of your own</h1>
+          <p className="subtitle">Good to have you here again.</p>
         </div>
-        <span className="pill">已登录</span>
+        <span className="pill">Signed in</span>
       </div>
       {auth.error && (
         <div className="notice error" role="alert">
@@ -35,16 +35,16 @@ export function ProfilePage() {
           </div>
           <div>
             <h2>{auth.user.email}</h2>
-            <p>TaskFlow 个人账号</p>
+            <p>Your TaskFlow account</p>
           </div>
         </div>
         <dl className="details">
           <div className="detail">
-            <dt>邮箱地址</dt>
+            <dt>Email address</dt>
             <dd>{auth.user.email}</dd>
           </div>
           <div className="detail">
-            <dt>账号 ID</dt>
+            <dt>Account ID</dt>
             <dd>
               <code>{auth.user.id}</code>{" "}
               <button
@@ -52,27 +52,31 @@ export function ProfilePage() {
                 onClick={() =>
                   void navigator.clipboard
                     .writeText(auth.user!.id)
-                    .then(() => setCopyMessage("账号 ID 已复制"))
-                    .catch(() => setCopyMessage("请选中账号 ID 手工复制"))
+                    .then(() => setCopyMessage("Account ID copied"))
+                    .catch(() =>
+                      setCopyMessage("Please select and copy your account ID."),
+                    )
                 }
               >
-                复制账号 ID
+                Copy account ID
               </button>
               <span aria-live="polite">{copyMessage}</span>
             </dd>
           </div>
           <div className="detail">
-            <dt>加入时间</dt>
+            <dt>Here since</dt>
             <dd>{date(auth.user.created_at)}</dd>
           </div>
           <div className="detail">
-            <dt>本次登录有效至</dt>
+            <dt>Signed in until</dt>
             <dd>{auth.expiresAt ? date(auth.expiresAt) : "—"}</dd>
           </div>
         </dl>
         <div className="actions">
           <p role="status">
-            {auth.busy ? "正在处理，请稍候…" : "刷新页面后需要重新登录。"}
+            {auth.busy
+              ? "Just a moment…"
+              : "Refreshing the page will sign you out."}
           </p>
           <div className="actions-buttons">
             <button
@@ -81,7 +85,7 @@ export function ProfilePage() {
               disabled={auth.busy}
               onClick={() => void auth.refresh()}
             >
-              刷新资料
+              Refresh profile
             </button>
             <button
               type="button"
@@ -89,7 +93,7 @@ export function ProfilePage() {
               disabled={auth.busy}
               onClick={() => void auth.logout()}
             >
-              退出登录
+              Sign out
             </button>
           </div>
         </div>

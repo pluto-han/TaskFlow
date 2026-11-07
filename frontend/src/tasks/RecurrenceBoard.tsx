@@ -61,31 +61,37 @@ export function RecurrenceBoard() {
       setDeleting(null);
       await load();
     } catch (err) {
-      setError(errorMessage(err) + " 如发生版本冲突，请关闭弹窗并刷新后重试。");
+      setError(
+        errorMessage(err) +
+          " If the schedule has changed, close this dialog and refresh before trying again.",
+      );
     } finally {
       setBusy(false);
     }
   }
   return (
-    <section aria-label="循环任务">
+    <section aria-label="Recurring tasks">
       <div className="board-heading">
         <div>
-          <span className="eyebrow">按自己的节奏</span>
-          <h1>循环任务</h1>
-          <p className="subtitle">按荷兰自然日重复，完成时间不改变周期。</p>
+          <span className="eyebrow">At your own pace</span>
+          <h1>Recurring tasks</h1>
+          <p className="subtitle">
+            Repeats by the Amsterdam calendar. Finishing a task does not change
+            its rhythm.
+          </p>
         </div>
         <button
           className="button primary"
           disabled={busy || !day}
           onClick={() => setEditor("new")}
         >
-          新建循环规则
+          New recurring task
         </button>
       </div>
       <p className="hint">
         {schedulerEnabled
-          ? "自动生成已启用：按荷兰日期加入今日任务，正常情况下约 30 秒内出现。"
-          : "当前仅保存规则与预览日期，尚未启用自动生成任务。"}
+          ? "Automatic tasks are on. Tasks join Today by the Amsterdam calendar, usually within about 30 seconds."
+          : "Schedules and date previews are saved, but automatic task creation is not enabled yet."}
       </p>
       {error && (
         <div className="notice error" role="alert">
@@ -97,14 +103,14 @@ export function RecurrenceBoard() {
         disabled={busy}
         onClick={() => void load()}
       >
-        刷新规则
+        Refresh schedules
       </button>
-      {busy && <p role="status">正在同步…</p>}
+      {busy && <p role="status">Syncing…</p>}
       {!busy && !error && !items.length && (
         <div className="empty-state">
           <span aria-hidden="true">○</span>
-          <h2>还没有循环规则</h2>
-          <p>从每天或每几天重复的小事开始。</p>
+          <h2>Room for a new rhythm</h2>
+          <p>Begin with something small, every day or every few days.</p>
         </div>
       )}
       <ul className="task-list" aria-busy={busy}>
@@ -117,17 +123,23 @@ export function RecurrenceBoard() {
               )}
               <div className="task-meta">
                 <span className={`priority priority-${rule.priority}`}>
-                  {["", "低优先级", "中优先级", "高优先级"][rule.priority]}
+                  {
+                    ["", "Low priority", "Medium priority", "High priority"][
+                      rule.priority
+                    ]
+                  }
                 </span>
                 <span>
-                  每 {rule.interval_days} 天 · {rule.paused ? "已暂停" : "启用"}
+                  Every {rule.interval_days}{" "}
+                  {rule.interval_days === 1 ? "day" : "days"} ·{" "}
+                  {rule.paused ? "Paused" : "Active"}
                 </span>
-                {rule.reminder_enabled && <span>Discord 提醒</span>}
+                {rule.reminder_enabled && <span>Discord reminder</span>}
               </div>
               <p className="hint">
                 {rule.paused
-                  ? "恢复时跳过过去的日期。"
-                  : `日期预览：${rule.preview_dates.join("、")}（荷兰）`}
+                  ? "Resuming starts from the present; missed dates stay in the past."
+                  : `Upcoming dates: ${rule.preview_dates.join(", ")} (Amsterdam)`}
               </p>
             </div>
             <div className="row-actions">
@@ -136,7 +148,7 @@ export function RecurrenceBoard() {
                 disabled={busy}
                 onClick={() => setEditor(rule)}
               >
-                编辑
+                Edit
               </button>
               <button
                 className="text-button"
@@ -152,14 +164,14 @@ export function RecurrenceBoard() {
                   )
                 }
               >
-                {rule.paused ? "恢复" : "暂停"}
+                {rule.paused ? "Resume" : "Pause"}
               </button>
               <button
                 className="text-button danger-text"
                 disabled={busy}
                 onClick={() => setDeleting(rule)}
               >
-                删除
+                Delete
               </button>
             </div>
           </li>
@@ -172,7 +184,7 @@ export function RecurrenceBoard() {
             disabled={busy}
             onClick={() => void load(cursor)}
           >
-            加载更多
+            Load more
           </button>
         </div>
       )}
@@ -188,20 +200,27 @@ export function RecurrenceBoard() {
         />
       )}
       {deleting && (
-        <Modal title="删除循环规则" busy={busy} close={() => setDeleting(null)}>
+        <Modal
+          title="Delete recurring task"
+          busy={busy}
+          close={() => setDeleting(null)}
+        >
           {error && (
             <div className="notice error" role="alert">
               {error}
             </div>
           )}
-          <p>删除“{deleting.title}”的规则？已有任务和历史记录会保留。</p>
+          <p>
+            Delete the schedule for “{deleting.title}”? Your existing tasks and
+            history will stay.
+          </p>
           <div className="modal-actions">
             <button
               className="button secondary"
               disabled={busy}
               onClick={() => setDeleting(null)}
             >
-              取消
+              Cancel
             </button>
             <button
               className="button danger"
@@ -212,7 +231,7 @@ export function RecurrenceBoard() {
                 )
               }
             >
-              确认删除
+              Confirm delete
             </button>
           </div>
         </Modal>
@@ -287,7 +306,9 @@ export function RecurrenceEditor({
       (interval !== rule.interval_days || anchor !== rule.anchor_date) &&
       anchor <= day
     ) {
-      setError("修改周期时，请选择晚于今天的生效日期。");
+      setError(
+        "Choose a date after today for the new schedule to take effect.",
+      );
       return;
     }
     setBusy(true);
@@ -318,7 +339,7 @@ export function RecurrenceEditor({
     } catch (err) {
       setError(
         errorMessage(err) +
-          " 草稿已保留；版本冲突时请取消并刷新规则，再重新编辑。",
+          " Your draft is safe. If the schedule has changed, cancel and refresh it before editing again.",
       );
     } finally {
       setBusy(false);
@@ -326,7 +347,7 @@ export function RecurrenceEditor({
   }
   return (
     <Modal
-      title={rule ? "编辑循环规则" : "新建循环规则"}
+      title={rule ? "Edit recurring task" : "New recurring task"}
       busy={busy}
       close={close}
     >
@@ -337,7 +358,7 @@ export function RecurrenceEditor({
       )}
       <form onSubmit={(event) => void submit(event)} aria-busy={busy}>
         <div className="field">
-          <label htmlFor="rec-title">任务标题</label>
+          <label htmlFor="rec-title">Task title</label>
           <input
             id="rec-title"
             value={title}
@@ -348,7 +369,7 @@ export function RecurrenceEditor({
           />
         </div>
         <div className="field">
-          <label htmlFor="rec-description">描述</label>
+          <label htmlFor="rec-description">Description</label>
           <textarea
             id="rec-description"
             rows={3}
@@ -360,20 +381,20 @@ export function RecurrenceEditor({
         </div>
         <div className="form-grid">
           <div className="field">
-            <label htmlFor="rec-priority">优先级</label>
+            <label htmlFor="rec-priority">Priority</label>
             <select
               id="rec-priority"
               value={priority}
               disabled={busy}
               onChange={(e) => setPriority(Number(e.target.value))}
             >
-              <option value={1}>低</option>
-              <option value={2}>中</option>
-              <option value={3}>高</option>
+              <option value={1}>Low</option>
+              <option value={2}>Medium</option>
+              <option value={3}>High</option>
             </select>
           </div>
           <div className="field">
-            <label htmlFor="rec-interval">每隔几天</label>
+            <label htmlFor="rec-interval">Repeat every (days)</label>
             <input
               id="rec-interval"
               type="number"
@@ -391,7 +412,7 @@ export function RecurrenceEditor({
         </div>
         <div className="field">
           <label htmlFor="rec-anchor">
-            {rule ? "周期起点（改动后仅影响未来）" : "首次日期"}
+            {rule ? "Start date (changes apply to future tasks)" : "First date"}
           </label>
           <input
             id="rec-anchor"
@@ -416,21 +437,25 @@ export function RecurrenceEditor({
               disabled={busy || (!discordBound && !reminderEnabled)}
               onChange={(e) => setReminderEnabled(e.target.checked)}
             />{" "}
-            Discord 频道提醒
+            Discord channel reminder
           </label>
           {!discordBound && (
             <p className="hint">
-              请先在<Link to="/profile">个人资料</Link>中绑定 Discord 频道。
+              First, connect a Discord channel in your{" "}
+              <Link to="/profile">Profile</Link>.
             </p>
           )}
         </div>
         <p className="hint">
-          使用 Europe/Amsterdam
-          自然日。修改周期须选择未来的生效日期；不会修改已有任务，也不补过去任务。
+          Dates follow the Europe/Amsterdam calendar. Schedule changes must
+          start in the future. Existing tasks stay as they are, and missed dates
+          are not backfilled.
         </p>
         <p className="hint" aria-live="polite">
           {previewError ||
-            (dates.length ? `周期预览：${dates.join("、")}` : "正在计算日期…")}
+            (dates.length
+              ? `Schedule preview: ${dates.join(", ")}`
+              : "Finding the next dates…")}
         </p>
         <div className="modal-actions">
           <button
@@ -439,10 +464,10 @@ export function RecurrenceEditor({
             disabled={busy}
             onClick={close}
           >
-            取消
+            Cancel
           </button>
           <button type="submit" className="button primary" disabled={busy}>
-            {busy ? "正在保存…" : "保存规则"}
+            {busy ? "Saving…" : "Save schedule"}
           </button>
         </div>
       </form>

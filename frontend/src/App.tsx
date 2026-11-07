@@ -9,12 +9,12 @@ import { ProfilePage } from "./pages/ProfilePage";
 function Navigation() {
   const { user } = useAuth();
   return user ? (
-    <nav className="app-nav" aria-label="主导航">
-      <Link to="/tasks">任务</Link>
-      <Link to="/profile">个人资料</Link>
+    <nav className="app-nav" aria-label="Main navigation">
+      <Link to="/tasks">Tasks</Link>
+      <Link to="/profile">Profile</Link>
     </nav>
   ) : (
-    <span className="nav-label">为专注留出空间</span>
+    <span className="nav-label">Make room for what matters</span>
   );
 }
 
@@ -23,17 +23,17 @@ export function App({ invitationToken = "" }: { invitationToken?: string }) {
   const { pathname } = useLocation();
   const main = useRef<HTMLElement>(null);
   useEffect(() => {
-    document.title = `${pathname === "/tasks" ? "任务" : pathname === "/register" ? "注册" : pathname === "/profile" ? "个人空间" : "登录"} · TaskFlow`;
+    document.title = `${pathname === "/tasks" ? "Tasks" : pathname === "/register" ? "Create account" : pathname === "/profile" ? "Your space" : "Sign in"} · TaskFlow`;
     main.current?.focus();
   }, [pathname]);
   return (
     <AuthProvider>
       <a className="skip-link" href="#main">
-        跳到主要内容
+        Skip to main content
       </a>
       <div className="shell">
         <header className="topbar">
-          <Link className="brand" to="/" aria-label="TaskFlow 首页">
+          <Link className="brand" to="/" aria-label="TaskFlow home">
             <span className="brand-mark" aria-hidden="true">
               ↗
             </span>
@@ -64,10 +64,13 @@ export function App({ invitationToken = "" }: { invitationToken?: string }) {
               path="*"
               element={
                 <section className="center">
-                  <h1>这里还没有内容</h1>
-                  <p>这个页面不存在，回到个人空间继续吧。</p>
+                  <h1>Nothing here just yet</h1>
+                  <p>
+                    This page could not be found. Find your way back to your
+                    space.
+                  </p>
                   <Link className="button primary" to="/">
-                    返回首页
+                    Back to home
                   </Link>
                 </section>
               }
@@ -75,8 +78,8 @@ export function App({ invitationToken = "" }: { invitationToken?: string }) {
           </Routes>
         </main>
         <footer className="footer">
-          <span>TaskFlow · 有条不紊，从容向前</span>
-          <span>一点专注，一点进步。</span>
+          <span>TaskFlow · A little order. A gentler pace.</span>
+          <span>A little focus. A little further.</span>
         </footer>
       </div>
     </AuthProvider>

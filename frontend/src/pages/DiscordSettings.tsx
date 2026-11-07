@@ -53,7 +53,8 @@ export function DiscordSettings() {
         setNotificationsError("");
       }
     } catch {
-      if (active.current) setNotificationsError("暂时无法读取提醒记录。");
+      if (active.current)
+        setNotificationsError("We could not load your reminders just now.");
     }
   }, [authorize]);
   useEffect(() => {
@@ -106,38 +107,42 @@ export function DiscordSettings() {
       aria-labelledby="discord-heading"
       aria-busy={busy}
     >
-      <h2 id="discord-heading">Discord 频道</h2>
+      <h2 id="discord-heading">Discord channel</h2>
       <p className="hint">
-        以后启用循环提醒后，任务信息将发送到这个频道，所有能查看频道的成员都可能看到。请只绑定你有权管理的频道。
+        Recurring task reminders will appear in this channel, where anyone with
+        access can see them. Only connect a channel you have permission to
+        manage.
       </p>
       <p className="hint">
-        循环规则和发送服务均开启后，提醒会 @ 完成频道绑定的 Discord 用户。如果是他人代你绑定，请由你重新绑定频道。
+        When reminders and delivery are enabled, messages will mention the
+        Discord account that connected this channel. If someone connected it for
+        you, reconnect it yourself to receive the mentions.
       </p>
       {error && (
         <div className="notice error" role="alert">
           {error}
         </div>
       )}
-      {!binding && !error && <p role="status">正在读取绑定状态…</p>}
+      {!binding && !error && <p role="status">Checking your connection…</p>}
       {binding && (
         <dl className="details">
           <div className="detail">
-            <dt>状态</dt>
+            <dt>Status</dt>
             <dd>
-              {binding.bound ? "已绑定" : "未绑定"}
-              {!binding.enabled && " · 服务尚未配置"}
+              {binding.bound ? "Connected" : "Not connected"}
+              {!binding.enabled && " · Not set up yet"}
             </dd>
           </div>
           {binding.bound && (
             <>
               <div className="detail">
-                <dt>频道</dt>
+                <dt>Channel</dt>
                 <dd>
                   #{binding.channel_name} <code>{binding.channel_id}</code>
                 </dd>
               </div>
               <div className="detail">
-                <dt>服务器 ID</dt>
+                <dt>Server ID</dt>
                 <dd>
                   <code>{binding.guild_id}</code>
                 </dd>
@@ -148,19 +153,27 @@ export function DiscordSettings() {
       )}
       {binding && !binding.enabled && (
         <p className="hint">
-          请先配置 Discord Application ID 和公钥，然后重启后端。具体步骤见项目的
-          docs/lesson-33-discord-setup.md。
+          Ask the server administrator to configure the Discord Application ID
+          and Public Key, then restart the service. Setup instructions are in{" "}
+          <code>docs/lesson-33-discord-setup.md</code>.
         </p>
       )}
       {code && (
-        <div className="notice" role="region" aria-label="一次性绑定码">
-          <p>在目标服务器的普通文字频道执行：</p>
+        <div
+          className="notice"
+          role="region"
+          aria-label="One-time connection code"
+        >
+          <p>
+            Run this command in a regular text channel on your chosen server:
+          </p>
           <code className="binding-command">
             /taskflow bind code:{code.code}
           </code>
           <p className="hint">
-            10
-            分钟内有效，只能使用一次。请勿分享、截图或粘贴到普通聊天消息；重新生成会撤销旧码。
+            Valid for 10 minutes and one use only. Keep it private: do not share
+            it, take screenshots, or post it as a regular chat message. A new
+            code replaces the old one.
           </p>
           <button
             className="text-button"
@@ -168,12 +181,14 @@ export function DiscordSettings() {
               void navigator.clipboard
                 .writeText(`/taskflow bind code:${code.code}`)
                 .then(() =>
-                  setCopy("命令已复制，请粘贴到 Discord 的斜杠命令框。"),
+                  setCopy(
+                    "Command copied. Paste it into Discord’s slash command field.",
+                  ),
                 )
-                .catch(() => setCopy("请手工复制命令。"))
+                .catch(() => setCopy("Please copy the command manually."))
             }
           >
-            复制绑定命令
+            Copy connection command
           </button>
           <span role="status">{copy}</span>
         </div>
@@ -184,7 +199,7 @@ export function DiscordSettings() {
           disabled={busy}
           onClick={() => void load()}
         >
-          刷新绑定状态
+          Refresh connection
         </button>
         <button
           className="button primary"
@@ -192,10 +207,10 @@ export function DiscordSettings() {
           onClick={() => void issue()}
         >
           {code
-            ? "重新生成绑定码"
+            ? "Generate a new code"
             : binding?.bound
-              ? "更换绑定频道"
-              : "生成绑定码"}
+              ? "Change channel"
+              : "Generate connection code"}
         </button>
         {binding && (binding.bound || code) && (
           <button
@@ -203,21 +218,21 @@ export function DiscordSettings() {
             disabled={busy}
             onClick={() => setConfirm(true)}
           >
-            解绑并撤销绑定码
+            Disconnect and revoke codes
           </button>
         )}
       </div>
       <div className="notification-history">
-        <h3>最近提醒</h3>
+        <h3>Recent reminders</h3>
         <button
           className="text-button"
           onClick={() => void loadNotifications()}
         >
-          刷新提醒记录
+          Refresh reminders
         </button>
         {notificationsError && <p role="status">{notificationsError}</p>}
         {!notificationsError && notifications.length === 0 && (
-          <p className="hint">暂无提醒记录。</p>
+          <p className="hint">No reminders yet.</p>
         )}
         <ul className="task-list">
           {notifications.map((item) => (
@@ -230,13 +245,13 @@ export function DiscordSettings() {
                     {
                       (
                         {
-                          pending: "等待发送",
-                          retrying: "等待重试",
-                          leased: "发送中",
-                          sent: "已发送",
-                          failed: "发送失败",
-                          expired: "已过期",
-                          canceled: "已取消",
+                          pending: "Waiting to send",
+                          retrying: "Waiting to retry",
+                          leased: "Sending",
+                          sent: "Sent",
+                          failed: "Delivery failed",
+                          expired: "Expired",
+                          canceled: "Canceled",
                         } as const
                       )[item.status]
                     }
@@ -246,16 +261,19 @@ export function DiscordSettings() {
                   <p className="hint">
                     {(
                       {
-                        network: "网络异常",
-                        rate_limited: "Discord 暂时限流",
-                        discord_unavailable: "Discord 暂时不可用",
-                        discord_token_invalid: "Bot Token 无效，请检查配置",
-                        discord_permission: "Bot 没有频道权限",
-                        discord_channel_missing: "频道不可用",
-                        discord_rejected: "Discord 拒绝了请求",
-                        attempts_exhausted: "重试次数已用完",
+                        network: "Network error",
+                        rate_limited: "Discord is limiting requests",
+                        discord_unavailable:
+                          "Discord is temporarily unavailable",
+                        discord_token_invalid:
+                          "The bot token is invalid. Please check the configuration.",
+                        discord_permission:
+                          "The bot does not have access to this channel",
+                        discord_channel_missing: "Channel unavailable",
+                        discord_rejected: "Discord declined the request",
+                        attempts_exhausted: "No retry attempts left",
                       } as Record<string, string>
-                    )[item.last_error] || "发送未完成"}
+                    )[item.last_error] || "Delivery did not complete"}
                   </p>
                 )}
               </div>
@@ -264,8 +282,15 @@ export function DiscordSettings() {
         </ul>
       </div>
       {confirm && (
-        <Modal title="解绑 Discord" busy={busy} close={() => setConfirm(false)}>
-          <p>解绑当前频道并撤销未使用的绑定码？任务与历史会保留。</p>
+        <Modal
+          title="Disconnect Discord"
+          busy={busy}
+          close={() => setConfirm(false)}
+        >
+          <p>
+            Disconnect this channel and revoke unused connection codes? Your
+            tasks and history will stay.
+          </p>
           {error && (
             <div role="alert" className="notice error">
               {error}
@@ -277,14 +302,14 @@ export function DiscordSettings() {
               disabled={busy}
               onClick={() => setConfirm(false)}
             >
-              取消
+              Cancel
             </button>
             <button
               className="button danger"
               disabled={busy}
               onClick={() => void unbind()}
             >
-              确认解绑
+              Confirm disconnect
             </button>
           </div>
         </Modal>

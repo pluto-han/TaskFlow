@@ -102,7 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       if (controller.signal.aborted) return;
       if (err instanceof ApiError && err.status === 401)
-        clear("登录已失效，请重新登录。");
+        clear("Your session has ended. Please sign in again.");
       else setError(errorMessage(err));
     } finally {
       if (operation.current === controller) {
@@ -118,12 +118,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const controller = begin();
     try {
       await api.logout(active.token, controller.signal);
-      if (!controller.signal.aborted) clear("已安全退出。");
+      if (!controller.signal.aborted) clear("You have signed out safely.");
     } catch (err) {
       if (controller.signal.aborted) return;
       if (err instanceof ApiError && err.status === 401)
-        clear("已退出，请重新登录。");
-      else setError(`退出未完成。${errorMessage(err)}`);
+        clear("You are signed out. Please sign in again.");
+      else setError(`We could not sign you out. ${errorMessage(err)}`);
     } finally {
       if (operation.current === controller) {
         operation.current = null;
@@ -141,7 +141,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!session) return;
     const expire = () => {
-      if (Date.now() >= session.expiresAt) clear("登录已过期，请重新登录。");
+      if (Date.now() >= session.expiresAt)
+        clear("Your session has expired. Please sign in again.");
       else void refresh();
     };
     const timer = window.setTimeout(
@@ -170,7 +171,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           err.status === 401 &&
           current.current?.token === active.token
         )
-          clear("登录已失效，请重新登录。");
+          clear("Your session has ended. Please sign in again.");
         throw err;
       }
     },

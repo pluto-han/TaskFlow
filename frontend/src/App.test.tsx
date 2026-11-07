@@ -31,12 +31,12 @@ function mount(path = "/login") {
 }
 async function fillLogin() {
   const user = userEvent.setup();
-  await user.type(screen.getByLabelText("邮箱地址"), account.email);
+  await user.type(screen.getByLabelText("Email address"), account.email);
   await user.type(
-    screen.getByLabelText("密码", { exact: true }),
+    screen.getByLabelText("Password", { exact: true }),
     "a long test passphrase",
   );
-  await user.click(screen.getByRole("button", { name: /登录/ }));
+  await user.click(screen.getByRole("button", { name: /Sign in/ }));
   return user;
 }
 beforeEach(() => {
@@ -58,11 +58,11 @@ beforeEach(() => {
 it("guards profile and loses session on a full page remount without persisting credentials", async () => {
   const view = mount("/profile");
   expect(
-    await screen.findByRole("heading", { name: "欢迎回来。" }),
+    await screen.findByRole("heading", { name: "Welcome back." }),
   ).toBeVisible();
   await fillLogin();
   expect(
-    await screen.findByRole("heading", { name: "你的个人空间" }),
+    await screen.findByRole("heading", { name: "A space of your own" }),
   ).toBeVisible();
   expect(api.me).toHaveBeenCalledWith(
     "test-memory-only",
@@ -73,7 +73,7 @@ it("guards profile and loses session on a full page remount without persisting c
   view.unmount();
   mount("/profile");
   expect(
-    await screen.findByRole("heading", { name: "欢迎回来。" }),
+    await screen.findByRole("heading", { name: "Welcome back." }),
   ).toBeVisible();
 });
 it("shows incorrect credentials without rendering a profile", async () => {
@@ -81,7 +81,7 @@ it("shows incorrect credentials without rendering a profile", async () => {
   mount();
   await fillLogin();
   expect(await screen.findByRole("alert")).toHaveTextContent(
-    "邮箱或密码不正确",
+    "The email or password is incorrect",
   );
   expect(api.me).not.toHaveBeenCalled();
 });
@@ -94,45 +94,60 @@ it("validates register, prevents duplicates while loading and does not auto-logi
   );
   const user = userEvent.setup();
   mount("/register");
-  await user.click(screen.getByRole("button", { name: /创建账号/ }));
-  expect(screen.getByLabelText("邮箱地址")).toHaveFocus();
+  await user.click(screen.getByRole("button", { name: /Create account/ }));
+  expect(screen.getByLabelText("Email address")).toHaveFocus();
   expect(api.register).not.toHaveBeenCalled();
-  await user.type(screen.getByLabelText("邮箱地址"), account.email);
+  await user.type(screen.getByLabelText("Email address"), account.email);
   await user.type(
-    screen.getByLabelText("密码", { exact: true }),
+    screen.getByLabelText("Password", { exact: true }),
     "a long test passphrase",
   );
-  await user.type(screen.getByLabelText("确认密码"), "a long test passphrase");
-  await user.dblClick(screen.getByRole("button", { name: /创建账号/ }));
+  await user.type(
+    screen.getByLabelText("Confirm password"),
+    "a long test passphrase",
+  );
+  await user.dblClick(screen.getByRole("button", { name: /Create account/ }));
   expect(api.register).toHaveBeenCalledTimes(1);
-  expect(screen.getByRole("button", { name: /正在创建/ })).toBeDisabled();
+  expect(
+    screen.getByRole("button", { name: /Creating your space/ }),
+  ).toBeDisabled();
   await act(async () => finish(account));
-  expect(await screen.findByRole("status")).toHaveTextContent("注册成功");
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    "Your space is ready",
+  );
   expect(api.login).not.toHaveBeenCalled();
-  await user.click(screen.getByRole("link", { name: "前往登录" }));
-  expect(screen.getByLabelText("密码", { exact: true })).toHaveValue("");
+  await user.click(screen.getByRole("link", { name: "Continue to sign in" }));
+  expect(screen.getByLabelText("Password", { exact: true })).toHaveValue("");
 });
 it("clears the session after a protected endpoint returns 401", async () => {
   mount();
   const user = await fillLogin();
-  await screen.findByRole("heading", { name: "你的个人空间" });
+  await screen.findByRole("heading", { name: "A space of your own" });
   vi.mocked(api.me).mockRejectedValue(new ApiError("UNAUTHORIZED", 401));
-  await user.click(screen.getByRole("button", { name: "刷新资料" }));
+  await user.click(screen.getByRole("button", { name: "Refresh profile" }));
   expect(
-    await screen.findByRole("heading", { name: "欢迎回来。" }),
+    await screen.findByRole("heading", { name: "Welcome back." }),
   ).toBeVisible();
-  expect(screen.getByRole("status")).toHaveTextContent("登录已失效");
+  expect(screen.getByRole("status")).toHaveTextContent(
+    "Your session has ended",
+  );
 });
 it("retains a retry path when logout fails, then clears on successful revocation", async () => {
   mount();
   const user = await fillLogin();
-  await screen.findByRole("heading", { name: "你的个人空间" });
+  await screen.findByRole("heading", { name: "A space of your own" });
   vi.mocked(api.logout).mockRejectedValueOnce(new ApiError("NETWORK_ERROR"));
-  await user.click(screen.getByRole("button", { name: "退出登录" }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("退出未完成");
-  expect(screen.getByRole("heading", { name: "你的个人空间" })).toBeVisible();
-  await user.click(screen.getByRole("button", { name: "退出登录" }));
-  expect(await screen.findByRole("status")).toHaveTextContent("已安全退出");
+  await user.click(screen.getByRole("button", { name: "Sign out" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "We could not sign you out",
+  );
+  expect(
+    screen.getByRole("heading", { name: "A space of your own" }),
+  ).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Sign out" }));
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    "You have signed out safely",
+  );
 });
 it("does not restore a session from a late login response after navigation", async () => {
   let finish!: (value: ReturnType<typeof session>) => void;
@@ -143,9 +158,11 @@ it("does not restore a session from a late login response after navigation", asy
   );
   mount();
   const user = await fillLogin();
-  await user.click(screen.getByRole("link", { name: "创建账号" }));
+  await user.click(screen.getByRole("link", { name: "Create account" }));
   await act(async () => finish(session()));
-  expect(screen.getByRole("heading", { name: "开启你的空间" })).toBeVisible();
+  expect(
+    screen.getByRole("heading", { name: "Make yourself a little space" }),
+  ).toBeVisible();
   await waitFor(() =>
     expect(api.logout).toHaveBeenCalledWith("test-memory-only"),
   );
@@ -156,14 +173,19 @@ it("shows a duplicate-email error on register", async () => {
   );
   mount("/register");
   const user = userEvent.setup();
-  await user.type(screen.getByLabelText("邮箱地址"), account.email);
+  await user.type(screen.getByLabelText("Email address"), account.email);
   await user.type(
-    screen.getByLabelText("密码", { exact: true }),
+    screen.getByLabelText("Password", { exact: true }),
     "a long test passphrase",
   );
-  await user.type(screen.getByLabelText("确认密码"), "a long test passphrase");
-  await user.click(screen.getByRole("button", { name: /创建账号/ }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("这个邮箱已注册");
+  await user.type(
+    screen.getByLabelText("Confirm password"),
+    "a long test passphrase",
+  );
+  await user.click(screen.getByRole("button", { name: /Create account/ }));
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "An account already uses this email",
+  );
 });
 
 it("expires the session locally without waiting for another API call", async () => {
@@ -174,20 +196,24 @@ it("expires the session locally without waiting for another API call", async () 
       expires_at: new Date(Date.now() + 10_000).toISOString(),
     });
     mount();
-    fireEvent.change(screen.getByLabelText("邮箱地址"), {
+    fireEvent.change(screen.getByLabelText("Email address"), {
       target: { value: account.email },
     });
-    fireEvent.change(screen.getByLabelText("密码", { exact: true }), {
+    fireEvent.change(screen.getByLabelText("Password", { exact: true }), {
       target: { value: "a long test passphrase" },
     });
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /登录/ }));
+      fireEvent.click(screen.getByRole("button", { name: /Sign in/ }));
     });
-    expect(screen.getByRole("heading", { name: "你的个人空间" })).toBeVisible();
+    expect(
+      screen.getByRole("heading", { name: "A space of your own" }),
+    ).toBeVisible();
     await act(async () => {
       vi.advanceTimersByTime(10_001);
     });
-    expect(screen.getByRole("status")).toHaveTextContent("登录已过期");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Your session has expired",
+    );
   } finally {
     vi.useRealTimers();
   }
@@ -201,10 +227,12 @@ it("clears authentication when a task request returns 401", async () => {
   );
   mount();
   const user = await fillLogin();
-  await screen.findByRole("heading", { name: "你的个人空间" });
-  await user.click(screen.getByRole("link", { name: /^任务$/ }));
+  await screen.findByRole("heading", { name: "A space of your own" });
+  await user.click(screen.getByRole("link", { name: /^Tasks$/ }));
   expect(
-    await screen.findByRole("heading", { name: "欢迎回来。" }),
+    await screen.findByRole("heading", { name: "Welcome back." }),
   ).toBeVisible();
-  expect(screen.getByRole("status")).toHaveTextContent("登录已失效");
+  expect(screen.getByRole("status")).toHaveTextContent(
+    "Your session has ended",
+  );
 });

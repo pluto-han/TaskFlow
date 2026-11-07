@@ -53,14 +53,16 @@ test("profile channel binding, private code and mobile layout", async ({
     return route.fulfill({ status: 404 });
   });
   await page.goto("/login");
-  await page.getByLabel("邮箱地址").fill("discord@example.com");
+  await page.getByLabel("Email address").fill("discord@example.com");
   await page
-    .getByLabel("密码", { exact: true })
+    .getByLabel("Password", { exact: true })
     .fill("a long learning passphrase");
-  await page.getByRole("button", { name: "登录", exact: true }).click();
-  await page.getByRole("button", { name: "生成绑定码", exact: true }).click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Generate connection code", exact: true })
+    .click();
   await expect(
-    page.getByRole("region", { name: "一次性绑定码" }),
+    page.getByRole("region", { name: "One-time connection code" }),
   ).toContainText(code);
   expect(
     await page.evaluate(() => localStorage.length + sessionStorage.length),
@@ -77,12 +79,14 @@ test("profile channel binding, private code and mobile layout", async ({
   });
   bound = true;
   version = 2; // A Discord-signed command completes the binding outside the website.
-  await page.getByRole("button", { name: "刷新绑定状态" }).click();
+  await page.getByRole("button", { name: "Refresh connection" }).click();
   await expect(page.getByText("#test-channel")).toBeVisible();
-  await expect(page.getByRole("region", { name: "一次性绑定码" })).toHaveCount(
-    0,
-  );
-  await page.getByRole("button", { name: "解绑并撤销绑定码" }).click();
-  await page.getByRole("button", { name: "确认解绑" }).click();
-  await expect(page.getByText("未绑定", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "One-time connection code" }),
+  ).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Disconnect and revoke codes" })
+    .click();
+  await page.getByRole("button", { name: "Confirm disconnect" }).click();
+  await expect(page.getByText("Not connected", { exact: true })).toBeVisible();
 });

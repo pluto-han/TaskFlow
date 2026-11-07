@@ -12,7 +12,7 @@ test("today CRUD, draft rollover and history in a non-Dutch mobile browser", asy
   const tasks = [
     {
       id: "old",
-      title: "昨天的计划",
+      title: "Yesterday’s plan",
       description: "",
       priority: 2,
       completed: false,
@@ -103,46 +103,58 @@ test("today CRUD, draft rollover and history in a non-Dutch mobile browser", asy
     });
   });
   await page.goto("/login");
-  await page.getByLabel("邮箱地址").fill("today@example.com");
-  await page.getByLabel("密码", { exact: true }).fill("a long test passphrase");
-  await page.getByRole("button", { name: "登录", exact: true }).click();
-  await page.getByRole("link", { name: "任务", exact: true }).click();
-  await page.getByRole("button", { name: "今日任务", exact: true }).click();
+  await page.getByLabel("Email address").fill("today@example.com");
+  await page
+    .getByLabel("Password", { exact: true })
+    .fill("a long test passphrase");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByRole("link", { name: "Tasks", exact: true }).click();
+  await page.getByRole("button", { name: "Today", exact: true }).click();
   await expect(
-    page.getByText("荷兰时间 / Europe/Amsterdam · 2026-11-05"),
+    page.getByText("Amsterdam time / Europe/Amsterdam · 2026-11-05"),
   ).toBeVisible();
-  await expect(page.getByRole("button", { name: "新建项目" })).toHaveCount(0);
-  await page.getByRole("button", { name: "＋ 新建任务" }).click();
-  await expect(page.getByLabel("所属项目")).toHaveCount(0);
-  await page.getByLabel("任务标题").fill("荷兰今日任务");
-  await page.getByRole("button", { name: "保存任务" }).click();
+  await expect(page.getByRole("button", { name: "New project" })).toHaveCount(
+    0,
+  );
+  await page.getByRole("button", { name: "＋ New task" }).click();
+  await expect(page.getByLabel("Project", { exact: true })).toHaveCount(0);
+  await page.getByLabel("Task title").fill("Amsterdam today task");
+  await page.getByRole("button", { name: "Save task" }).click();
   await expect(
-    page.getByRole("heading", { name: "荷兰今日任务" }),
+    page.getByRole("heading", { name: "Amsterdam today task" }),
   ).toBeVisible();
-  await page.getByRole("checkbox", { name: "完成任务：荷兰今日任务" }).check();
+  await page
+    .getByRole("checkbox", { name: "Complete task: Amsterdam today task" })
+    .check();
   await expect(
-    page.getByRole("checkbox", { name: "标记未完成：荷兰今日任务" }),
+    page.getByRole("checkbox", {
+      name: "Mark incomplete: Amsterdam today task",
+    }),
   ).toBeChecked();
-  await page.getByRole("button", { name: "编辑任务：荷兰今日任务" }).click();
-  await expect(page.getByLabel("所属项目")).toHaveCount(0);
-  await page.getByLabel("任务标题").fill("已编辑的今日任务");
-  await page.getByRole("button", { name: "保存任务" }).click();
-  await page.getByRole("button", { name: "＋ 新建任务" }).click();
-  await page.getByLabel("任务标题").fill("跨日保留草稿");
+  await page
+    .getByRole("button", { name: "Edit task: Amsterdam today task" })
+    .click();
+  await expect(page.getByLabel("Project", { exact: true })).toHaveCount(0);
+  await page.getByLabel("Task title").fill("Edited today task");
+  await page.getByRole("button", { name: "Save task" }).click();
+  await page.getByRole("button", { name: "＋ New task" }).click();
+  await page.getByLabel("Task title").fill("A draft for a new day");
   businessDate = "2026-11-06";
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await expect(
-    page.getByRole("region", { name: "计划日期变化" }),
+    page.getByRole("region", { name: "Planning date changed" }),
   ).toBeVisible();
-  await expect(page.getByLabel("任务标题")).toHaveValue("跨日保留草稿");
-  await expect(page.getByRole("button", { name: "保存任务" })).toBeDisabled();
-  await page.getByRole("button", { name: "刷新并确认计划日期" }).click();
-  await page.getByRole("button", { name: "保存任务" }).click();
+  await expect(page.getByLabel("Task title")).toHaveValue(
+    "A draft for a new day",
+  );
+  await expect(page.getByRole("button", { name: "Save task" })).toBeDisabled();
+  await page.getByRole("button", { name: "Refresh and confirm date" }).click();
+  await page.getByRole("button", { name: "Save task" }).click();
   await expect(
-    page.getByRole("heading", { name: "已编辑的今日任务" }),
+    page.getByRole("heading", { name: "Edited today task" }),
   ).toHaveCount(0);
   await expect(
-    page.getByRole("heading", { name: "跨日保留草稿" }),
+    page.getByRole("heading", { name: "A draft for a new day" }),
   ).toBeVisible();
   await page.setViewportSize({ width: 375, height: 812 });
   expect(
@@ -154,17 +166,17 @@ test("today CRUD, draft rollover and history in a non-Dutch mobile browser", asy
     path: "test-results/today-mobile.png",
     fullPage: true,
   });
-  await page.getByRole("button", { name: /全部任务/ }).click();
-  await page.getByLabel("筛选计划日期").fill("2026-11-05");
+  await page.getByRole("button", { name: /All tasks/ }).click();
+  await page.getByLabel("Filter by planned date").fill("2026-11-05");
   await expect(
-    page.getByRole("heading", { name: "已编辑的今日任务" }),
+    page.getByRole("heading", { name: "Edited today task" }),
   ).toBeVisible();
-  await expect(page.getByRole("heading", { name: "跨日保留草稿" })).toHaveCount(
-    0,
-  );
+  await expect(
+    page.getByRole("heading", { name: "A draft for a new day" }),
+  ).toHaveCount(0);
   await page
-    .getByRole("button", { name: "删除任务：已编辑的今日任务" })
+    .getByRole("button", { name: "Delete task: Edited today task" })
     .click();
-  await page.getByRole("button", { name: "确认删除" }).click();
-  await expect(page.getByText("这里还没有任务")).toBeVisible();
+  await page.getByRole("button", { name: "Confirm delete" }).click();
+  await expect(page.getByText("No tasks here yet")).toBeVisible();
 });

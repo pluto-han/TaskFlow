@@ -48,7 +48,7 @@ export function TaskEditor({
     )
       return;
     if (!title.trim()) {
-      setError("请填写任务标题。");
+      setError("Give your task a title.");
       return;
     }
     let dueDate: string | null;
@@ -133,15 +133,18 @@ export function TaskEditor({
     setError("");
   }
   return (
-    <Modal title={base ? "编辑任务" : "新建任务"} busy={busy} close={close}>
+    <Modal title={base ? "Edit task" : "New task"} busy={busy} close={close}>
       {error && (
         <div className="notice error" role="alert">
           {error}
         </div>
       )}
       {!base && draftDay && (dayConflict || draftDay !== todayDate) && (
-        <section className="notice" aria-label="计划日期变化">
-          <p>荷兰日期已变化，草稿已保留。确认新日期后再保存，不会自动提交。</p>
+        <section className="notice" aria-label="Planning date changed">
+          <p>
+            A new day has begun in Amsterdam. Your draft is safe. Confirm the
+            new date before saving; nothing will be submitted automatically.
+          </p>
           <button
             type="button"
             className="button secondary"
@@ -154,7 +157,10 @@ export function TaskEditor({
                   setDraftDay(date);
                   setDayConflict(false);
                   setError("");
-                } else setError("暂时无法确认今天的日期，请重试。草稿已保留。");
+                } else
+                  setError(
+                    "We could not confirm today’s date. Please try again; your draft is safe.",
+                  );
               } catch (err) {
                 setError(errorMessage(err));
               } finally {
@@ -162,20 +168,22 @@ export function TaskEditor({
               }
             }}
           >
-            刷新并确认计划日期
+            Refresh and confirm date
           </button>
         </section>
       )}
       {(base?.plan_date || draftDay) && (
         <p className="hint">
-          计划日期：{base?.plan_date || draftDay} · 荷兰时间 /
-          Europe/Amsterdam。个人计划不能加入项目。
+          Planned for: {base?.plan_date || draftDay} · Europe/Amsterdam.
+          Personal plans stay outside projects.
         </p>
       )}
       {conflict && (
-        <section className="notice" aria-label="版本冲突">
+        <section className="notice" aria-label="Version conflict">
           <p>
-            你的输入已保留。请先读取最新内容，确认后重新编辑；不会自动覆盖其他修改。
+            Your draft is safe. Load the latest version, review the changes,
+            then edit again. Other changes will not be overwritten
+            automatically.
           </p>
           <button
             className="button secondary"
@@ -183,22 +191,24 @@ export function TaskEditor({
             type="button"
             onClick={() => void fetchLatest()}
           >
-            读取最新版本
+            Load latest version
           </button>
           {latest && (
             <div className="comparison">
-              <strong>服务器最新内容</strong>
+              <strong>Latest saved version</strong>
               <p>{latest.title}</p>
-              <p className="preserve-lines">{latest.description || "无描述"}</p>
-              <p>
-                优先级 {latest.priority} ·{" "}
-                {latest.completed ? "已完成" : "未完成"} ·{" "}
-                {latest.due_date ? displayDate(latest.due_date) : "无截止日期"}
+              <p className="preserve-lines">
+                {latest.description || "No description"}
               </p>
               <p>
-                项目：
+                Priority {latest.priority} ·{" "}
+                {latest.completed ? "Completed" : "Incomplete"} ·{" "}
+                {latest.due_date ? displayDate(latest.due_date) : "No due date"}
+              </p>
+              <p>
+                Project:{" "}
                 {projects.find((p) => p.id === latest.project_id)?.name ||
-                  "未归类"}
+                  "Unassigned"}
               </p>
               <button
                 type="button"
@@ -206,7 +216,7 @@ export function TaskEditor({
                 disabled={busy}
                 onClick={useLatest}
               >
-                放弃当前输入，使用最新内容
+                Discard draft and use latest version
               </button>
             </div>
           )}
@@ -214,15 +224,19 @@ export function TaskEditor({
       )}
       {project && (
         <p className="notice">
-          项目内的任务对所有当前成员可见，成员可以编辑和删除。只有创建者可以移动或解除归类。
+          Everyone in this project can view, edit, and delete its tasks. Only
+          the person who created a task can move it to another project or remove
+          it from this one.
         </p>
       )}
       {base && !base.can_move && !base.plan_date && (
-        <p className="hint">你不是这项任务的创建者，不能改变所属项目。</p>
+        <p className="hint">
+          Only the person who created this task can change its project.
+        </p>
       )}
       <form onSubmit={(event) => void submit(event)} aria-busy={busy}>
         <div className="field">
-          <label htmlFor="task-title">任务标题</label>
+          <label htmlFor="task-title">Task title</label>
           <input
             id="task-title"
             value={title}
@@ -232,7 +246,7 @@ export function TaskEditor({
           />
         </div>
         <div className="field">
-          <label htmlFor="task-description">描述</label>
+          <label htmlFor="task-description">Description</label>
           <textarea
             id="task-description"
             rows={3}
@@ -243,30 +257,32 @@ export function TaskEditor({
         </div>
         <div className="form-grid">
           <div className="field">
-            <label htmlFor="task-priority">优先级</label>
+            <label htmlFor="task-priority">Priority</label>
             <select
               id="task-priority"
               value={priority}
               onChange={(e) => setPriority(Number(e.target.value))}
               disabled={busy}
             >
-              <option value={1}>低</option>
-              <option value={2}>中</option>
-              <option value={3}>高</option>
+              <option value={1}>Low</option>
+              <option value={2}>Medium</option>
+              <option value={3}>High</option>
             </select>
           </div>
           {!draftDay && !base?.plan_date && (
             <div className="field">
-              <label htmlFor="task-project">所属项目</label>
+              <label htmlFor="task-project">Project</label>
               <select
                 id="task-project"
                 value={project}
                 onChange={(e) => setProject(e.target.value)}
                 disabled={busy || (!!base && !base.can_move)}
               >
-                <option value="">未归类</option>
+                <option value="">Unassigned</option>
                 {project && !projects.some((p) => p.id === project) && (
-                  <option value={project}>当前项目（请刷新项目列表）</option>
+                  <option value={project}>
+                    Current project (refresh your projects)
+                  </option>
                 )}
                 {projects.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -278,7 +294,7 @@ export function TaskEditor({
           )}
         </div>
         <div className="field">
-          <label htmlFor="task-due">截止日期（本地时间）</label>
+          <label htmlFor="task-due">Due date (local time)</label>
           <input
             id="task-due"
             type="datetime-local"
@@ -288,8 +304,9 @@ export function TaskEditor({
             disabled={busy}
           />
           <p className="hint">
-            当前时区：{Intl.DateTimeFormat().resolvedOptions().timeZone}
-            。留空表示无截止日期；重复的夏令时时刻按浏览器选择较早时刻。
+            Your time zone: {Intl.DateTimeFormat().resolvedOptions().timeZone}.
+            Leave blank for no due date. When daylight saving repeats a time,
+            your browser uses the earlier occurrence.
           </p>
           {due && (
             <button
@@ -298,7 +315,7 @@ export function TaskEditor({
               disabled={busy}
               onClick={() => setDue("")}
             >
-              清除截止日期
+              Clear due date
             </button>
           )}
         </div>
@@ -309,7 +326,7 @@ export function TaskEditor({
             disabled={busy}
             onClick={close}
           >
-            取消
+            Cancel
           </button>
           <button
             type="submit"
@@ -321,7 +338,7 @@ export function TaskEditor({
               (!base && !!draftDay && draftDay !== todayDate)
             }
           >
-            {busy ? "正在保存…" : "保存任务"}
+            {busy ? "Saving…" : "Save task"}
           </button>
         </div>
       </form>

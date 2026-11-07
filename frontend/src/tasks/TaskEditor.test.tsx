@@ -14,7 +14,7 @@ vi.mock("../auth/AuthProvider", () => ({
 const task: Task = {
   can_move: true,
   plan_date: null,
- recurrence_id: null,
+  recurrence_id: null,
   id: "task1",
   title: "Read",
   description: "",
@@ -50,8 +50,8 @@ function open() {
 it("omits an unchanged due date, retaining original precision", async () => {
   open();
   const user = userEvent.setup();
-  await user.type(screen.getByLabelText("任务标题"), " more");
-  await user.click(screen.getByRole("button", { name: "保存任务" }));
+  await user.type(screen.getByLabelText("Task title"), " more");
+  await user.click(screen.getByRole("button", { name: "Save task" }));
   expect(workspaceApi.updateTask).toHaveBeenCalledWith("test", "task1", {
     version: 4,
     title: "Read more",
@@ -60,8 +60,8 @@ it("omits an unchanged due date, retaining original precision", async () => {
 it("sends explicit null when clearing the due date", async () => {
   open();
   const user = userEvent.setup();
-  await user.click(screen.getByRole("button", { name: "清除截止日期" }));
-  await user.click(screen.getByRole("button", { name: "保存任务" }));
+  await user.click(screen.getByRole("button", { name: "Clear due date" }));
+  await user.click(screen.getByRole("button", { name: "Save task" }));
   expect(workspaceApi.updateTask).toHaveBeenCalledWith("test", "task1", {
     version: 4,
     due_date: null,
@@ -69,10 +69,10 @@ it("sends explicit null when clearing the due date", async () => {
 });
 it("sends UTC for a changed local input", async () => {
   open();
-  fireEvent.change(screen.getByLabelText("截止日期（本地时间）"), {
+  fireEvent.change(screen.getByLabelText("Due date (local time)"), {
     target: { value: "2026-12-15T10:30" },
   });
-  fireEvent.click(screen.getByRole("button", { name: "保存任务" }));
+  fireEvent.click(screen.getByRole("button", { name: "Save task" }));
   await waitFor(() =>
     expect(workspaceApi.updateTask).toHaveBeenCalledWith("test", "task1", {
       version: 4,
@@ -86,21 +86,25 @@ it("keeps the draft on 409 and never silently retries with a new version", async
   );
   open();
   const user = userEvent.setup();
-  await user.type(screen.getByLabelText("任务标题"), " my draft");
-  await user.click(screen.getByRole("button", { name: "保存任务" }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("任务已被修改");
-  expect(screen.getByLabelText("任务标题")).toHaveValue("Read my draft");
-  expect(screen.getByRole("button", { name: "保存任务" })).toBeDisabled();
-  await user.click(screen.getByRole("button", { name: "读取最新版本" }));
+  await user.type(screen.getByLabelText("Task title"), " my draft");
+  await user.click(screen.getByRole("button", { name: "Save task" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "This task has changed",
+  );
+  expect(screen.getByLabelText("Task title")).toHaveValue("Read my draft");
+  expect(screen.getByRole("button", { name: "Save task" })).toBeDisabled();
+  await user.click(screen.getByRole("button", { name: "Load latest version" }));
   expect(await screen.findByText("Changed elsewhere")).toBeVisible();
-  expect(screen.getByLabelText("任务标题")).toHaveValue("Read my draft");
+  expect(screen.getByLabelText("Task title")).toHaveValue("Read my draft");
   expect(workspaceApi.updateTask).toHaveBeenCalledTimes(1);
   await user.click(
-    screen.getByRole("button", { name: "放弃当前输入，使用最新内容" }),
+    screen.getByRole("button", {
+      name: "Discard draft and use latest version",
+    }),
   );
-  expect(screen.getByLabelText("任务标题")).toHaveValue("Changed elsewhere");
-  await user.type(screen.getByLabelText("任务标题"), " resolved");
-  await user.click(screen.getByRole("button", { name: "保存任务" }));
+  expect(screen.getByLabelText("Task title")).toHaveValue("Changed elsewhere");
+  await user.type(screen.getByLabelText("Task title"), " resolved");
+  await user.click(screen.getByRole("button", { name: "Save task" }));
   expect(workspaceApi.updateTask).toHaveBeenLastCalledWith("test", "task1", {
     version: 5,
     title: "Changed elsewhere resolved",
@@ -117,6 +121,6 @@ it("disables moving a task created by someone else while permitting edits", asyn
       saved={vi.fn()}
     />,
   );
-  expect(screen.getByLabelText("所属项目")).toBeDisabled();
-  expect(screen.getByLabelText("任务标题")).toBeEnabled();
+  expect(screen.getByLabelText("Project")).toBeDisabled();
+  expect(screen.getByLabelText("Task title")).toBeEnabled();
 });

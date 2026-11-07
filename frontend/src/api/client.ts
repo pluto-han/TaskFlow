@@ -87,40 +87,63 @@ export const api = {
 };
 
 export function errorMessage(error: unknown): string {
-  if (!(error instanceof ApiError)) return "暂时无法完成操作，请重试。";
+  if (!(error instanceof ApiError))
+    return "We could not complete that just now. Please try again.";
   const messages: Record<string, string> = {
-    RATE_LIMITED: "请求过于频繁，请一分钟后重试。",
-    HTTPS_REQUIRED: "请通过 HTTPS 安全入口访问服务。",
-    ORIGIN_NOT_ALLOWED: "当前访问来源未获允许，请使用正式站点。",
-    FORBIDDEN: "你没有执行此操作的权限，请刷新项目权限。",
+    RATE_LIMITED: "Too many requests. Please try again in a minute.",
+    HTTPS_REQUIRED: "Please use the secure HTTPS address.",
+    ORIGIN_NOT_ALLOWED:
+      "This address is not allowed. Please use the official site.",
+    FORBIDDEN:
+      "You do not have permission to do this. Refresh the project to check your access.",
     INVITATION_INVALID:
-      "邀请已失效、已使用，或当前账号不是接收者。请联系项目所有者。",
+      "This invitation has expired, has already been used, or belongs to another account. Please contact the project owner.",
     INVALID_INVITEE:
-      "请检查账号 ID；接收者需已注册且尚未加入，转移对象必须是现有成员。",
-    OWNER_REQUIRED: "请先将所有权转移给现有成员，再退出项目。",
-    UNAUTHORIZED: "邮箱或密码不正确，或登录状态已失效。",
-    EMAIL_ALREADY_EXISTS: "这个邮箱已注册，请直接登录。",
-    INVALID_USER: "请检查邮箱和密码是否符合要求。",
-    LOGIN_RATE_LIMITED: "尝试次数较多，请一分钟后再试。",
-    AUTH_BUSY: "登录服务繁忙，请稍后重试。",
-    REGISTRATION_BUSY: "注册服务繁忙，请稍后重试。",
-    NETWORK_ERROR: "暂时无法连接服务器，请检查网络后重试。",
-    PROJECT_NOT_EMPTY: "项目仍有任务，请先移走或删除任务。",
-    INVALID_RECURRENCE: "请检查标题、间隔（1–365 天）和日期；修改周期必须从未来日期生效。",
-    RECURRENCE_NOT_FOUND: "规则已不存在，请刷新列表。",
-    RECURRENCE_CONFLICT: "规则已被修改，请刷新后重新编辑。",
-    DISCORD_DISABLED: "Discord 服务尚未配置，请稍后再试。",
-    INVALID_DISCORD_BINDING: "绑定请求无效，请刷新状态后重试。",
-    DISCORD_CODE_RATE_LIMITED: "绑定码生成过于频繁，请一分钟后再试。",
-    DISCORD_BINDING_CONFLICT: "绑定已变化，请关闭弹窗、刷新后再决定是否解绑。",
-    TASK_NOT_FOUND: "任务已不存在，请刷新列表。",
-    PROJECT_NOT_FOUND: "项目已不存在或无法访问，请刷新项目列表。",
-    PLAN_DAY_CHANGED: "荷兰日期已变化。草稿已保留，请刷新计划日期后再保存。",
-    INVALID_QUERY: "筛选或分页已失效，请刷新列表。",
-    TASK_CONFLICT: "任务已被修改，请读取最新版本后再决定如何编辑。",
-    INVALID_TASK: "请检查任务标题、优先级与截止日期。",
-    INVALID_PROJECT: "项目名称需为 1–100 个字符，描述最多 2000 个字符。",
-    TIMEOUT: "请求超时，请稍后重试。",
+      "Check the account ID. Invite someone who has registered and is not already a member; ownership can only be transferred to a current member.",
+    OWNER_REQUIRED:
+      "Transfer ownership to a current member before leaving the project.",
+    UNAUTHORIZED:
+      "The email or password is incorrect, or your session has expired.",
+    EMAIL_ALREADY_EXISTS: "An account already uses this email. Please sign in.",
+    INVALID_USER: "Check that your email and password meet the requirements.",
+    LOGIN_RATE_LIMITED: "Too many attempts. Please try again in a minute.",
+    AUTH_BUSY: "Sign-in is busy right now. Please try again shortly.",
+    REGISTRATION_BUSY:
+      "Account creation is busy right now. Please try again shortly.",
+    NETWORK_ERROR:
+      "We could not reach the server. Check your connection and try again.",
+    PROJECT_NOT_EMPTY:
+      "This project still has tasks. Move or delete them before deleting the project.",
+    INVALID_RECURRENCE:
+      "Check the title, interval (1–365 days), and date. Schedule changes must start on a future date.",
+    RECURRENCE_NOT_FOUND:
+      "This schedule is no longer available. Please refresh the list.",
+    RECURRENCE_CONFLICT:
+      "This schedule has changed. Refresh it before editing again.",
+    DISCORD_DISABLED: "Discord is not set up yet. Please try again later.",
+    INVALID_DISCORD_BINDING:
+      "This connection request is not valid. Refresh the status and try again.",
+    DISCORD_CODE_RATE_LIMITED:
+      "Too many connection codes requested. Please try again in a minute.",
+    DISCORD_BINDING_CONFLICT:
+      "The connection has changed. Close this dialog and refresh before deciding whether to disconnect.",
+    TASK_NOT_FOUND:
+      "This task is no longer available. Please refresh the list.",
+    PROJECT_NOT_FOUND:
+      "This project is no longer available, or you no longer have access. Please refresh your projects.",
+    PLAN_DAY_CHANGED:
+      "A new day has begun in Amsterdam. Your draft is safe; refresh the planning date before saving.",
+    INVALID_QUERY:
+      "These filters or this page are no longer valid. Please refresh the list.",
+    TASK_CONFLICT:
+      "This task has changed. Load the latest version before making further edits.",
+    INVALID_TASK: "Please check the task title, priority, and due date.",
+    INVALID_PROJECT:
+      "Use 1–100 characters for the project name and up to 2,000 for the description.",
+    TIMEOUT: "The request took too long. Please try again shortly.",
   };
-  return messages[error.code] || "服务暂时不可用，请稍后重试。";
+  return (
+    messages[error.code] ||
+    "The service is taking a moment. Please try again shortly."
+  );
 }

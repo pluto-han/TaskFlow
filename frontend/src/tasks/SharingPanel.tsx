@@ -91,10 +91,11 @@ export function SharingPanel({
     }
   }
   return (
-    <Modal title="成员与邀请" busy={busy} close={close}>
+    <Modal title="Members & invitations" busy={busy} close={close}>
       <p className="hint">
-        {project.name} · {owner ? "你是所有者" : "你是成员"}
-        。成员可编辑和删除项目内的所有任务；移走任务仅限创建者。
+        {project.name} · {owner ? "You own this project" : "You are a member"}.
+        Members can edit and delete any task in the project. Only a task’s
+        creator can move it out.
       </p>
       {error && (
         <div className="notice error" role="alert">
@@ -114,27 +115,27 @@ export function SharingPanel({
                 setError("");
               }}
             >
-              取消操作
+              Cancel action
             </button>
             <button
               className="button danger"
               disabled={busy}
               onClick={() => void confirm()}
             >
-              确认{action.label}
+              Confirm {action.label.toLowerCase()}
             </button>
           </div>
         </section>
       ) : (
         <>
-          {loading && <p role="status">正在加载成员…</p>}
+          {loading && <p role="status">Loading members…</p>}
           <ul className="member-list">
             {members.map((member) => (
               <li key={member.user_id}>
                 <div>
                   <strong>
-                    {member.role === "owner" ? "所有者" : "成员"}
-                    {member.user_id === user?.id ? "（你）" : ""}
+                    {member.role === "owner" ? "Owner" : "Member"}
+                    {member.user_id === user?.id ? " (you)" : ""}
                   </strong>
                   <code>{member.user_id}</code>
                 </div>
@@ -145,8 +146,8 @@ export function SharingPanel({
                       disabled={busy}
                       onClick={() =>
                         setAction({
-                          label: "转移所有权",
-                          description: `转移给 ${member.user_id} 后，你将变为普通成员，未使用的邀请全部失效。`,
+                          label: "Transfer ownership",
+                          description: `Transfer ownership to ${member.user_id}? You will become a member, and all unused invitations will expire.`,
                           run: () =>
                             authorize((token) =>
                               sharingApi.transfer(
@@ -158,16 +159,16 @@ export function SharingPanel({
                         })
                       }
                     >
-                      转移所有权
+                      Transfer ownership
                     </button>
                     <button
                       className="text-button danger-text"
                       disabled={busy}
                       onClick={() =>
                         setAction({
-                          label: "移除成员",
+                          label: "Remove member",
                           description:
-                            "此成员立即失去后续项目访问权，其项目任务仍保留。",
+                            "This member will lose access to the project. Their tasks will stay in place.",
                           run: () =>
                             authorize((token) =>
                               sharingApi.remove(
@@ -179,7 +180,7 @@ export function SharingPanel({
                         })
                       }
                     >
-                      移除成员
+                      Remove member
                     </button>
                   </div>
                 )}
@@ -192,24 +193,25 @@ export function SharingPanel({
               disabled={busy}
               onClick={() =>
                 setAction({
-                  label: "退出项目",
+                  label: "Leave project",
                   description:
-                    "退出后不能再访问此项目，即使任务由你创建。任务会保留在项目中。",
+                    "You will lose access to this project, including tasks you created. Your tasks will stay in the project.",
                   run: () =>
                     authorize((token) => sharingApi.leave(token, project.id)),
                 })
               }
             >
-              退出项目
+              Leave project
             </button>
           )}
           {owner && (
             <>
               <hr />
-              <h3>邀请已注册的朋友</h3>
+              <h3>Make room for a friend</h3>
               <p className="hint">
-                请朋友从个人资料复制账号 ID。邀请仅此账号可用，有效期 24
-                小时；重复邀请会使之前未使用的链接失效。
+                Ask your friend to copy their account ID from their profile.
+                This invitation is only for that account and lasts 24 hours.
+                Sending another invitation replaces any unused link for them.
               </p>
               <form
                 onSubmit={(e) => {
@@ -218,7 +220,7 @@ export function SharingPanel({
                 }}
               >
                 <div className="field">
-                  <label htmlFor="invite-user">接收者账号 ID</label>
+                  <label htmlFor="invite-user">Recipient account ID</label>
                   <input
                     id="invite-user"
                     required
@@ -228,13 +230,13 @@ export function SharingPanel({
                   />
                 </div>
                 <button className="button primary" disabled={busy}>
-                  生成邀请链接
+                  Create invitation link
                 </button>
               </form>
               {link && (
                 <div className="notice invitation-link">
                   <label htmlFor="invite-link">
-                    仅本次显示，请手工分享给接收者
+                    Shown once. Share this link privately with the recipient.
                   </label>
                   <input
                     id="invite-link"
@@ -249,17 +251,21 @@ export function SharingPanel({
                         .writeText(link)
                         .then(() => setCopied(true))
                         .catch(() =>
-                          setError("无法自动复制，请选中链接手工复制。"),
+                          setError(
+                            "We could not copy the link. Please select and copy it manually.",
+                          ),
                         )
                     }
                   >
-                    复制邀请链接
+                    Copy invitation link
                   </button>
-                  {copied && <span role="status">已复制</span>}
+                  {copied && <span role="status">Copied</span>}
                 </div>
               )}
-              <h3>邀请记录</h3>
-              {invitations.length === 0 && <p className="hint">还没有邀请。</p>}
+              <h3>Invitations</h3>
+              {invitations.length === 0 && (
+                <p className="hint">No invitations yet.</p>
+              )}
               <ul className="member-list">
                 {invitations.map((i) => (
                   <li key={i.id}>
@@ -267,10 +273,10 @@ export function SharingPanel({
                       <code>{i.invitee_user_id}</code>
                       <small>
                         {i.accepted_at
-                          ? "已接受"
+                          ? "Accepted"
                           : i.revoked_at
-                            ? "已撤销"
-                            : `有效至 ${displayDate(i.expires_at)}`}
+                            ? "Revoked"
+                            : `Expires ${displayDate(i.expires_at)}`}
                       </small>
                     </div>
                     {!i.accepted_at && !i.revoked_at && (
@@ -279,8 +285,9 @@ export function SharingPanel({
                         disabled={busy}
                         onClick={() =>
                           setAction({
-                            label: "撤销邀请",
-                            description: "撤销后，该链接无法再用于加入项目。",
+                            label: "Revoke invitation",
+                            description:
+                              "This link will no longer let anyone join the project.",
                             run: () =>
                               authorize((token) =>
                                 sharingApi.revoke(token, project.id, i.id),
@@ -288,7 +295,7 @@ export function SharingPanel({
                           })
                         }
                       >
-                        撤销邀请
+                        Revoke invitation
                       </button>
                     )}
                   </li>

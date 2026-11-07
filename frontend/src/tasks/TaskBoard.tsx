@@ -189,10 +189,13 @@ export function TaskBoard({
         <div>
           <span className="eyebrow">MAKE ROOM FOR WHAT MATTERS</span>
           <h1 id="tasks-heading">{title}</h1>
-          <p className="subtitle">一次一件事，向前一点点。</p>
+          <p className="subtitle">
+            One thing at a time. A little further each day.
+          </p>
           {today && (
             <p className="plan-day" role="status">
-              荷兰时间 / Europe/Amsterdam · {day?.plan_date || "正在确认日期…"}
+              Amsterdam time / Europe/Amsterdam ·{" "}
+              {day?.plan_date || "Checking the date…"}
             </p>
           )}
         </div>
@@ -201,46 +204,50 @@ export function TaskBoard({
           onClick={() => setEditor("new")}
           disabled={!!pending || (today && (loading || !!error || !day))}
         >
-          ＋ 新建任务
+          ＋ New task
         </button>
       </header>
       {error && (
         <div className="notice error" role="alert">
           {error}
           {conflict && (
-            <p>完成状态已回滚。请刷新列表，查看最新内容后再操作。</p>
+            <p>
+              The completion change was undone. Refresh the list and review the
+              latest version before trying again.
+            </p>
           )}
           <button
             className="text-button"
             disabled={loading || !!pending}
             onClick={() => void load()}
           >
-            刷新列表
+            Refresh list
           </button>
         </div>
       )}
       <div className="list-summary">
         <span>
-          已加载 {items.length} 项{cursor ? " · 还有更多" : ""}
+          {items.length} {items.length === 1 ? "task" : "tasks"} loaded
+          {cursor ? " · More to explore" : ""}
         </span>
         <button
           className="text-button"
           disabled={loading || !!pending}
           onClick={() => void load()}
         >
-          刷新
+          Refresh
         </button>
       </div>
       {loading && (
         <p role="status" className="loading">
-          正在加载任务…
+          Loading tasks…
         </p>
       )}
       {!loading && !error && items.length === 0 && (
         <div className="empty-state">
           <span aria-hidden="true">○</span>
-          <h2>这里还没有任务</h2>
-          <p>新建一个任务，或调整筛选条件。</p>
+          <h2>No tasks here yet</h2>
+          <p>Start with one small task, or try a different filter.</p>
         </div>
       )}
       <ul className="task-list" aria-busy={loading}>
@@ -253,7 +260,7 @@ export function TaskBoard({
               className="task-check"
               type="checkbox"
               checked={item.completed}
-              aria-label={`${item.completed ? "标记未完成" : "完成任务"}：${item.title}`}
+              aria-label={`${item.completed ? "Mark incomplete" : "Complete task"}: ${item.title}`}
               disabled={loading || !!pending || conflict}
               onChange={() => void toggle(item)}
             />
@@ -264,19 +271,23 @@ export function TaskBoard({
               )}
               <div className="task-meta">
                 <span className={`priority priority-${item.priority}`}>
-                  {["", "低优先级", "中优先级", "高优先级"][item.priority]}
+                  {
+                    ["", "Low priority", "Medium priority", "High priority"][
+                      item.priority
+                    ]
+                  }
                 </span>
                 <span>
                   {projects.find((p) => p.id === item.project_id)?.name ||
                     (item.plan_date
-                      ? "个人计划"
+                      ? "Personal plan"
                       : item.project_id
-                        ? "项目不可用"
-                        : "未归类")}
+                        ? "Project unavailable"
+                        : "Unassigned")}
                 </span>
                 {item.plan_date && (
                   <time dateTime={item.plan_date}>
-                    计划日期：{item.plan_date}（荷兰）
+                    Planned for: {item.plan_date} (Amsterdam)
                   </time>
                 )}
                 {item.due_date && (
@@ -291,25 +302,25 @@ export function TaskBoard({
                     {displayDate(item.due_date)}
                   </time>
                 )}
-                {pending === item.id && <span role="status">正在同步…</span>}
+                {pending === item.id && <span role="status">Syncing…</span>}
               </div>
             </div>
             <div className="row-actions">
               <button
                 className="text-button"
                 disabled={loading || !!pending}
-                aria-label={`编辑任务：${item.title}`}
+                aria-label={`Edit task: ${item.title}`}
                 onClick={() => setEditor(item)}
               >
-                编辑
+                Edit
               </button>
               <button
                 className="text-button danger-text"
                 disabled={loading || !!pending}
-                aria-label={`删除任务：${item.title}`}
+                aria-label={`Delete task: ${item.title}`}
                 onClick={() => setDeleting(item)}
               >
-                删除
+                Delete
               </button>
             </div>
           </li>
@@ -322,7 +333,7 @@ export function TaskBoard({
             disabled={loading || !!pending}
             onClick={() => void load(cursor)}
           >
-            加载更多
+            Load more
           </button>
         </div>
       )}
@@ -342,7 +353,7 @@ export function TaskBoard({
       )}
       {deleting && (
         <DeleteDialog
-          title="删除任务"
+          title="Delete task"
           name={deleting.title}
           close={() => setDeleting(null)}
           remove={async () => {

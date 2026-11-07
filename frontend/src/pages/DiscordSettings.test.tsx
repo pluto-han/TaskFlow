@@ -34,11 +34,15 @@ it("issues a private code in memory, refreshes binding and unbinds with a versio
   const unbind = vi.spyOn(discordApi, "unbind").mockResolvedValue(undefined);
   render(<DiscordSettings />);
   await waitFor(() =>
-    expect(screen.getByRole("button", { name: "生成绑定码" })).toBeEnabled(),
+    expect(
+      screen.getByRole("button", { name: "Generate connection code" }),
+    ).toBeEnabled(),
   );
-  fireEvent.click(screen.getByRole("button", { name: "生成绑定码" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Generate connection code" }),
+  );
   expect(
-    await screen.findByRole("region", { name: "一次性绑定码" }),
+    await screen.findByRole("region", { name: "One-time connection code" }),
   ).toHaveTextContent("A".repeat(43));
   expect(Object.values(localStorage).join("")).not.toContain("A".repeat(43));
   status.mockResolvedValue({
@@ -50,15 +54,17 @@ it("issues a private code in memory, refreshes binding and unbinds with a versio
     channel_name: "test",
     bound_at: "2026-11-06T12:00:00Z",
   });
-  fireEvent.click(screen.getByRole("button", { name: "刷新绑定状态" }));
+  fireEvent.click(screen.getByRole("button", { name: "Refresh connection" }));
   await screen.findByText("#test");
   expect(
-    screen.queryByRole("region", { name: "一次性绑定码" }),
+    screen.queryByRole("region", { name: "One-time connection code" }),
   ).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "解绑并撤销绑定码" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Disconnect and revoke codes" }),
+  );
   expect(unbind).not.toHaveBeenCalled();
   status.mockResolvedValue({ ...empty, version: 3 });
-  fireEvent.click(screen.getByRole("button", { name: "确认解绑" }));
+  fireEvent.click(screen.getByRole("button", { name: "Confirm disconnect" }));
   await waitFor(() => expect(unbind).toHaveBeenCalledWith("test", 2));
   await waitFor(() =>
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
@@ -73,11 +79,13 @@ it("disables code issuance until configured and preserves the target on conflict
     new ApiError("DISCORD_BINDING_CONFLICT", 409),
   );
   render(<DiscordSettings />);
-  await screen.findByText(/服务尚未配置/);
+  await screen.findByText(/Not set up yet/);
   expect(
-    screen.getByText(/请先配置 Discord Application ID 和公钥/),
+    screen.getByText(/configure the Discord Application ID/),
   ).toBeVisible();
-  expect(screen.getByRole("button", { name: "生成绑定码" })).toBeDisabled();
+  expect(
+    screen.getByRole("button", { name: "Generate connection code" }),
+  ).toBeDisabled();
   status.mockResolvedValue({
     ...empty,
     bound: true,
@@ -87,13 +95,17 @@ it("disables code issuance until configured and preserves the target on conflict
     channel_name: "safe",
     bound_at: "2026-11-06T12:00:00Z",
   });
-  fireEvent.click(screen.getByRole("button", { name: "刷新绑定状态" }));
+  fireEvent.click(screen.getByRole("button", { name: "Refresh connection" }));
   await screen.findByText("#safe");
-  fireEvent.click(screen.getByRole("button", { name: "解绑并撤销绑定码" }));
-  fireEvent.click(screen.getByRole("button", { name: "确认解绑" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Disconnect and revoke codes" }),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Confirm disconnect" }));
   const dialog = screen.getByRole("dialog");
   await waitFor(() =>
-    expect(within(dialog).getByRole("alert")).toHaveTextContent("绑定已变化"),
+    expect(within(dialog).getByRole("alert")).toHaveTextContent(
+      "The connection has changed",
+    ),
   );
   expect(screen.getByText("#safe")).toBeVisible();
 });
@@ -110,14 +122,18 @@ it("removes an expired code from the rendered settings", async () => {
       render(<DiscordSettings />);
     });
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "生成绑定码" }));
+      fireEvent.click(
+        screen.getByRole("button", { name: "Generate connection code" }),
+      );
     });
-    expect(screen.getByRole("region", { name: "一次性绑定码" })).toBeVisible();
+    expect(
+      screen.getByRole("region", { name: "One-time connection code" }),
+    ).toBeVisible();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(10001);
     });
     expect(
-      screen.queryByRole("region", { name: "一次性绑定码" }),
+      screen.queryByRole("region", { name: "One-time connection code" }),
     ).not.toBeInTheDocument();
   } finally {
     vi.useRealTimers();
@@ -131,7 +147,7 @@ it("shows recent notification results without displaying another user's data", a
       rule_id: "rule",
       task_id: "task",
       scheduled_date: "2026-11-06",
-      title: "阅读",
+      title: "Reading",
       status: "retrying",
       attempts: 2,
       last_error: "network",
@@ -140,6 +156,6 @@ it("shows recent notification results without displaying another user's data", a
   ]);
   vi.spyOn(discordApi, "status").mockResolvedValue(empty);
   render(<DiscordSettings />);
-  expect(await screen.findByText("阅读")).toBeVisible();
-  expect(screen.getByText("等待重试")).toBeVisible();
+  expect(await screen.findByText("Reading")).toBeVisible();
+  expect(screen.getByText("Waiting to retry")).toBeVisible();
 });

@@ -27,7 +27,9 @@ export function ProjectEditor({
       Array.from(name.trim()).length > 100 ||
       Array.from(description).length > 2000
     ) {
-      setError("名称需为 1–100 个字符，描述最多 2000 个字符。");
+      setError(
+        "Use 1–100 characters for the name and up to 2,000 for the description.",
+      );
       return;
     }
     setBusy(true);
@@ -57,7 +59,11 @@ export function ProjectEditor({
     }
   }
   return (
-    <Modal title={project ? "编辑项目" : "新建项目"} busy={busy} close={close}>
+    <Modal
+      title={project ? "Edit project" : "New project"}
+      busy={busy}
+      close={close}
+    >
       {error && (
         <div className="notice error" role="alert">
           {error}
@@ -65,7 +71,7 @@ export function ProjectEditor({
       )}
       <form onSubmit={(event) => void submit(event)} aria-busy={busy}>
         <div className="field">
-          <label htmlFor="project-name">项目名称</label>
+          <label htmlFor="project-name">Project name</label>
           <input
             id="project-name"
             value={name}
@@ -75,7 +81,7 @@ export function ProjectEditor({
           />
         </div>
         <div className="field">
-          <label htmlFor="project-description">项目描述</label>
+          <label htmlFor="project-description">Project description</label>
           <textarea
             id="project-description"
             rows={3}
@@ -91,10 +97,10 @@ export function ProjectEditor({
             disabled={busy}
             onClick={close}
           >
-            取消
+            Cancel
           </button>
           <button type="submit" className="button primary" disabled={busy}>
-            {busy ? "正在保存…" : "保存项目"}
+            {busy ? "Saving…" : "Save project"}
           </button>
         </div>
       </form>

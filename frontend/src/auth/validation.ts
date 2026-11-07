@@ -10,16 +10,16 @@ export function validate(
   const errors: FieldErrors = {};
   const normalized = email.trim();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized) || normalized.length > 254)
-    errors.email = "请输入有效的邮箱地址。";
+    errors.email = "Enter a valid email address.";
   if (confirm === undefined) {
-    if (!password) errors.password = "请输入密码。";
+    if (!password) errors.password = "Enter your password.";
   } else {
     const length = Array.from(password).length;
     if (length < 15 || length > 128 || !password.trim())
-      errors.password = "密码需为 15–128 个字符，不能全为空格。";
-    if (confirm !== password) errors.confirm = "两次输入的密码不一致。";
+      errors.password = "Use 15–128 characters, with more than just spaces.";
+    if (confirm !== password) errors.confirm = "The passwords do not match.";
   }
   if (new TextEncoder().encode(password).length > 512)
-    errors.password = "密码过长，请减少字符数量。";
+    errors.password = "This password is too long. Please use fewer characters.";
   return errors;
 }

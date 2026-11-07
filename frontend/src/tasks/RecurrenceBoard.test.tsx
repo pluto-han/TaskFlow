@@ -49,15 +49,15 @@ it("defaults to server day, previews and creates a rule without task or project 
       <RecurrenceEditor day="2026-11-05" close={vi.fn()} saved={saved} />
     </MemoryRouter>,
   );
-  expect(screen.getByLabelText("首次日期")).toHaveValue("2026-11-05");
-  fireEvent.change(screen.getByLabelText("任务标题"), {
+  expect(screen.getByLabelText("First date")).toHaveValue("2026-11-05");
+  fireEvent.change(screen.getByLabelText("Task title"), {
     target: { value: "Read" },
   });
-  fireEvent.change(screen.getByLabelText("每隔几天"), {
+  fireEvent.change(screen.getByLabelText("Repeat every (days)"), {
     target: { value: "3" },
   });
-  await screen.findByText(/周期预览：2026-11-05/);
-  fireEvent.click(screen.getByRole("button", { name: "保存规则" }));
+  await screen.findByText(/Schedule preview: 2026-11-05/);
+  fireEvent.click(screen.getByRole("button", { name: "Save schedule" }));
   await waitFor(() => expect(saved).toHaveBeenCalledOnce());
   expect(create).toHaveBeenCalledWith("test", {
     title: "Read",
@@ -84,20 +84,23 @@ it("requires a future re-anchor and retains the draft on a version conflict", as
       />
     </MemoryRouter>,
   );
-  fireEvent.change(screen.getByLabelText("每隔几天"), {
+  fireEvent.change(screen.getByLabelText("Repeat every (days)"), {
     target: { value: "7" },
   });
-  fireEvent.click(screen.getByRole("button", { name: "保存规则" }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("晚于今天");
+  fireEvent.click(screen.getByRole("button", { name: "Save schedule" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("after today");
   expect(update).not.toHaveBeenCalled();
-  fireEvent.change(screen.getByLabelText("周期起点（改动后仅影响未来）"), {
-    target: { value: "2026-11-06" },
-  });
-  fireEvent.click(screen.getByRole("button", { name: "保存规则" }));
-  await waitFor(() =>
-    expect(screen.getByRole("alert")).toHaveTextContent("草稿已保留"),
+  fireEvent.change(
+    screen.getByLabelText("Start date (changes apply to future tasks)"),
+    {
+      target: { value: "2026-11-06" },
+    },
   );
-  expect(screen.getByLabelText("每隔几天")).toHaveValue(7);
+  fireEvent.click(screen.getByRole("button", { name: "Save schedule" }));
+  await waitFor(() =>
+    expect(screen.getByRole("alert")).toHaveTextContent("Your draft is safe"),
+  );
+  expect(screen.getByLabelText("Repeat every (days)")).toHaveValue(7);
   expect(update).toHaveBeenCalledTimes(1);
   expect(update).toHaveBeenCalledWith(
     "test",
@@ -120,8 +123,10 @@ it("pauses with a version and confirms deletion preserving history", async () =>
   const remove = vi.spyOn(recurrenceApi, "remove").mockResolvedValue(undefined);
   render(<RecurrenceBoard />);
   await screen.findByText("Read");
-  expect(screen.getByText(/尚未启用自动生成/)).toBeVisible();
-  fireEvent.click(screen.getByRole("button", { name: "暂停" }));
+  expect(
+    screen.getByText(/automatic task creation is not enabled yet/),
+  ).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Pause" }));
   await waitFor(() =>
     expect(update).toHaveBeenCalledWith("test", "r", {
       version: 1,
@@ -129,12 +134,14 @@ it("pauses with a version and confirms deletion preserving history", async () =>
     }),
   );
   await waitFor(() =>
-    expect(screen.getByRole("button", { name: "删除" })).toBeEnabled(),
+    expect(screen.getByRole("button", { name: "Delete" })).toBeEnabled(),
   );
-  fireEvent.click(screen.getByRole("button", { name: "删除" }));
-  expect(screen.getByText(/已有任务和历史记录会保留/)).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+  expect(
+    screen.getByText(/Your existing tasks and history will stay/),
+  ).toBeVisible();
   expect(remove).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole("button", { name: "确认删除" }));
+  fireEvent.click(screen.getByRole("button", { name: "Confirm delete" }));
   await waitFor(() => expect(remove).toHaveBeenCalledWith("test", rule));
 });
 
@@ -147,8 +154,10 @@ it("shows the opt-in scheduler state from the API", async () => {
     scheduler_enabled: true,
   });
   render(<RecurrenceBoard />);
-  expect(await screen.findByText(/自动生成已启用/)).toBeVisible();
-  expect(screen.queryByText(/尚未启用自动生成/)).not.toBeInTheDocument();
+  expect(await screen.findByText(/Automatic tasks are on/)).toBeVisible();
+  expect(
+    screen.queryByText(/automatic task creation is not enabled yet/),
+  ).not.toBeInTheDocument();
 });
 
 it("requires a bound channel before enabling Discord reminders", async () => {
@@ -168,9 +177,9 @@ it("requires a bound channel before enabling Discord reminders", async () => {
     </MemoryRouter>,
   );
   await waitFor(() =>
-    expect(screen.getByLabelText("Discord 频道提醒")).toBeDisabled(),
+    expect(screen.getByLabelText("Discord channel reminder")).toBeDisabled(),
   );
-  expect(screen.getByRole("link", { name: "个人资料" })).toHaveAttribute(
+  expect(screen.getByRole("link", { name: "Profile" })).toHaveAttribute(
     "href",
     "/profile",
   );
@@ -185,13 +194,13 @@ it("saves the reminder choice only on a recurring rule", async () => {
     </MemoryRouter>,
   );
   await waitFor(() =>
-    expect(screen.getByLabelText("Discord 频道提醒")).toBeEnabled(),
+    expect(screen.getByLabelText("Discord channel reminder")).toBeEnabled(),
   );
-  fireEvent.change(screen.getByLabelText("任务标题"), {
-    target: { value: "提醒我" },
+  fireEvent.change(screen.getByLabelText("Task title"), {
+    target: { value: "A gentle reminder" },
   });
-  fireEvent.click(screen.getByLabelText("Discord 频道提醒"));
-  fireEvent.click(screen.getByRole("button", { name: "保存规则" }));
+  fireEvent.click(screen.getByLabelText("Discord channel reminder"));
+  fireEvent.click(screen.getByRole("button", { name: "Save schedule" }));
   await waitFor(() =>
     expect(create).toHaveBeenCalledWith(
       "test",

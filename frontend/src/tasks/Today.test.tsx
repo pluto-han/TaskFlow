@@ -19,7 +19,7 @@ vi.mock("../auth/AuthProvider", () => ({
 }));
 const item: Task = {
   id: "today-one",
-  title: "今日阅读",
+  title: "Today’s reading",
   description: "",
   priority: 2,
   version: 1,
@@ -46,7 +46,7 @@ const board = () => (
     today
     filters={filters}
     projects={[]}
-    title="今日任务"
+    title="Today"
     setMutating={vi.fn()}
   />
 );
@@ -60,23 +60,27 @@ it("uses server day, excludes project inputs and preserves a draft across midnig
     .mockResolvedValue(page({ plan_date: "2026-11-06", items: [] }));
   render(board());
   await screen.findByText(item.title);
-  fireEvent.click(screen.getByRole("button", { name: "＋ 新建任务" }));
-  fireEvent.change(screen.getByLabelText("任务标题"), {
-    target: { value: "保留这份草稿" },
+  fireEvent.click(screen.getByRole("button", { name: "＋ New task" }));
+  fireEvent.change(screen.getByLabelText("Task title"), {
+    target: { value: "Keep this draft" },
   });
-  expect(screen.queryByLabelText("所属项目")).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("Project")).not.toBeInTheDocument();
   fireEvent(window, new Event("focus"));
   await waitFor(() =>
-    expect(screen.getByRole("region", { name: "计划日期变化" })).toBeVisible(),
+    expect(
+      screen.getByRole("region", { name: "Planning date changed" }),
+    ).toBeVisible(),
   );
-  expect(screen.getByLabelText("任务标题")).toHaveValue("保留这份草稿");
-  expect(screen.getByRole("button", { name: "保存任务" })).toBeDisabled();
+  expect(screen.getByLabelText("Task title")).toHaveValue("Keep this draft");
+  expect(screen.getByRole("button", { name: "Save task" })).toBeDisabled();
   expect(
     screen.queryByRole("heading", { name: item.title }),
   ).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "刷新并确认计划日期" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Refresh and confirm date" }),
+  );
   await waitFor(() =>
-    expect(screen.getByRole("button", { name: "保存任务" })).toBeEnabled(),
+    expect(screen.getByRole("button", { name: "Save task" })).toBeEnabled(),
   );
 });
 
@@ -98,26 +102,28 @@ it("handles PLAN_DAY_CHANGED separately from version conflict and never auto-sub
     />
   );
   const view = render(editor("2026-11-05"));
-  fireEvent.change(screen.getByLabelText("任务标题"), {
-    target: { value: "我的草稿" },
+  fireEvent.change(screen.getByLabelText("Task title"), {
+    target: { value: "My draft" },
   });
-  fireEvent.click(screen.getByRole("button", { name: "保存任务" }));
-  await screen.findByRole("region", { name: "计划日期变化" });
+  fireEvent.click(screen.getByRole("button", { name: "Save task" }));
+  await screen.findByRole("region", { name: "Planning date changed" });
   expect(
-    screen.queryByRole("button", { name: "读取最新版本" }),
+    screen.queryByRole("button", { name: "Load latest version" }),
   ).not.toBeInTheDocument();
-  expect(screen.getByLabelText("任务标题")).toHaveValue("我的草稿");
+  expect(screen.getByLabelText("Task title")).toHaveValue("My draft");
   view.rerender(editor("2026-11-06"));
-  fireEvent.click(screen.getByRole("button", { name: "刷新并确认计划日期" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Refresh and confirm date" }),
+  );
   await waitFor(() =>
-    expect(screen.getByRole("button", { name: "保存任务" })).toBeEnabled(),
+    expect(screen.getByRole("button", { name: "Save task" })).toBeEnabled(),
   );
   expect(create).toHaveBeenCalledTimes(1);
-  fireEvent.click(screen.getByRole("button", { name: "保存任务" }));
+  fireEvent.click(screen.getByRole("button", { name: "Save task" }));
   await waitFor(() => expect(saved).toHaveBeenCalledOnce());
   expect(create).toHaveBeenLastCalledWith("test", {
     plan_date: "2026-11-06",
-    title: "我的草稿",
+    title: "My draft",
     description: "",
     priority: 2,
     due_date: null,
@@ -131,8 +137,8 @@ it("restarts pagination when yesterday's cursor is rejected", async () => {
     .mockRejectedValueOnce(new ApiError("INVALID_QUERY", 400))
     .mockResolvedValue(page({ plan_date: "2026-11-06", items: [] }));
   render(board());
-  fireEvent.click(await screen.findByRole("button", { name: "加载更多" }));
-  await screen.findByText("这里还没有任务");
+  fireEvent.click(await screen.findByRole("button", { name: "Load more" }));
+  await screen.findByText("No tasks here yet");
   expect(today.mock.calls.map((c) => c[2])).toEqual(["", "yesterday", ""]);
   expect(screen.queryByText(item.title)).not.toBeInTheDocument();
 });
@@ -149,15 +155,19 @@ it("aborts late pages when the tab becomes visible or reconnects", async () => {
     )
     .mockResolvedValue(page({ plan_date: "2026-11-06", items: [] }));
   render(board());
-  fireEvent.click(await screen.findByRole("button", { name: "加载更多" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Load more" }));
   fireEvent(window, new Event("online"));
-  await screen.findByText("这里还没有任务");
+  await screen.findByText("No tasks here yet");
   await act(async () =>
     resolve(
-      page({ items: [{ ...item, id: "late", title: "昨天的迟到响应" }] }),
+      page({
+        items: [{ ...item, id: "late", title: "Yesterday’s late response" }],
+      }),
     ),
   );
-  expect(screen.queryByText("昨天的迟到响应")).not.toBeInTheDocument();
+  expect(
+    screen.queryByText("Yesterday’s late response"),
+  ).not.toBeInTheDocument();
   expect(today.mock.calls[1][3]?.aborted).toBe(true);
   fireEvent(document, new Event("visibilitychange"));
   await waitFor(() => expect(today).toHaveBeenCalledTimes(4));
@@ -210,11 +220,11 @@ it("discards a response whose server midnight elapsed in transit", async () => {
     resolve(page({ server_time: "2026-11-05T22:59:59Z" }));
   });
   expect(screen.queryByText(item.title)).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "＋ 新建任务" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "＋ New task" })).toBeDisabled();
   await act(async () => {
     await vi.advanceTimersByTimeAsync(1000);
   });
-  expect(screen.getByText("这里还没有任务")).toBeVisible();
+  expect(screen.getByText("No tasks here yet")).toBeVisible();
   view.unmount();
 });
 
@@ -224,8 +234,8 @@ it("shows recovery for an unauthorized/failed today request without allowing a n
     .mockResolvedValue(page());
   render(board());
   await screen.findByRole("alert");
-  expect(screen.getByRole("button", { name: "＋ 新建任务" })).toBeDisabled();
-  fireEvent.click(screen.getByRole("button", { name: "刷新列表" }));
+  expect(screen.getByRole("button", { name: "＋ New task" })).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: "Refresh list" }));
   await screen.findByText(item.title);
 });
 
@@ -241,7 +251,7 @@ it("switches navigation, hides project creation in today and filters history onl
     </MemoryRouter>,
   );
   await screen.findByText(item.title);
-  fireEvent.change(screen.getByLabelText("筛选计划日期"), {
+  fireEvent.change(screen.getByLabelText("Filter by planned date"), {
     target: { value: "2026-11-04" },
   });
   await waitFor(() =>
@@ -252,15 +262,17 @@ it("switches navigation, hides project creation in today and filters history onl
       expect.any(AbortSignal),
     ),
   );
-  fireEvent.click(screen.getByRole("button", { name: "今日任务" }));
+  fireEvent.click(screen.getByRole("button", { name: "Today" }));
   await screen.findByText(item.title);
   expect(
-    screen.queryByRole("button", { name: "新建项目" }),
+    screen.queryByRole("button", { name: "New project" }),
   ).not.toBeInTheDocument();
-  expect(screen.queryByLabelText("筛选计划日期")).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: /全部任务/ }));
-  expect(screen.getByRole("button", { name: "新建项目" })).toBeVisible();
-  expect(screen.getByLabelText("筛选计划日期")).toHaveValue("");
+  expect(
+    screen.queryByLabelText("Filter by planned date"),
+  ).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: /All tasks/ }));
+  expect(screen.getByRole("button", { name: "New project" })).toBeVisible();
+  expect(screen.getByLabelText("Filter by planned date")).toHaveValue("");
 });
 
 it("preserves the draft when refreshing the plan date fails", async () => {
@@ -275,8 +287,8 @@ it("preserves the draft when refreshing the plan date fails", async () => {
       saved={vi.fn()}
     />,
   );
-  fireEvent.change(screen.getByLabelText("任务标题"), {
-    target: { value: "断网也保留" },
+  fireEvent.change(screen.getByLabelText("Task title"), {
+    target: { value: "Keep this through a lost connection" },
   });
   view.rerender(
     <TaskEditor
@@ -288,10 +300,14 @@ it("preserves the draft when refreshing the plan date fails", async () => {
       saved={vi.fn()}
     />,
   );
-  fireEvent.click(screen.getByRole("button", { name: "刷新并确认计划日期" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Refresh and confirm date" }),
+  );
   await screen.findByRole("alert");
-  expect(screen.getByLabelText("任务标题")).toHaveValue("断网也保留");
-  expect(screen.getByRole("button", { name: "保存任务" })).toBeDisabled();
+  expect(screen.getByLabelText("Task title")).toHaveValue(
+    "Keep this through a lost connection",
+  );
+  expect(screen.getByRole("button", { name: "Save task" })).toBeDisabled();
 });
 
 it("hides project movement for historical plans without claiming the owner is someone else", () => {
@@ -304,9 +320,13 @@ it("hides project movement for historical plans without claiming the owner is so
       saved={vi.fn()}
     />,
   );
-  expect(screen.queryByLabelText("所属项目")).not.toBeInTheDocument();
-  expect(screen.queryByText(/你不是这项任务的创建者/)).not.toBeInTheDocument();
-  expect(screen.getByText(/个人计划不能加入项目/)).toBeVisible();
+  expect(screen.queryByLabelText("Project")).not.toBeInTheDocument();
+  expect(
+    screen.queryByText(/Only the person who created this task/),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByText(/Personal plans stay outside projects/),
+  ).toBeVisible();
 });
 
 it("does not restart polling when an in-flight mutation finishes after leaving the view", async () => {

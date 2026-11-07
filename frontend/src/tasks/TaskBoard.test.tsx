@@ -16,7 +16,7 @@ vi.mock("../auth/AuthProvider", () => ({ useAuth: () => ({ authorize }) }));
 const task: Task = {
   can_move: true,
   plan_date: null,
- recurrence_id: null,
+  recurrence_id: null,
   id: "one",
   title: "Task one",
   description: "",
@@ -33,7 +33,7 @@ const board = (project = "") => (
     key={project}
     filters={project ? { ...filters, project } : filters}
     projects={[]}
-    title="全部任务"
+    title="All tasks"
     setMutating={vi.fn()}
   />
 );
@@ -62,7 +62,9 @@ it("optimistically toggles and rolls back on a version conflict", async () => {
   expect(checkbox).toBeDisabled();
   await act(async () => reject(new ApiError("TASK_CONFLICT", 409)));
   expect(checkbox).not.toBeChecked();
-  expect(screen.getByRole("alert")).toHaveTextContent("完成状态已回滚");
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "The completion change was undone",
+  );
   expect(workspaceApi.updateTask).toHaveBeenCalledTimes(1);
 });
 it("loads the next cursor, deduplicates rows, and resets on a filter switch", async () => {
@@ -74,7 +76,7 @@ it("loads the next cursor, deduplicates rows, and resets on a filter switch", as
     })
     .mockResolvedValueOnce({ items: [], next: "" });
   const view = render(board());
-  fireEvent.click(await screen.findByRole("button", { name: "加载更多" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Load more" }));
   expect(await screen.findByText("Task two")).toBeVisible();
   expect(screen.getAllByRole("checkbox")).toHaveLength(2);
   expect(workspaceApi.tasks).toHaveBeenLastCalledWith(
@@ -84,7 +86,7 @@ it("loads the next cursor, deduplicates rows, and resets on a filter switch", as
     expect.any(AbortSignal),
   );
   view.rerender(board("none"));
-  expect(await screen.findByText("这里还没有任务")).toBeVisible();
+  expect(await screen.findByText("No tasks here yet")).toBeVisible();
   expect(screen.queryByText("Task one")).not.toBeInTheDocument();
   expect(workspaceApi.tasks).toHaveBeenLastCalledWith(
     "test",
@@ -104,7 +106,7 @@ it("ignores a late response from the old filter", async () => {
     .mockResolvedValueOnce({ items: [], next: "" });
   const view = render(board());
   view.rerender(board("none"));
-  await screen.findByText("这里还没有任务");
+  await screen.findByText("No tasks here yet");
   await act(async () => resolve({ items: [task], next: "old" }));
   expect(screen.queryByText("Task one")).not.toBeInTheDocument();
 });
@@ -114,7 +116,7 @@ it("offers a retry after a list failure", async () => {
   );
   render(board());
   await screen.findByRole("alert");
-  fireEvent.click(screen.getByRole("button", { name: "刷新列表" }));
+  fireEvent.click(screen.getByRole("button", { name: "Refresh list" }));
   await waitFor(() => expect(screen.getByText("Task one")).toBeVisible());
 });
 
