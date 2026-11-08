@@ -66,13 +66,15 @@ func TestRegisterValidation(t *testing.T) {
 		name, email, password string
 		valid                 bool
 	}{
-		{"minimum", "a@example.com", strings.Repeat("a", 15), true},
+		{"minimum", "a@example.com", strings.Repeat("a", 8), true},
+		{"unicode minimum", "a@example.com", strings.Repeat("🔑", 8), true},
+		{"unicode short", "a@example.com", strings.Repeat("🔑", 7), false},
 		{"maximum", "a@example.com", strings.Repeat("a", 128), true},
 		{"unicode max bytes", "a@example.com", strings.Repeat("🔑", 128), true},
-		{"short", "a@example.com", strings.Repeat("a", 14), false},
+		{"short", "a@example.com", strings.Repeat("a", 7), false},
 		{"long", "a@example.com", strings.Repeat("a", 129), false},
 		{"too many bytes", "a@example.com", strings.Repeat("🔑", 129), false},
-		{"blank", "a@example.com", strings.Repeat(" ", 15), false},
+		{"blank", "a@example.com", strings.Repeat(" ", 8), false},
 		{"invalid utf8", "a@example.com", strings.Repeat("a", 15) + "\xff", false},
 		{"empty email", "", "a long passphrase", false},
 		{"display name", "Alice <a@example.com>", "a long passphrase", false},

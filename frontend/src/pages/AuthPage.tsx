@@ -175,7 +175,7 @@ export function AuthPage({ register = false }: { register?: boolean }) {
                 ) : (
                   register && (
                     <p className="hint" id="password-hint">
-                      Use 15–128 characters. A few memorable words can make a
+                      Use 8–128 characters. A few memorable words can make a
                       good passphrase.
                     </p>
                   )

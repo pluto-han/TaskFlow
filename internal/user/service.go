@@ -61,7 +61,7 @@ func (s *Service) Register(ctx context.Context, input RegisterRequest) (*User, e
 	}
 	email, valid := NormalizeEmail(input.Email)
 	count := utf8.RuneCountInString(input.Password)
-	if !valid || !utf8.ValidString(input.Password) || count < 15 || count > 128 || len(input.Password) > 512 || strings.TrimSpace(input.Password) == "" {
+	if !valid || !utf8.ValidString(input.Password) || count < 8 || count > 128 || len(input.Password) > 512 || strings.TrimSpace(input.Password) == "" {
 		return nil, ErrInvalidUser
 	}
 	hash, err := s.passwords.HashPassword(ctx, input.Password)

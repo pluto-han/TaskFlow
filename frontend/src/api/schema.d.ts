@@ -553,7 +553,7 @@ export interface components {
         RegisterRequest: {
             /** @description Trimmed and lowercased; common unquoted ASCII address, 3–254 bytes. */
             email: string;
-            /** @description 15–128 Unicode characters, at most 512 UTF-8 bytes, not whitespace-only. */
+            /** @description 8–128 Unicode characters, at most 512 UTF-8 bytes, not whitespace-only. */
             password: string;
         };
         LoginRequest: {

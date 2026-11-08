@@ -2456,10 +2456,10 @@
           },
           "password": {
             "type": "string",
-            "minLength": 15,
+            "minLength": 8,
             "maxLength": 128,
             "writeOnly": true,
-            "description": "15–128 Unicode characters, at most 512 UTF-8 bytes, not whitespace-only."
+            "description": "8–128 Unicode characters, at most 512 UTF-8 bytes, not whitespace-only."
           }
         },
         "required": [

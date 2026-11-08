@@ -4,10 +4,14 @@ import { validate } from "../../../src/auth/validation";
 describe("form validation", () => {
   it("matches password character/byte limits without trimming passwords", () => {
     expect(
-      validate(" learner@example.com ", "密".repeat(15), "密".repeat(15)),
+      validate(" learner@example.com ", "密".repeat(8), "密".repeat(8)),
     ).toEqual({});
     expect(
-      validate("learner@example.com", "x".repeat(14), "x".repeat(14)),
+      validate("learner@example.com", "x".repeat(7), "x".repeat(7)),
+    ).toHaveProperty("password");
+    expect(validate("learner@example.com", "12345678", "12345678")).toEqual({});
+    expect(
+      validate("learner@example.com", "😀".repeat(7), "😀".repeat(7)),
     ).toHaveProperty("password");
     expect(
       validate("learner@example.com", "😀".repeat(128), "😀".repeat(128)),
@@ -16,7 +20,7 @@ describe("form validation", () => {
       validate("learner@example.com", "😀".repeat(129), "😀".repeat(129)),
     ).toHaveProperty("password");
     expect(
-      validate("learner@example.com", " ".repeat(20), " ".repeat(20)),
+      validate("learner@example.com", " ".repeat(8), " ".repeat(8)),
     ).toHaveProperty("password");
   });
   it("checks confirmation, email and missing credentials", () => {

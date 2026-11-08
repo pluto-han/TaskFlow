@@ -15,8 +15,8 @@ export function validate(
     if (!password) errors.password = "Enter your password.";
   } else {
     const length = Array.from(password).length;
-    if (length < 15 || length > 128 || !password.trim())
-      errors.password = "Use 15–128 characters, with more than just spaces.";
+    if (length < 8 || length > 128 || !password.trim())
+      errors.password = "Use 8–128 characters, with more than just spaces.";
     if (confirm !== password) errors.confirm = "The passwords do not match.";
   }
   if (new TextEncoder().encode(password).length > 512)
