@@ -108,6 +108,7 @@ func main() {
 	}
 	if cacheClient != nil {
 		defer cacheClient.Close()
+		service.WithTodayCache(cacheClient)
 		if err := cacheClient.Ping(context.Background()); err != nil {
 			log.Print("Optional cache unavailable; business queries still use PostgreSQL")
 		}

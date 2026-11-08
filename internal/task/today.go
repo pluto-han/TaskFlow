@@ -62,13 +62,22 @@ func (s *Service) ListToday(ctx context.Context, owner session.UserID, options L
 	if owner == "" {
 		return TodayPage{}, session.ErrUnauthorized
 	}
+	if err := ctx.Err(); err != nil {
+		return TodayPage{}, err
+	}
 	day := planning.At(s.now())
 	// The today endpoint cannot select projects or historical dates.
 	if options.PlanDate != nil || options.ProjectID != nil {
 		return TodayPage{}, ErrInvalidList
 	}
-	options.PlanDate = &day.PlanDate
-	page, err := s.List(ctx, owner, options)
+	var page TaskPage
+	var err error
+	if s.todayCache != nil && todayCacheEligible(options) {
+		page, day, err = s.listTodayCached(ctx, owner, day)
+	} else {
+		options.PlanDate = &day.PlanDate
+		page, err = s.List(ctx, owner, options)
+	}
 	if err != nil {
 		return TodayPage{}, err
 	}

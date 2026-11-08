@@ -1,5 +1,5 @@
 // Package cache provides an optional, short-lived Redis connection helper.
-// PostgreSQL remains the source of truth; no business reads use this client yet.
+// PostgreSQL remains the source of truth; cache errors must permit database fallback.
 package cache
 
 import (
@@ -27,7 +27,7 @@ var (
 	ErrInvalid     = errors.New("invalid cache input")
 )
 
-// Store is the small replaceable boundary for later Service integration.
+// Store is the small replaceable boundary used by the Today Service.
 type Store interface {
 	Get(context.Context, string) ([]byte, error)
 	Set(context.Context, string, []byte, time.Duration) error

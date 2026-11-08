@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pluto-han/taskflow/internal/cache"
 	"github.com/pluto-han/taskflow/internal/project"
 	"github.com/pluto-han/taskflow/internal/session"
 )
@@ -20,9 +21,10 @@ type ProjectReader interface {
 }
 
 type Service struct {
-	now      func() time.Time
-	projects ProjectReader
-	repo     Repository
+	todayCache cache.Store
+	now        func() time.Time
+	projects   ProjectReader
+	repo       Repository
 }
 
 func NewService(repo Repository, projects ProjectReader) *Service {

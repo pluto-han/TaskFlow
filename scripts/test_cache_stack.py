@@ -73,7 +73,7 @@ def main():
                             "fixture", "SET", "taskflow:cache:test-run:" + marker, marker], capture=True)
 
             seed_marker()
-            run(["go", "test", "-race", "-count=1", "-timeout=30s", "-v", "./test/integration/cache", "-run", "^TestRedisClientIntegration$"] , env=env)
+            run(["go", "test", "-race", "-count=1", "-timeout=30s", "-v", "./test/integration/cache", "-run", "^TestRedis(Client|TodayService)Integration$"] , env=env)
             run(base + ["restart", "redis"])
             run(base + ["up", "-d", "--wait", "--wait-timeout", "90"])
             seed_marker()
@@ -85,7 +85,7 @@ def main():
                 raise RuntimeError("restarted fixture lost its loopback port")
             env["TASKFLOW_CACHE_TEST_ADDR"] = "127.0.0.1:" + bindings[0]["HostPort"]
             run(["go", "test", "-race", "-count=1", "-timeout=30s", "-v", "./test/integration/cache", "-run", "^TestRedisRestartEmpty$"] , env=env)
-            print("PASS: real Redis handshake, TTL, ACL, wrong password and restart without persistence")
+            print("PASS: real Redis handshake, TTL, ACL, Today cache and restart without persistence")
         finally:
             run(base + ["down", "--remove-orphans"], capture=True)
             print("Only this invocation's disposable cache project removed")
