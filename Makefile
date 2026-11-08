@@ -1,4 +1,4 @@
-.PHONY: help test-unit test-python test-integration test-e2e test-browser test-containers test-monitoring check
+.PHONY: help test-unit test-python test-integration test-e2e test-browser test-containers test-monitoring baseline-today check
 
 help:
 	@echo "test-unit         Go tests without fixture databases, frontend unit tests, Python unit tests"
@@ -8,6 +8,7 @@ help:
 	@echo "test-browser      Standalone Playwright tests (requires free port 5173)"
 	@echo "test-containers   Disposable Compose smoke and deployment rollback tests"
 	@echo "test-monitoring   Disposable monitoring tests (requires monitoring images)"
+	@echo "baseline-today    Uncached Today Service counts and memory benchmark (no Redis or database)"
 	@echo "check             Formatting, Go vet, frontend lint, types and API contract"
 
 test-unit: test-python
@@ -35,6 +36,9 @@ test-containers:
 test-monitoring:
 	python3 scripts/check_monitoring_rules.py
 	python3 -m test.python.test_monitoring
+
+baseline-today:
+	go test ./test/load -run '^TestTodayUncached' -bench '^BenchmarkTodayUncached$$' -benchmem -benchtime=100x -count=1 -v
 
 check:
 	@test -z "$$(gofmt -l cmd internal test)"

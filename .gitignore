@@ -17,3 +17,11 @@ __pycache__/
 .local/
 
 .vscode
+
+*plan*.md
+*lesson*.md
+knowledge-map.md
+project-structure.md
+/docs/review/README.md
+/test/*/README.md
+/test/README.md
