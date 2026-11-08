@@ -1,0 +1,37 @@
+# Dedicated optional cache. Do not merge into the application's four-service stack.
+name: taskflow-cache
+services:
+  redis:
+    image: redis:8.10.3-alpine@sha256:71885d8cc6e42f2bc0aa2eb853bfc4be200b5108a46ac50e117ae1df0531fb80
+    command: [redis-server, /usr/local/etc/redis/redis.conf]
+    user: "999:999"
+    volumes:
+      - type: bind
+        source: ./deploy/cache/redis.conf
+        target: /usr/local/etc/redis/redis.conf
+        read_only: true
+        bind: {create_host_path: false}
+    secrets: [redis_acl, redis_password]
+    networks: [cache]
+    read_only: true
+    tmpfs: ["/tmp:size=8m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 128m
+    cpus: 0.5
+    pids_limit: 64
+    restart: unless-stopped
+    stop_grace_period: 5s
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'REDISCLI_AUTH="$$(cat /run/secrets/redis_password)" redis-cli --user taskflow_cache --no-auth-warning ping | grep -qx PONG'
+      interval: 5s
+      timeout: 2s
+      retries: 10
+      start_period: 5s
+networks:
+  cache: {internal: true}
+secrets:
+  redis_acl: {file: ./.local/cache/users.acl}
+  redis_password: {file: ./.local/cache/redis_password}

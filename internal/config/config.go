@@ -6,6 +6,10 @@ import (
 )
 
 type Config struct {
+	CacheEnabled         string
+	RedisAddr            string
+	RedisUsername        string
+	RedisPasswordFile    string
 	DiscordSender        string
 	DiscordBotToken      string
 	DiscordApplicationID string
@@ -33,6 +37,10 @@ func Load() Config {
 		environment = "development"
 	}
 	return Config{
+		CacheEnabled:         os.Getenv("TASKFLOW_CACHE_ENABLED"),
+		RedisAddr:            os.Getenv("REDIS_ADDR"),
+		RedisUsername:        os.Getenv("REDIS_USERNAME"),
+		RedisPasswordFile:    os.Getenv("REDIS_PASSWORD_FILE"),
 		DiscordSender:        os.Getenv("TASKFLOW_DISCORD_SENDER_ENABLED"),
 		DiscordApplicationID: os.Getenv("DISCORD_APPLICATION_ID"),
 		DiscordPublicKey:     os.Getenv("DISCORD_PUBLIC_KEY"),

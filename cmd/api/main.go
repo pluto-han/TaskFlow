@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/pluto-han/taskflow/internal/auth"
+	"github.com/pluto-han/taskflow/internal/cache"
 	"github.com/pluto-han/taskflow/internal/config"
 	"github.com/pluto-han/taskflow/internal/discord"
 	"github.com/pluto-han/taskflow/internal/integration"
@@ -36,6 +37,10 @@ func main() {
 		os.Exit(1)
 	}
 	cfg := config.Load()
+	cacheOptions, err := cfg.Cache()
+	if err != nil {
+		log.Fatal(err)
+	}
 	if err := cfg.ReadSecrets(); err != nil {
 		log.Fatal(err)
 	}
@@ -95,6 +100,17 @@ func main() {
 	sessionService, err := session.NewService(context.Background(), userRepo, session.NewPostgresRepository(pool), auth.PasswordHasher{})
 	if err != nil {
 		log.Fatal("Could not initialize password verification")
+	}
+	cacheClient, err := cache.New(cacheOptions)
+	if err != nil {
+		log.Print("Could not configure optional cache")
+		return
+	}
+	if cacheClient != nil {
+		defer cacheClient.Close()
+		if err := cacheClient.Ping(context.Background()); err != nil {
+			log.Print("Optional cache unavailable; business queries still use PostgreSQL")
+		}
 	}
 	metrics := telemetry.New(pool, pool.Ping)
 	metrics.SetWorkers(schedulerEnabled, senderEnabled)
