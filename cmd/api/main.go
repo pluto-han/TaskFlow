@@ -184,7 +184,11 @@ func main() {
 			return
 		}
 		defer workerPool.Close()
-		worker := recurrence.NewScheduler(recurrence.NewPostgresRepository(workerPool), slog.Default(), metrics)
+		generator := recurrence.NewPostgresRepository(workerPool)
+		if cacheClient != nil {
+			generator.WithTodayInvalidation(service.InvalidateToday)
+		}
+		worker := recurrence.NewScheduler(generator, slog.Default(), metrics)
 		go func() { defer close(workerDone); worker.Run(shutdownCtx) }()
 	} else {
 		close(workerDone)

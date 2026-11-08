@@ -14,12 +14,20 @@ import (
 )
 
 type PostgresRepository struct {
-	pool *pgxpool.Pool
-	q    *db.Queries
+	pool            *pgxpool.Pool
+	q               *db.Queries
+	invalidateToday func(context.Context, session.UserID, string) error
 }
 
 func NewPostgresRepository(p *pgxpool.Pool) *PostgresRepository {
 	return &PostgresRepository{pool: p, q: db.New(p)}
+}
+
+// WithTodayInvalidation is configured before starting the generator. The callback
+// is best-effort, must bound its wait, and is never called inside a transaction.
+func (r *PostgresRepository) WithTodayInvalidation(invalidate func(context.Context, session.UserID, string) error) *PostgresRepository {
+	r.invalidateToday = invalidate
+	return r
 }
 func ownerID(owner session.UserID) (pgtype.UUID, error) {
 	id, e := parseID(string(owner))

@@ -73,7 +73,7 @@ def main():
                             "fixture", "SET", "taskflow:cache:test-run:" + marker, marker], capture=True)
 
             seed_marker()
-            run(["go", "test", "-race", "-count=1", "-timeout=30s", "-v", "./test/integration/cache", "-run", "^TestRedis(Client|TodayService)Integration$"] , env=env)
+            run(["go", "test", "-race", "-count=1", "-timeout=30s", "-v", "./test/integration/cache", "-run", "^TestRedis(Client|TodayService|TodayWrites)Integration$"] , env=env)
             run(base + ["restart", "redis"])
             run(base + ["up", "-d", "--wait", "--wait-timeout", "90"])
             seed_marker()

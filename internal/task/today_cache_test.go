@@ -21,7 +21,10 @@ type todayStore struct {
 	values              map[string][]byte
 	gets, sets, deletes int
 	getErr, setErr      error
+	deleteErr           error
 	getHook             func()
+	deleteHook          func(context.Context, string)
+	deletedKeys         []string
 	lastTTL             time.Duration
 }
 
@@ -48,8 +51,15 @@ func (f *todayStore) Set(_ context.Context, key string, value []byte, ttl time.D
 	f.values[key] = append([]byte(nil), value...)
 	return nil
 }
-func (f *todayStore) Delete(_ context.Context, key string) error {
+func (f *todayStore) Delete(ctx context.Context, key string) error {
 	f.deletes++
+	f.deletedKeys = append(f.deletedKeys, key)
+	if f.deleteHook != nil {
+		f.deleteHook(ctx, key)
+	}
+	if f.deleteErr != nil {
+		return f.deleteErr
+	}
 	delete(f.values, key)
 	return nil
 }

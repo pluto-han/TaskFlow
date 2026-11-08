@@ -79,6 +79,7 @@ func (s *Service) create(ctx context.Context, ownerID session.UserID, input Crea
 	if err := s.repo.Save(ctx, ownerID, newTask); err != nil {
 		return nil, err
 	}
+	s.invalidateTodayAfterWrite(ctx, ownerID)
 
 	return newTask, nil
 }
@@ -231,6 +232,7 @@ func (s *Service) Update(ctx context.Context, ownerID session.UserID, id string,
 	if err := s.repo.Update(ctx, ownerID, current); err != nil {
 		return nil, err
 	}
+	s.invalidateTodayAfterWrite(ctx, ownerID)
 
 	current.CanMove = current.OwnerID == ownerID && current.PlanDate == nil
 	return current, nil
@@ -245,7 +247,11 @@ func (s *Service) Delete(ctx context.Context, ownerID session.UserID, id string)
 		return err
 	}
 
-	return s.repo.Delete(ctx, ownerID, id)
+	if err := s.repo.Delete(ctx, ownerID, id); err != nil {
+		return err
+	}
+	s.invalidateTodayAfterWrite(ctx, ownerID)
+	return nil
 }
 
 func (s *Service) checkProject(ctx context.Context, owner session.UserID, raw *string) (*string, error) {

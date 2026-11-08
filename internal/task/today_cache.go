@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"math/rand/v2"
 	"strconv"
 	"strings"
@@ -20,7 +21,7 @@ const todayCacheVersion = 1
 const todayCacheMaxAge = 15 * time.Second
 
 // WithTodayCache is configured once before serving requests. A nil Store keeps
-// the original database-only path. Write invalidation follows in Lesson 40.
+// the original database-only path.
 func (s *Service) WithTodayCache(store cache.Store) *Service {
 	s.todayCache = store
 	return s
@@ -34,6 +35,34 @@ func todayCacheEligible(options ListOptions) bool {
 
 func todayCacheKey(owner session.UserID, date string) string {
 	return cache.KeyPrefix + "v" + strconv.Itoa(todayCacheVersion) + ":today:" + string(owner) + ":" + date + ":first20"
+}
+
+// InvalidateToday runs only after a confirmed commit. Preserve request values,
+// but detach its cancellation and replace its deadline with a short cleanup
+// budget. Call synchronously: no unbounded background goroutine is needed.
+func (s *Service) InvalidateToday(ctx context.Context, owner session.UserID, date string) error {
+	if s.todayCache == nil {
+		return nil
+	}
+	if owner == "" {
+		return session.ErrUnauthorized
+	}
+	if _, err := planning.ParseDate(date); err != nil {
+		return cache.ErrInvalid
+	}
+	cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), cache.OperationTimeout)
+	defer cancel()
+	return s.todayCache.Delete(cleanup, todayCacheKey(owner, date))
+}
+
+func (s *Service) invalidateTodayAfterWrite(ctx context.Context, actor session.UserID) {
+	if s.todayCache == nil {
+		return
+	}
+	if err := s.InvalidateToday(ctx, actor, planning.At(s.now()).PlanDate); err != nil {
+		// Do not include Redis errors, task data, actor IDs or cache keys.
+		slog.Warn("today_cache_invalidation_failed")
+	}
 }
 
 // Task.OwnerID intentionally never appears in public HTTP JSON. Preserve it in

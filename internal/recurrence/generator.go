@@ -4,11 +4,13 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"log/slog"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	db "github.com/pluto-han/taskflow/internal/db/sqlc"
 	"github.com/pluto-han/taskflow/internal/planning"
+	"github.com/pluto-han/taskflow/internal/session"
 )
 
 // WorkerPoolConfig isolates background work from HTTP pool acquisitions.
@@ -46,6 +48,9 @@ func (r *PostgresRepository) GenerateBatch(ctx context.Context, now func() time.
 		return BatchResult{}, err
 	}
 	result := BatchResult{}
+	// All rows in this batch use the same captured date, so owner deduplication
+	// also deduplicates owner/date cache keys.
+	affected := make(map[session.UserID]struct{})
 	for _, row := range rows {
 		if planning.At(now()).PlanDate != day {
 			return BatchResult{}, ErrDayChanged
@@ -99,6 +104,9 @@ func (r *PostgresRepository) GenerateBatch(ctx context.Context, now func() time.
 					}
 				}
 				result.Generated++
+				if r.invalidateToday != nil {
+					affected[session.UserID(row.OwnerID.String())] = struct{}{}
+				}
 			}
 			next, err = nextAfter(day, anchor, int(row.IntervalDays), day)
 			if err != nil {
@@ -117,6 +125,15 @@ func (r *PostgresRepository) GenerateBatch(ctx context.Context, now func() time.
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return BatchResult{}, err
+	}
+	failed := 0
+	for owner := range affected {
+		if err := r.invalidateToday(ctx, owner, day); err != nil {
+			failed++
+		}
+	}
+	if failed > 0 {
+		slog.Warn("recurrence_cache_invalidation_failed", "failed", failed)
 	}
 	return result, nil
 }
