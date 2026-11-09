@@ -164,6 +164,9 @@ def main():
         assert stored['title']=='Persistent task' and stored['version']==1
         from test.python.test_deploy_drill import drill
         drill(BASE, NAME, lambda: request('GET', '/api/tasks/'+task['id'], token=token))
+        from test.python.test_cache_rollout import drill as cache_drill
+        cache_drill(BASE, NAME, model, isolated, request, token,
+                    lambda: request('GET', '/api/tasks/'+task['id'], token=token))
         # Enable only this disposable project's worker. The real dev stack stays untouched.
         today = request('GET', '/api/tasks/today', token=token)
         scheduled = request('POST', '/api/recurrences', {

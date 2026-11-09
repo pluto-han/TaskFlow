@@ -43,6 +43,8 @@ jobs:
           python3 -m unittest discover -s test/python -p "test_deploy_release.py" -v
           python3 -m unittest discover -s test/python -p "test_prepare_monitoring.py" -v
           python3 -m unittest discover -s test/python -p "test_init_cache.py" -v
+          python3 -m unittest discover -s test/python -p "test_prepare_cache.py" -v
+          python3 -m unittest discover -s test/python -p "test_apply_cache.py" -v
       - name: Unit tests and static checks
         run: |
           test -z "$(gofmt -l cmd internal test)"

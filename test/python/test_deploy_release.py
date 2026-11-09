@@ -6,6 +6,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 from scripts import deploy_release as cd
+from scripts import prepare_cache as prep
+from test.python.test_prepare_cache import server_config
 
 
 def request():
@@ -95,6 +97,36 @@ class Deployment(unittest.TestCase):
         self.assertEqual(result['services']['api']['image'], request()['images']['api'])
         self.assertEqual(result['services']['postgres'], config()['services']['postgres'])
         self.assertEqual(result['services']['migrate'], config()['services']['migrate'])
+
+    def test_cache_network_secret_and_existing_workers_survive_cd_and_rollback(self):
+        for fail in (False, True):
+            with self.subTest(rollback=fail), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                base = root / 'compose.server.yaml'
+                baseline = prep.cache_model(server_config(root), 'connect', root / '.local/cache/redis_password')
+                baseline = prep.cache_model(baseline, 'enable', root / '.local/cache/redis_password')
+                base.write_text(json.dumps(baseline))
+                captured = []
+                def activate(path):
+                    captured.append(json.loads(path.read_text()))
+                    if fail and len(captured) == 1: raise RuntimeError('intentional failed API')
+                with patch.object(cd, 'ROOT', root), \
+                     patch.object(cd, 'compose', return_value=json.dumps(baseline)), \
+                     patch.object(cd, 'snapshot', return_value=copy.deepcopy(baseline)), \
+                     patch.object(cd, 'run', return_value=json.dumps({'org.opencontainers.image.revision': 'a'*40})), \
+                     patch.object(cd, 'migration_hashes', return_value={'001.sql': 'unchanged'}), \
+                     patch.object(cd, 'probe'), patch.object(cd, 'activate', side_effect=activate):
+                    if fail:
+                        with self.assertRaisesRegex(RuntimeError, 'previous images restored'): cd.deploy(request())
+                    else:
+                        cd.deploy(request())
+                for model in captured + [json.loads(base.read_text())]:
+                    self.assertEqual(model['networks'], baseline['networks'])
+                    self.assertEqual(model['secrets'], baseline['secrets'])
+                    for key in ('environment', 'networks', 'secrets'):
+                        self.assertEqual(model['services']['api'][key], baseline['services']['api'][key])
+                    self.assertEqual(set(model['services']), {'postgres', 'migrate', 'api', 'web'})
+                    self.assertEqual(model['services']['postgres'], baseline['services']['postgres'])
 
     def test_interrupted_release_blocks_retry_before_docker(self):
         with tempfile.TemporaryDirectory() as tmp:

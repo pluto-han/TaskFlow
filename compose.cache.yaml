@@ -12,7 +12,8 @@ services:
         read_only: true
         bind: {create_host_path: false}
     secrets: [redis_acl, redis_password]
-    networks: [cache]
+    networks:
+      cache: {aliases: [taskflow-redis]}
     read_only: true
     tmpfs: ["/tmp:size=8m,mode=1777"]
     cap_drop: [ALL]
