@@ -83,7 +83,11 @@ def main():
         source = directory/'main.go'
         source.write_text('''package main
 import("context";"net/http";"time";"github.com/pluto-han/taskflow/internal/telemetry")
-func main(){m:=telemetry.New(nil,func(context.Context)error{return nil});m.Observe("GET","/tasks/:id",200,10*time.Millisecond);http.ListenAndServe(":9091",m.Handler())}
+func main(){m:=telemetry.New(nil,func(context.Context)error{return nil});m.Observe("GET","/tasks/:id",200,10*time.Millisecond)
+mux:=http.NewServeMux();mux.Handle("/metrics",m.Handler())
+mux.HandleFunc("/fixture/enable",func(w http.ResponseWriter,r *http.Request){m.SetCacheEnabled(true);w.Write([]byte("{}"))})
+mux.HandleFunc("/fixture/hit",func(w http.ResponseWriter,r *http.Request){m.ObserveTodayCache("hit");m.ObserveTodayCacheFill("success");m.ObserveTodayCacheOperation("get",true,time.Millisecond);w.Write([]byte("{}"))})
+http.ListenAndServe(":9091",mux)}
 ''')
         binary = directory/'fixture'
         run(['go','build','-o',str(binary),str(source)],env=dict(os.environ,CGO_ENABLED='0'),timeout=180)
@@ -91,7 +95,7 @@ func main(){m:=telemetry.New(nil,func(context.Context)error{return nil});m.Obser
         # Use the existing minimal API image only as a shell-free executable carrier.
         data['services']['fixture']={'image':'taskflow-api:local','entrypoint':['/fixture'],
           'volumes':[{'type':'bind','source':str(binary),'target':'/fixture','read_only':True}],
-          'networks':{'taskflow_edge':{'aliases':['api']}},'read_only':True,'cap_drop':['ALL'],'mem_limit':'64m'}
+          'networks':{'taskflow_edge':{'aliases':['api']},'ingress':None},'ports':[{'target':9091,'published':'0','host_ip':'127.0.0.1','protocol':'tcp'}],'read_only':True,'cap_drop':['ALL'],'mem_limit':'64m'}
         config = directory/'compose.json'
         config.write_text(json.dumps(data))
         def compose(*args): return run(['docker','compose','-p',name,'-f',str(config),*args])
@@ -106,6 +110,7 @@ func main(){m:=telemetry.New(nil,func(context.Context)error{return nil});m.Obser
             compose('up','-d','--no-build','--pull','never')
             grafana='http://'+compose('port','grafana','3000')
             prometheus='http://'+compose('port','prometheus','9090')
+            fixture='http://'+compose('port','fixture','9091')
             eventually(lambda:get(grafana+'/api/health').get('database')=='ok')
             try:
                 get(grafana+'/api/search')
@@ -117,11 +122,27 @@ func main(){m:=telemetry.New(nil,func(context.Context)error{return nil});m.Obser
             assert {'API scrape availability', 'Database readiness',
                     'Background workers enabled', 'Seconds since successful background poll',
                     'Eligible notifications and oldest wait', 'Discord send attempts by outcome',
-                    'Lease reclaims / second', 'Recurrence tasks generated / second'} <= titles
+                    'Lease reclaims / second', 'Recurrence tasks generated / second',
+                    'Today cache enabled', 'Today cache eligible hit ratio',
+                    'Today cache reads / second', 'Today cache fill results / second',
+                    'Today cache Redis operations / second', 'Today cache Redis operation p95'} <= titles
             def query(expr):
                 return get(prometheus+'/api/v1/query?'+urllib.parse.urlencode({'query':expr}))['data']['result']
             eventually(lambda:query('taskflow_database_ready == 1'))
             assert query('taskflow_http_requests_total{route="/tasks/:id"}')
+            ratio = next(panel['targets'][0]['expr'] for panel in dashboard['dashboard']['panels'] if panel['title']=='Today cache eligible hit ratio')
+            eventually(lambda:query('taskflow_today_cache_enabled == 0'))
+            assert not query(ratio), 'disabled cache must not show zero hit ratio'
+            get(fixture+'/fixture/enable')
+            eventually(lambda:query('taskflow_today_cache_enabled == 1'))
+            assert not query(ratio), 'idle enabled cache must not show zero hit ratio'
+            get(fixture+'/fixture/hit')
+            eventually(lambda:query('taskflow_today_cache_reads_total{outcome="hit"} == 1'))
+            eventually(lambda:query(ratio))
+            # Execute every panel expression against real Prometheus; bad PromQL
+            # or unknown functions must fail the test, even for an idle series.
+            for panel in dashboard['dashboard']['panels']:
+                for target in panel.get('targets', []): query(target['expr'])
             eventually(lambda:query('node_memory_MemAvailable_bytes{job="node"}'))
             eventually(lambda:query('node_filesystem_size_bytes{job="node",mountpoint="/"}'))
             # Real exporter outage: test firing and recovery, without touching real API.
@@ -130,8 +151,8 @@ func main(){m:=telemetry.New(nil,func(context.Context)error{return nil});m.Obser
             compose('start','fixture')
             eventually(lambda:query('up{job="taskflow"} == 1'))
             eventually(lambda:not query('ALERTS{alertname="TaskFlowUnavailable"}'))
-            print('PASS: real metric scrape, Grafana authentication/dashboard, alert firing and recovery')
-            (artifacts/'monitoring-result.json').write_text(json.dumps({'status':'passed','checks':['scrape','grafana-auth','dashboard','alert-firing','alert-recovery']})+'\n')
+            print('PASS: real metric scrape, Grafana/cache panels and PromQL, disabled/idle hit ratio, alert firing and recovery')
+            (artifacts/'monitoring-result.json').write_text(json.dumps({'status':'passed','checks':['scrape','grafana-auth','dashboard','cache-promql','disabled-idle-hit-ratio','alert-firing','alert-recovery']})+'\n')
         finally:
             compose('down','--volumes','--remove-orphans')
             run(['docker','network','rm',name+'-edge'])

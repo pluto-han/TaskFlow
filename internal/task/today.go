@@ -75,6 +75,7 @@ func (s *Service) ListToday(ctx context.Context, owner session.UserID, options L
 	if s.todayCache != nil && todayCacheEligible(options) {
 		page, day, err = s.listTodayCached(ctx, owner, day)
 	} else {
+		s.observeCacheRead("bypass")
 		options.PlanDate = &day.PlanDate
 		page, err = s.List(ctx, owner, options)
 	}

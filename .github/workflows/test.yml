@@ -17,7 +17,7 @@ jobs:
       - name: Install migration CLI
         run: go install -tags postgres github.com/golang-migrate/migrate/v4/cmd/migrate@v4.18.3
       - name: Cache clocks, invalidation races, cancellation and pool bounds
-        run: go test -race -shuffle=on -count=1 ./internal/cache ./internal/task
+        run: go test -race -shuffle=on -count=1 ./internal/cache ./internal/task ./internal/telemetry
       - name: Real isolated Redis and PostgreSQL fault and session regression
         run: make test-cache
   postgres:

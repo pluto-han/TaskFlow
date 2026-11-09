@@ -2,6 +2,7 @@
 import hashlib
 import json
 import os
+import platform
 from pathlib import Path
 import secrets
 import signal
@@ -25,7 +26,7 @@ def run(args, *, capture=False, env=None, timeout=180):
     return result.stdout.strip() if capture else ""
 
 
-def main():
+def main(*, performance=False):
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
     for tool in ("docker", "go", "migrate"):
         if not shutil.which(tool):
@@ -126,6 +127,29 @@ def main():
                             "fixture", "SET", "taskflow:cache:test-run:" + marker, marker], capture=True)
 
             seed_marker()
+            if performance:
+                env["TASKFLOW_CACHE_PERFORMANCE"] = "true"
+                report = ROOT / "artifacts/lesson42"
+                report.mkdir(parents=True, exist_ok=True)
+                env["TASKFLOW_CACHE_REPORT_DIR"] = str(report)
+                metadata = {"host": platform.platform(), "cpu_count": os.cpu_count(),
+                            "load_average_before": os.getloadavg(),
+                            "redis_image_id": details["Image"], "postgres_image_id": pg_details["Image"],
+                            "redis_maxmemory_test": "4mb", "redis_maxmemory_production": "64mb",
+                            "redis_memory_limit_bytes": details["HostConfig"]["Memory"],
+                            "postgres_memory_limit_bytes": pg_details["HostConfig"]["Memory"],
+                            "redis_cpus": details["HostConfig"]["NanoCpus"] / 1e9,
+                            "test_transport": "loopback HTTP -> real Gin -> Redis/PostgreSQL; no Nginx/TLS",
+                            "rate_limits": "unchanged Go 300/peer/minute, 1200/global/minute; new router per group",
+                            "race_detector": False}
+                run(["go", "test", "-count=1", "-timeout=240s", "-v", "./test/integration/cache", "-run", "^TestRedisPostgresPerformanceComparison$"], env=env, timeout=270)
+                metadata["load_average_after"] = os.getloadavg()
+                metadata["container_stats_after"] = [json.loads(line) for line in run(
+                    ["docker", "stats", "--no-stream", "--format", "{{json .}}", container, pg_container],
+                    capture=True).splitlines()]
+                # Docker stats contains random container names but no credentials.
+                (report / "environment.json").write_text(json.dumps(metadata, indent=2) + "\n")
+                return
             run(["go", "test", "-race", "-count=1", "-timeout=30s", "-v", "./test/integration/cache", "-run", "^TestRedis(Client|TodayService|TodayWrites)Integration$"] , env=env)
             run(["go", "test", "-race", "-shuffle=on", "-count=1", "-timeout=90s", "-v", "./test/integration/cache", "-run", "^TestRedisPostgres"], env=env)
             run(base + ["restart", "redis"])

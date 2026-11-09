@@ -20,6 +20,30 @@ import (
 const todayCacheVersion = 1
 const todayCacheMaxAge = 15 * time.Second
 
+// TodayCacheObserver receives fixed categories only, never keys or identities.
+type TodayCacheObserver interface {
+	ObserveTodayCache(outcome string)
+	ObserveTodayCacheFill(outcome string)
+	ObserveTodayCacheOperation(operation string, ok bool, elapsed time.Duration)
+}
+
+func (s *Service) WithTodayCacheObserver(observer TodayCacheObserver) *Service {
+	s.cacheObserver = observer
+	return s
+}
+
+func (s *Service) observeCacheRead(outcome string) {
+	if s.cacheObserver != nil {
+		s.cacheObserver.ObserveTodayCache(outcome)
+	}
+}
+
+func (s *Service) observeCacheOperation(operation string, err error, started time.Time) {
+	if s.cacheObserver != nil {
+		s.cacheObserver.ObserveTodayCacheOperation(operation, err == nil || errors.Is(err, cache.ErrMiss), time.Since(started))
+	}
+}
+
 // WithTodayCache is configured once before serving requests. A nil Store keeps
 // the original database-only path.
 func (s *Service) WithTodayCache(store cache.Store) *Service {
@@ -52,7 +76,10 @@ func (s *Service) InvalidateToday(ctx context.Context, owner session.UserID, dat
 	}
 	cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), cache.OperationTimeout)
 	defer cancel()
-	return s.todayCache.Delete(cleanup, todayCacheKey(owner, date))
+	started := time.Now()
+	err := s.todayCache.Delete(cleanup, todayCacheKey(owner, date))
+	s.observeCacheOperation("delete", err, started)
+	return err
 }
 
 func (s *Service) invalidateTodayAfterWrite(ctx context.Context, actor session.UserID) {
@@ -142,16 +169,26 @@ func decodeTodayCache(raw []byte, owner session.UserID, day planning.Day) (TaskP
 
 func (s *Service) listTodayCached(ctx context.Context, owner session.UserID, day planning.Day) (TaskPage, planning.Day, error) {
 	key := todayCacheKey(owner, day.PlanDate)
+	operationStarted := time.Now()
 	raw, readErr := s.todayCache.Get(ctx, key)
+	s.observeCacheOperation("get", readErr, operationStarted)
 	if err := ctx.Err(); err != nil {
+		s.observeCacheRead("error")
 		return TaskPage{}, day, err
 	}
 	// Redis itself can straddle midnight. Never use yesterday's result after it.
 	current := planning.At(s.now())
 	if readErr == nil && current.PlanDate == day.PlanDate {
 		if page, ok := decodeTodayCache(raw, owner, current); ok {
+			s.observeCacheRead("hit")
 			return page, current, nil
 		}
+	}
+	if readErr != nil && !errors.Is(readErr, cache.ErrMiss) {
+		s.observeCacheRead("error")
+	} else {
+		// Missing, expired, malformed or wrong-day bytes all require a DB read.
+		s.observeCacheRead("miss")
 	}
 	// Capture the absolute lifetime BEFORE the database read. A slow read or SET
 	// must not grant an old snapshot another full TTL.
@@ -176,6 +213,12 @@ func (s *Service) listTodayCached(ctx context.Context, owner session.UserID, day
 }
 
 func (s *Service) fillTodayCache(ctx context.Context, owner session.UserID, day planning.Day, started time.Time, page TaskPage) {
+	outcome := "skipped"
+	defer func() {
+		if s.cacheObserver != nil {
+			s.cacheObserver.ObserveTodayCacheFill(outcome)
+		}
+	}()
 	ttl := 12*time.Second + time.Duration(rand.Int64N(int64(3*time.Second)+1))
 	until := started.Add(ttl)
 	if day.NextDayAt.Before(until) {
@@ -198,5 +241,11 @@ func (s *Service) fillTodayCache(ctx context.Context, owner session.UserID, day 
 		return
 	}
 	// Redis TTL cleans up storage; ValidUntil also guards delayed writes/reads.
-	_ = s.todayCache.Set(ctx, todayCacheKey(owner, day.PlanDate), raw, remaining)
+	operationStarted := time.Now()
+	err = s.todayCache.Set(ctx, todayCacheKey(owner, day.PlanDate), raw, remaining)
+	s.observeCacheOperation("set", err, operationStarted)
+	outcome = "success"
+	if err != nil {
+		outcome = "error"
+	}
 }

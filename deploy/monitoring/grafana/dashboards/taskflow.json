@@ -2,7 +2,7 @@
   "uid": "taskflow-overview",
   "title": "TaskFlow overview",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "editable": false,
   "timezone": "browser",
   "refresh": "15s",
@@ -536,6 +536,198 @@
       "fieldConfig": {
         "defaults": {
           "unit": "ops"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 18,
+      "title": "Today cache enabled",
+      "description": "Configured switch only. Zero means disabled; one does not prove Redis is healthy.",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "taskflow-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 72,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "taskflow_today_cache_enabled{job=\"taskflow\"}",
+          "instant": true,
+          "format": "time_series",
+          "legendFormat": "{{operation}} {{outcome}} {{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 19,
+      "title": "Today cache eligible hit ratio",
+      "description": "Hits / (hits + misses + GET errors). Bypass is excluded. No data when disabled or idle, rather than a misleading zero.",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "taskflow-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 72,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(sum(rate(taskflow_today_cache_reads_total{job=\"taskflow\",outcome=\"hit\"}[5m])) / sum(rate(taskflow_today_cache_reads_total{job=\"taskflow\",outcome=~\"hit|miss|error\"}[5m]))) and on() (sum(increase(taskflow_today_cache_reads_total{job=\"taskflow\",outcome=~\"hit|miss|error\"}[5m])) > 0) and on() (max(taskflow_today_cache_enabled{job=\"taskflow\"}) == 1)",
+          "instant": true,
+          "format": "time_series",
+          "legendFormat": "{{operation}} {{outcome}} {{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 20,
+      "title": "Today cache reads / second",
+      "description": "Miss includes missing, expired or invalid payloads. Error means GET failed and the request attempts PostgreSQL fallback.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "taskflow-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 80,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (outcome) (rate(taskflow_today_cache_reads_total{job=\"taskflow\"}[5m]))",
+          "instant": false,
+          "format": "time_series",
+          "legendFormat": "{{operation}} {{outcome}} {{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 21,
+      "title": "Today cache fill results / second",
+      "description": "Success, error or skipped. Skipped snapshots were too old or unsafe to store. GET errors skip the entire fill path.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "taskflow-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 80,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (outcome) (rate(taskflow_today_cache_fills_total{job=\"taskflow\"}[5m]))",
+          "instant": false,
+          "format": "time_series",
+          "legendFormat": "{{operation}} {{outcome}} {{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 22,
+      "title": "Today cache Redis operations / second",
+      "description": "DELETE is post-commit invalidation; error cannot roll back a successful database write. A GET miss is a successful Redis command.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "taskflow-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 88,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (operation, outcome) (rate(taskflow_today_cache_operations_total{job=\"taskflow\"}[5m]))",
+          "instant": false,
+          "format": "time_series",
+          "legendFormat": "{{operation}} {{outcome}} {{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 23,
+      "title": "Today cache Redis operation p95",
+      "description": "Includes pool wait and failures. The 50ms operation budget and histogram buckets make this an approximate percentile, not a hard timeout guarantee.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "taskflow-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 88,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, operation) (rate(taskflow_today_cache_operation_duration_seconds_bucket{job=\"taskflow\"}[5m])))",
+          "instant": false,
+          "format": "time_series",
+          "legendFormat": "{{operation}} {{outcome}} {{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
         },
         "overrides": []
       },

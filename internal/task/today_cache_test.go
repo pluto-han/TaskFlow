@@ -379,3 +379,59 @@ func TestTodayCacheHTTPRequiresAuthentication(t *testing.T) {
 		}
 	}
 }
+
+type cacheObservation struct {
+	reads, fills []string
+	operations   []string
+	outcomes     []bool
+}
+
+func (o *cacheObservation) ObserveTodayCache(outcome string)     { o.reads = append(o.reads, outcome) }
+func (o *cacheObservation) ObserveTodayCacheFill(outcome string) { o.fills = append(o.fills, outcome) }
+func (o *cacheObservation) ObserveTodayCacheOperation(operation string, ok bool, elapsed time.Duration) {
+	o.operations = append(o.operations, operation)
+	o.outcomes = append(o.outcomes, ok)
+}
+
+func TestTodayCacheObservationFollowsActualPaths(t *testing.T) {
+	svc, _, store, now := todayCacheFixture(t, 1)
+	observer := &cacheObservation{}
+	svc.WithTodayCacheObserver(observer)
+	_ = readCachedToday(t, svc, testOwner) // miss, GET success, SET success
+	_ = readCachedToday(t, svc, testOwner) // hit
+	if _, err := svc.ListToday(context.Background(), testOwner, ListOptions{Limit: 5}); err != nil {
+		t.Fatal(err)
+	} // bypass
+	store.getErr = cache.ErrUnavailable
+	_ = readCachedToday(t, svc, testOwner) // error, DB fallback, no SET
+	store.getErr = nil
+	store.setErr = cache.ErrUnavailable
+	delete(store.values, todayCacheKey(testOwner, planning.At(*now).PlanDate))
+	_ = readCachedToday(t, svc, testOwner) // miss, SET error
+	store.deleteErr = cache.ErrUnavailable
+	_ = svc.InvalidateToday(context.Background(), testOwner, planning.At(*now).PlanDate)
+	if fmt.Sprint(observer.reads) != "[miss hit bypass error miss]" || fmt.Sprint(observer.fills) != "[success error]" ||
+		fmt.Sprint(observer.operations) != "[get set get get get set delete]" || fmt.Sprint(observer.outcomes) != "[true true true false true false false]" {
+		t.Fatalf("wrong observation paths: %+v", observer)
+	}
+	svc.WithTodayCache(nil)
+	_ = readCachedToday(t, svc, testOwner)
+	if observer.reads[len(observer.reads)-1] != "bypass" {
+		t.Fatal("disabled reads not observed as bypass")
+	}
+}
+
+func TestTodayCacheSkippedFillAndInvalidRequestMetrics(t *testing.T) {
+	svc, repo, _, now := todayCacheFixture(t, 1)
+	observer := &cacheObservation{}
+	svc.WithTodayCacheObserver(observer)
+	repo.hook = func() { *now = now.Add(16 * time.Second) }
+	_ = readCachedToday(t, svc, testOwner)
+	if fmt.Sprint(observer.fills) != "[skipped]" {
+		t.Fatal("expired SQL snapshot not observed as skipped")
+	}
+	_, _ = svc.ListToday(context.Background(), "", ListOptions{})
+	if len(observer.reads) != 1 {
+		t.Fatal("unauthenticated request added cache activity")
+	}
+}

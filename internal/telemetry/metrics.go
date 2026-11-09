@@ -15,6 +15,11 @@ import (
 )
 
 type Metrics struct {
+	cacheEnabled        prometheus.Gauge
+	cacheReads          *prometheus.CounterVec
+	cacheFills          *prometheus.CounterVec
+	cacheOperations     *prometheus.CounterVec
+	cacheDuration       *prometheus.HistogramVec
 	scheduleScans       *prometheus.CounterVec
 	scheduleGenerated   prometheus.Counter
 	scheduleProcessed   prometheus.Counter
@@ -36,6 +41,7 @@ func New(pool *pgxpool.Pool, ping func(context.Context) error) *Metrics {
 		requests: prometheus.NewCounterVec(prometheus.CounterOpts{Name: "taskflow_http_requests_total", Help: "Completed HTTP requests by bounded method, route template and status class."}, []string{"method", "route", "status_class"}),
 		duration: prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "taskflow_http_request_duration_seconds", Help: "HTTP request duration in seconds.", Buckets: []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}}, []string{"method", "route"}),
 	}
+	m.initCache()
 	m.scheduleScans = prometheus.NewCounterVec(prometheus.CounterOpts{Name: "taskflow_recurrence_scans_total", Help: "Background batch attempts by bounded outcome."}, []string{"outcome"})
 	m.scheduleGenerated = prometheus.NewCounter(prometheus.CounterOpts{Name: "taskflow_recurrence_generated_total", Help: "Tasks observed committed by the scheduler; not an accounting ledger."})
 	m.scheduleProcessed = prometheus.NewCounter(prometheus.CounterOpts{Name: "taskflow_recurrence_processed_total", Help: "Rules observed advanced by committed scans."})

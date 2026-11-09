@@ -24,6 +24,7 @@ import (
 	"github.com/pluto-han/taskflow/internal/server"
 	"github.com/pluto-han/taskflow/internal/session"
 	"github.com/pluto-han/taskflow/internal/task"
+	"github.com/pluto-han/taskflow/internal/telemetry"
 	"github.com/pluto-han/taskflow/internal/testdb"
 	"github.com/pluto-han/taskflow/internal/user"
 )
@@ -68,6 +69,7 @@ func (r *observedSessions) FindActive(ctx context.Context, hash [32]byte) (sessi
 }
 
 type cacheHTTPFixture struct {
+	metrics *telemetry.Metrics
 	pool    *pgxpool.Pool
 	client  *cache.Client
 	store   *observedStore
@@ -97,7 +99,7 @@ func newCacheHTTPFixture(t *testing.T, mode string) *cacheHTTPFixture {
 		t.Fatal("cannot open full-stack fixture")
 	}
 	t.Cleanup(pool.Close)
-	if mode != "" {
+	if mode != "" && mode != "performance" {
 		if mode == "wrong-password" {
 			options.Password = "wrong-test-password"
 		} else if mode == "read-only" {
@@ -115,7 +117,14 @@ func newCacheHTTPFixture(t *testing.T, mode string) *cacheHTTPFixture {
 	repo := &observedSQL{Repository: task.NewPostgresRepository(pool)}
 	projects := project.NewPostgresRepository(pool)
 	fixed := time.Date(2026, 11, 5, 12, 0, 0, 0, time.UTC)
-	tasks := task.NewServiceWithClock(repo, projects, func() time.Time { return fixed }).WithTodayCache(store)
+	clock := func() time.Time { return fixed }
+	if mode == "performance" {
+		started := time.Now()
+		clock = func() time.Time { return fixed.Add(time.Since(started)) }
+	}
+	metrics := telemetry.New(nil, nil)
+	metrics.SetCacheEnabled(true)
+	tasks := task.NewServiceWithClock(repo, projects, clock).WithTodayCache(store).WithTodayCacheObserver(metrics)
 	users := user.NewPostgresRepository(pool)
 	sessions := &observedSessions{Repository: session.NewPostgresRepository(pool)}
 	sessionService, err := session.NewService(context.Background(), users, sessions, auth.PasswordHasher{})
@@ -124,12 +133,12 @@ func newCacheHTTPFixture(t *testing.T, mode string) *cacheHTTPFixture {
 	}
 	router := server.NewRouter(server.Dependencies{Tasks: tasks, Projects: project.NewService(projects),
 		Users: user.NewService(users, auth.PasswordHasher{}), Sessions: sessionService, Ping: pool.Ping,
-		Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+		Metrics: metrics, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
 	httpServer := httptest.NewServer(router)
 	t.Cleanup(httpServer.Close)
 	httpClient := &http.Client{Timeout: 2 * time.Second}
 	t.Cleanup(httpClient.CloseIdleConnections)
-	return &cacheHTTPFixture{pool: pool, client: client, store: store, repo: repo, auth: sessions,
+	return &cacheHTTPFixture{metrics: metrics, pool: pool, client: client, store: store, repo: repo, auth: sessions,
 		service: tasks, server: httpServer, http: httpClient, marker: marker}
 }
 

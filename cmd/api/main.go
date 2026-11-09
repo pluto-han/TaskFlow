@@ -114,6 +114,8 @@ func main() {
 		}
 	}
 	metrics := telemetry.New(pool, pool.Ping)
+	metrics.SetCacheEnabled(cacheClient != nil)
+	service.WithTodayCacheObserver(metrics)
 	metrics.SetWorkers(schedulerEnabled, senderEnabled)
 	bindings := integration.NewService(pool, len(discordKey) > 0)
 	router := server.NewRouter(server.Dependencies{

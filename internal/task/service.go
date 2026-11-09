@@ -21,10 +21,11 @@ type ProjectReader interface {
 }
 
 type Service struct {
-	todayCache cache.Store
-	now        func() time.Time
-	projects   ProjectReader
-	repo       Repository
+	todayCache    cache.Store
+	cacheObserver TodayCacheObserver
+	now           func() time.Time
+	projects      ProjectReader
+	repo          Repository
 }
 
 func NewService(repo Repository, projects ProjectReader) *Service {
