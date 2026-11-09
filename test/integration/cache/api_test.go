@@ -33,11 +33,17 @@ func TestAPIOptionalCacheLifecycle(t *testing.T) {
 	}
 	directory := t.TempDir()
 	binary := filepath.Join(directory, "api")
-	buildCtx, buildCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// A cold normal build uses a different cache variant from the surrounding
+	// race/coverage tests and can take longer on shared CI runners.
+	const buildTimeout = 90 * time.Second
+	buildCtx, buildCancel := context.WithTimeout(context.Background(), buildTimeout)
 	defer buildCancel()
 	build := exec.CommandContext(buildCtx, "go", "build", "-o", binary, "./cmd/api")
 	build.Dir = root
 	if err := build.Run(); err != nil {
+		if buildCtx.Err() != nil {
+			t.Fatalf("API lifecycle fixture build timed out after %s", buildTimeout)
+		}
 		t.Fatal("could not build API lifecycle fixture")
 	}
 	password := filepath.Join(directory, "password")
