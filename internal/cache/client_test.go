@@ -142,3 +142,48 @@ func TestCacheInputAndErrorRedaction(t *testing.T) {
 		t.Fatal("raw error leaked")
 	}
 }
+
+func TestCloseDuringPendingCommand(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = listener.Close() })
+	accepted := make(chan net.Conn, 1)
+	go func() {
+		connection, err := listener.Accept()
+		if err == nil {
+			accepted <- connection
+		}
+		close(accepted)
+	}()
+	client := newTestClient(t, listener.Addr().String())
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- client.Ping(ctx) }()
+	select {
+	case connection := <-accepted:
+		if connection == nil {
+			t.Fatal("listener failed")
+		}
+		defer connection.Close()
+	case <-ctx.Done():
+		t.Fatal("pending command did not connect")
+	}
+	started := time.Now()
+	if err := client.Close(); err != nil {
+		t.Fatal("close failed")
+	}
+	select {
+	case err := <-done:
+		if !errors.Is(err, ErrUnavailable) || ctx.Err() != nil {
+			t.Fatal("closing a pending command lost its bounded error or cancelled parent")
+		}
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("in-flight command outlived the close budget")
+	}
+	if time.Since(started) > 250*time.Millisecond {
+		t.Fatal("client close was unbounded")
+	}
+}

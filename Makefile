@@ -9,7 +9,7 @@ help:
 	@echo "test-containers   Disposable Compose smoke and deployment rollback tests"
 	@echo "test-monitoring   Disposable monitoring tests (requires monitoring images)"
 	@echo "baseline-today    Uncached Today Service counts and memory benchmark (no Redis or database)"
-	@echo "test-cache        Isolated Redis handshake, ACL, TTL and restart tests"
+	@echo "test-cache        Isolated Redis/PostgreSQL HTTP, faults, auth and concurrency tests"
 	@echo "check             Formatting, Go vet, frontend lint, types and API contract"
 
 test-unit: test-python
