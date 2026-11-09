@@ -1,3 +1,5 @@
+**English** | [简体中文](README_zh-CN.md)
+
 # TaskFlow
 
 TaskFlow is a web application for personal task management and project collaboration. It supports daily planning, shared projects, recurring tasks, and Discord channel reminders. You can use the hosted application or run your own instance.
