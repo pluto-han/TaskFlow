@@ -35,17 +35,22 @@ type Querier interface {
 	InsertRecurringTask(ctx context.Context, arg InsertRecurringTaskParams) error
 	IssueDiscordCode(ctx context.Context, arg IssueDiscordCodeParams) error
 	LatestRecurrenceOccurrence(ctx context.Context, arg LatestRecurrenceOccurrenceParams) (pgtype.Date, error)
+	ListActiveSessions(ctx context.Context, arg ListActiveSessionsParams) ([]ListActiveSessionsRow, error)
 	ListProjects(ctx context.Context, ownerID pgtype.UUID) ([]Project, error)
 	ListRecurrences(ctx context.Context, arg ListRecurrencesParams) ([]RecurrenceRule, error)
 	ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, error)
+	LockActiveSession(ctx context.Context, arg LockActiveSessionParams) (pgtype.UUID, error)
 	LockDiscordBinding(ctx context.Context, ownerID pgtype.UUID) (DiscordBinding, error)
 	LockDiscordCode(ctx context.Context, codeHash []byte) (DiscordBinding, error)
 	LockDueRecurrences(ctx context.Context, arg LockDueRecurrencesParams) ([]RecurrenceRule, error)
 	LockRecurrence(ctx context.Context, arg LockRecurrenceParams) (RecurrenceRule, error)
 	LockTask(ctx context.Context, arg LockTaskParams) (Task, error)
+	LockUserCredentials(ctx context.Context, id pgtype.UUID) (int64, error)
+	RevokeAllSessions(ctx context.Context, userID pgtype.UUID) error
 	RevokeSession(ctx context.Context, arg RevokeSessionParams) (int64, error)
 	SaveDiscordInteraction(ctx context.Context, arg SaveDiscordInteractionParams) (int64, error)
 	UnbindDiscord(ctx context.Context, ownerID pgtype.UUID) error
+	UpdatePassword(ctx context.Context, arg UpdatePasswordParams) (int64, error)
 	UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error)
 	UpdateRecurrence(ctx context.Context, arg UpdateRecurrenceParams) (RecurrenceRule, error)
 	UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, error)

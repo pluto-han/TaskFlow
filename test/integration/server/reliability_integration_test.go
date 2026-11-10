@@ -45,8 +45,8 @@ func TestReliabilityHTTPIntegration(t *testing.T) {
 	defer pool.Close()
 	var version int
 	var dirty bool
-	if err = pool.QueryRow(ctx, "SELECT version,dirty FROM schema_migrations").Scan(&version, &dirty); err != nil || version != 14 || dirty {
-		t.Fatal("requires clean schema 14")
+	if err = pool.QueryRow(ctx, "SELECT version,dirty FROM schema_migrations").Scan(&version, &dirty); err != nil || version != 15 || dirty {
+		t.Fatal("requires clean schema 15")
 	}
 
 	t.Run("least privilege runtime role", func(t *testing.T) {
@@ -56,6 +56,7 @@ func TestReliabilityHTTPIntegration(t *testing.T) {
 		_, err := pool.Exec(ctx, `CREATE ROLE taskflow_security_runtime NOLOGIN;
    GRANT USAGE ON SCHEMA public TO taskflow_security_runtime;
    GRANT SELECT,INSERT ON users TO taskflow_security_runtime;
+   GRANT UPDATE(password_hash,credentials_version) ON users TO taskflow_security_runtime;
    GRANT SELECT,INSERT,UPDATE ON sessions TO taskflow_security_runtime;
    GRANT SELECT,INSERT,UPDATE,DELETE ON projects,tasks,project_memberships,project_invitations TO taskflow_security_runtime;`)
 		if err != nil {

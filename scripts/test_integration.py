@@ -12,23 +12,24 @@ import time
 
 ROOT = Path(__file__).resolve().parents[1]
 SUITES = [
-    ("TASKFLOW_TEST_DATABASE_URL", 12, 4),
-    ("TASKFLOW_SESSION_TEST_DATABASE_URL", 13, 14),
-    ("TASKFLOW_TASK_TEST_DATABASE_URL", 14, 14),
-    ("TASKFLOW_PAGINATION_TEST_DATABASE_URL", 15, 14),
-    ("TASKFLOW_PROJECT_TEST_DATABASE_URL", 16, 14),
-    ("TASKFLOW_API_TEST_DATABASE_URL", 17, 14),
-    ("TASKFLOW_SHARING_TEST_DATABASE_URL", 20, 14),
-    ("TASKFLOW_RELIABILITY_TEST_DATABASE_URL", 21, 14),
-    ("TASKFLOW_TODAY_TEST_DATABASE_URL", 29, 14),
-    ("TASKFLOW_RECURRENCE_TEST_DATABASE_URL", 31, 14),
-    ("TASKFLOW_SCHEDULER_TEST_DATABASE_URL", 32, 14),
-    ("TASKFLOW_DISCORD_TEST_DATABASE_URL", 33, 14),
-    ("TASKFLOW_NOTIFICATION_TEST_DATABASE_URL", 34, 14),
-    ("TASKFLOW_FLOW_TEST_DATABASE_URL", 35, 14),
-    ("TASKFLOW_BROWSER_TEST_DATABASE_URL", 37, 14),
-    ("TASKFLOW_CACHE_INVALIDATION_TEST_DATABASE_URL", 40, 14),
-    ("TASKFLOW_BROWSER_SESSION_TEST_DATABASE_URL", 45, 14),
+    ("TASKFLOW_TEST_DATABASE_URL", 12, 15),
+    ("TASKFLOW_SESSION_TEST_DATABASE_URL", 13, 15),
+    ("TASKFLOW_TASK_TEST_DATABASE_URL", 14, 15),
+    ("TASKFLOW_PAGINATION_TEST_DATABASE_URL", 15, 15),
+    ("TASKFLOW_PROJECT_TEST_DATABASE_URL", 16, 15),
+    ("TASKFLOW_API_TEST_DATABASE_URL", 17, 15),
+    ("TASKFLOW_SHARING_TEST_DATABASE_URL", 20, 15),
+    ("TASKFLOW_RELIABILITY_TEST_DATABASE_URL", 21, 15),
+    ("TASKFLOW_TODAY_TEST_DATABASE_URL", 29, 15),
+    ("TASKFLOW_RECURRENCE_TEST_DATABASE_URL", 31, 15),
+    ("TASKFLOW_SCHEDULER_TEST_DATABASE_URL", 32, 15),
+    ("TASKFLOW_DISCORD_TEST_DATABASE_URL", 33, 15),
+    ("TASKFLOW_NOTIFICATION_TEST_DATABASE_URL", 34, 15),
+    ("TASKFLOW_FLOW_TEST_DATABASE_URL", 35, 15),
+    ("TASKFLOW_BROWSER_TEST_DATABASE_URL", 37, 15),
+    ("TASKFLOW_CACHE_INVALIDATION_TEST_DATABASE_URL", 40, 15),
+    ("TASKFLOW_BROWSER_SESSION_TEST_DATABASE_URL", 45, 15),
+    ("TASKFLOW_ACCOUNT_TEST_DATABASE_URL", 47, 15),
 ]
 
 
@@ -71,7 +72,7 @@ def round_tests(number, output, browser=False):
             db = f"taskflow_lesson{lesson}_test"
             run(["docker", "exec", name, "createdb", "-U", "taskflow", db], capture=True)
             url = f"postgres://taskflow:{password}@127.0.0.1:{port}/{db}?sslmode=disable"
-            run(["migrate", "-path", "migrations", "-database", url, "goto", str(9 if lesson in (29, 35) else 10 if lesson == 31 else 12 if lesson == 34 else 13 if lesson == 45 else version)], capture=True, env=env)
+            run(["migrate", "-path", "migrations", "-database", url, "goto", str(9 if lesson in (29, 35) else 10 if lesson == 31 else 12 if lesson == 34 else 13 if lesson == 45 else 14 if lesson == 47 else version)], capture=True, env=env)
             def sql(query):
                 return run(["docker", "exec", "-i", name, "psql", "-X", "-U", "taskflow", "-d", db,
                             "-At", "-v", "ON_ERROR_STOP=1"], capture=True, input=query)
@@ -88,7 +89,7 @@ def round_tests(number, output, browser=False):
                       ('00000000-0000-4000-8000-000000000092','00000000-0000-4000-8000-000000000090',decode(repeat('ab',32),'hex'),now()+interval '1 day');
                 """)
                 snapshot_query = """SELECT json_build_object(
-                    'users',(SELECT json_agg(u ORDER BY id) FROM users u),
+                    'users',(SELECT json_agg(u ORDER BY id) FROM (SELECT id,email,password_hash,created_at FROM users) u),
                     'projects',(SELECT json_agg(p ORDER BY id) FROM projects p),
                     'sessions',(SELECT json_agg(s ORDER BY id) FROM (SELECT id,user_id,token_hash,created_at,expires_at,revoked_at FROM sessions) s),
                     'tasks',(SELECT json_agg(t ORDER BY id) FROM
@@ -151,7 +152,21 @@ def round_tests(number, output, browser=False):
                 after = json.loads(sql(snapshot))
                 if after.pop("credential_kind") != "bearer" or after.pop("csrf_secret") is not None or before != after:
                     raise RuntimeError("v13 upgrade changed legacy session data or credential kind")
-                print("PASS: v13 -> v14 preserves the legacy session, defaulting to bearer without CSRF", flush=True)
+                print("PASS: v13 -> current preserves the legacy session, defaulting to bearer without CSRF", flush=True)
+            if lesson == 47:
+                sql("""
+                    INSERT INTO users(id,email,password_hash) VALUES
+                      ('00000000-0000-4000-8000-000000000047','upgrade47@example.com','fixture-only');
+                    INSERT INTO sessions(id,user_id,token_hash,expires_at) VALUES
+                      ('00000000-0000-4000-8000-000000000048','00000000-0000-4000-8000-000000000047',decode(repeat('ac',32),'hex'),now()+interval '1 day');
+                """)
+                before_user = json.loads(sql("SELECT to_jsonb(u) FROM users u WHERE email='upgrade47@example.com';"))
+                before_sessions = sql("SELECT jsonb_agg(to_jsonb(s) ORDER BY id) FROM sessions s;")
+                run(["migrate", "-path", "migrations", "-database", url, "goto", str(version)], capture=True, env=env)
+                after_user = json.loads(sql("SELECT to_jsonb(u) FROM users u WHERE email='upgrade47@example.com';"))
+                if after_user.pop("credentials_version") != 0 or before_user != after_user or before_sessions != sql("SELECT jsonb_agg(to_jsonb(s) ORDER BY id) FROM sessions s;"):
+                    raise RuntimeError("v14 upgrade changed existing user/session data")
+                print("PASS: v14 -> v15 preserves user and session data; credential version defaults to zero", flush=True)
             if sql("SELECT version::text || ':' || dirty::text FROM schema_migrations;") != f"{version}:false":
                 raise RuntimeError("migration did not reach a clean expected version")
             sql("CREATE TABLE taskflow_test_lease(run_id text NOT NULL); "

@@ -53,8 +53,8 @@ func TestBrowserSessionHTTPIntegration(t *testing.T) {
 	defer admin.Close()
 	var version int
 	var dirty bool
-	if err := admin.QueryRow(ctx, "SELECT version,dirty FROM schema_migrations").Scan(&version, &dirty); err != nil || version != 14 || dirty {
-		t.Fatal("requires clean migration 14")
+	if err := admin.QueryRow(ctx, "SELECT version,dirty FROM schema_migrations").Scan(&version, &dirty); err != nil || version != 15 || dirty {
+		t.Fatal("requires clean migration 15")
 	}
 	// The runner created this row before v14. It must still authenticate as Bearer.
 	legacyHash := bytes.Repeat([]byte{0xab}, 32)
@@ -78,7 +78,7 @@ func TestBrowserSessionHTTPIntegration(t *testing.T) {
 		}
 	}()
 	_, err = admin.Exec(ctx, "REVOKE CREATE ON SCHEMA public FROM PUBLIC; GRANT USAGE ON SCHEMA public TO "+quoted+
-		"; GRANT SELECT,INSERT ON users TO "+quoted+"; GRANT SELECT,INSERT,UPDATE ON sessions TO "+quoted+
+		"; GRANT SELECT,INSERT ON users TO "+quoted+"; GRANT UPDATE(password_hash,credentials_version) ON users TO "+quoted+"; GRANT SELECT,INSERT,UPDATE ON sessions TO "+quoted+
 		"; GRANT SELECT,INSERT,UPDATE,DELETE ON tasks,projects,project_memberships,project_invitations TO "+quoted)
 	if err != nil {
 		t.Fatal("fixture grants failed")
@@ -96,8 +96,8 @@ func TestBrowserSessionHTTPIntegration(t *testing.T) {
 	if err := config.CheckRuntimeRole(ctx, pool); err != nil {
 		t.Fatal("runtime role is privileged")
 	}
-	if _, err := pool.Exec(ctx, "UPDATE users SET password_hash='forbidden' WHERE false"); err == nil {
-		t.Fatal("runtime unexpectedly has user UPDATE")
+	if _, err := pool.Exec(ctx, "UPDATE users SET email='forbidden' WHERE false"); err == nil {
+		t.Fatal("runtime unexpectedly has identity UPDATE")
 	}
 	users := user.NewPostgresRepository(pool)
 	repo := session.NewPostgresRepository(pool)

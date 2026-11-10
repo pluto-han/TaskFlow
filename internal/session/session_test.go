@@ -59,7 +59,7 @@ type fakeSessions struct {
 	creates, finds, revokes int
 }
 
-func (f *fakeSessions) Create(_ context.Context, id string, uid UserID, hash [32]byte) (Principal, error) {
+func (f *fakeSessions) Create(_ context.Context, id string, uid UserID, hash [32]byte, _ int64) (Principal, error) {
 	f.creates++
 	f.hash = hash
 	f.p = Principal{SessionID: id, UserID: uid, ExpiresAt: time.Now().Add(24 * time.Hour)}

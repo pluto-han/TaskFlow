@@ -14,7 +14,7 @@ import (
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (id, email, password_hash)
 VALUES ($1, $2, $3)
-RETURNING id, email, password_hash, created_at
+RETURNING id, email, password_hash, created_at, credentials_version
 `
 
 type CreateUserParams struct {
@@ -31,12 +31,13 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.Email,
 		&i.PasswordHash,
 		&i.CreatedAt,
+		&i.CredentialsVersion,
 	)
 	return i, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, password_hash, created_at FROM users WHERE email = $1
+SELECT id, email, password_hash, created_at, credentials_version FROM users WHERE email = $1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -47,12 +48,13 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.Email,
 		&i.PasswordHash,
 		&i.CreatedAt,
+		&i.CredentialsVersion,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, password_hash, created_at FROM users WHERE id = $1
+SELECT id, email, password_hash, created_at, credentials_version FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error) {
@@ -63,6 +65,37 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 		&i.Email,
 		&i.PasswordHash,
 		&i.CreatedAt,
+		&i.CredentialsVersion,
 	)
 	return i, err
+}
+
+const lockUserCredentials = `-- name: LockUserCredentials :one
+SELECT credentials_version FROM users WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) LockUserCredentials(ctx context.Context, id pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, lockUserCredentials, id)
+	var credentials_version int64
+	err := row.Scan(&credentials_version)
+	return credentials_version, err
+}
+
+const updatePassword = `-- name: UpdatePassword :execrows
+UPDATE users SET password_hash = $1, credentials_version = credentials_version + 1
+WHERE id = $2 AND credentials_version = $3
+`
+
+type UpdatePasswordParams struct {
+	PasswordHash    string      `json:"password_hash"`
+	ID              pgtype.UUID `json:"id"`
+	ExpectedVersion int64       `json:"expected_version"`
+}
+
+func (q *Queries) UpdatePassword(ctx context.Context, arg UpdatePasswordParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updatePassword, arg.PasswordHash, arg.ID, arg.ExpectedVersion)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

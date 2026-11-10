@@ -11,10 +11,13 @@ import (
 	db "github.com/pluto-han/taskflow/internal/db/sqlc"
 )
 
-type PostgresRepository struct{ queries *db.Queries }
+type PostgresRepository struct {
+	queries *db.Queries
+	pool    *pgxpool.Pool
+}
 
 func NewPostgresRepository(pool *pgxpool.Pool) *PostgresRepository {
-	return &PostgresRepository{queries: db.New(pool)}
+	return &PostgresRepository{queries: db.New(pool), pool: pool}
 }
 
 func mapPrincipal(id, uid pgtype.UUID, expiry pgtype.Timestamptz, err error) (Principal, error) {
@@ -30,7 +33,7 @@ func mapPrincipal(id, uid pgtype.UUID, expiry pgtype.Timestamptz, err error) (Pr
 	return Principal{SessionID: id.String(), UserID: UserID(uid.String()), ExpiresAt: expiry.Time.UTC()}, nil
 }
 
-func (r *PostgresRepository) Create(ctx context.Context, id string, uid UserID, hash [32]byte) (Principal, error) {
+func (r *PostgresRepository) Create(ctx context.Context, id string, uid UserID, hash [32]byte, version int64) (Principal, error) {
 	var sid, userID pgtype.UUID
 	if err := sid.Scan(id); err != nil {
 		return Principal{}, err
@@ -38,7 +41,18 @@ func (r *PostgresRepository) Create(ctx context.Context, id string, uid UserID, 
 	if err := userID.Scan(string(uid)); err != nil {
 		return Principal{}, err
 	}
-	row, err := r.queries.CreateSession(ctx, db.CreateSessionParams{ID: sid, UserID: userID, TokenHash: hash[:]})
+	tx, q, err := r.lockUser(ctx, userID)
+	if err != nil {
+		return Principal{}, err
+	}
+	defer tx.Rollback(context.Background())
+	if q.version != version {
+		return Principal{}, ErrUnauthorized
+	}
+	row, err := q.queries.CreateSession(ctx, db.CreateSessionParams{ID: sid, UserID: userID, TokenHash: hash[:]})
+	if err == nil {
+		err = tx.Commit(ctx)
+	}
 	return mapPrincipal(row.ID, row.UserID, row.ExpiresAt, err)
 }
 func (r *PostgresRepository) FindActive(ctx context.Context, hash [32]byte) (Principal, error) {
@@ -46,7 +60,7 @@ func (r *PostgresRepository) FindActive(ctx context.Context, hash [32]byte) (Pri
 	return mapPrincipal(row.ID, row.UserID, row.ExpiresAt, err)
 }
 
-func (r *PostgresRepository) CreateBrowser(ctx context.Context, id string, uid UserID, hash, csrf [32]byte) (Principal, error) {
+func (r *PostgresRepository) CreateBrowser(ctx context.Context, id string, uid UserID, hash, csrf [32]byte, version int64) (Principal, error) {
 	var sid, userID pgtype.UUID
 	if err := sid.Scan(id); err != nil {
 		return Principal{}, err
@@ -54,9 +68,20 @@ func (r *PostgresRepository) CreateBrowser(ctx context.Context, id string, uid U
 	if err := userID.Scan(string(uid)); err != nil {
 		return Principal{}, err
 	}
-	row, err := r.queries.CreateBrowserSession(ctx, db.CreateBrowserSessionParams{
+	tx, q, err := r.lockUser(ctx, userID)
+	if err != nil {
+		return Principal{}, err
+	}
+	defer tx.Rollback(context.Background())
+	if q.version != version {
+		return Principal{}, ErrUnauthorized
+	}
+	row, err := q.queries.CreateBrowserSession(ctx, db.CreateBrowserSessionParams{
 		ID: sid, UserID: userID, TokenHash: hash[:], CsrfSecret: csrf[:],
 	})
+	if err == nil {
+		err = tx.Commit(ctx)
+	}
 	return mapPrincipal(row.ID, row.UserID, row.ExpiresAt, err)
 }
 
@@ -74,21 +99,7 @@ func (r *PostgresRepository) FindBrowser(ctx context.Context, hash [32]byte) (Br
 	return result, nil
 }
 func (r *PostgresRepository) Revoke(ctx context.Context, p Principal) error {
-	var id, uid pgtype.UUID
-	if err := id.Scan(p.SessionID); err != nil {
-		return err
-	}
-	if err := uid.Scan(string(p.UserID)); err != nil {
-		return err
-	}
-	count, err := r.queries.RevokeSession(ctx, db.RevokeSessionParams{ID: id, UserID: uid})
-	if err != nil {
-		return fmt.Errorf("revoke session: %w", err)
-	}
-	if count == 0 {
-		return ErrUnauthorized
-	}
-	return nil
+	return r.RevokeOwned(ctx, p, p.SessionID)
 }
 
 var _ Repository = (*PostgresRepository)(nil)

@@ -24,7 +24,7 @@ type browserSessions struct {
 	creates, finds, revokes int
 }
 
-func (r *browserSessions) CreateBrowser(_ context.Context, id string, uid UserID, hash, csrf [32]byte) (Principal, error) {
+func (r *browserSessions) CreateBrowser(_ context.Context, id string, uid UserID, hash, csrf [32]byte, _ int64) (Principal, error) {
 	r.creates++
 	if r.err != nil {
 		return Principal{}, r.err

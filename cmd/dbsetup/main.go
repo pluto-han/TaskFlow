@@ -66,6 +66,7 @@ func setup() error {
  GRANT CONNECT ON DATABASE taskflow TO taskflow_app;
  GRANT USAGE ON SCHEMA public TO taskflow_app;
  GRANT SELECT,INSERT ON users TO taskflow_app;
+ GRANT UPDATE(password_hash, credentials_version) ON users TO taskflow_app;
  GRANT SELECT,INSERT,UPDATE ON sessions TO taskflow_app;
  GRANT SELECT,INSERT,UPDATE ON discord_bindings TO taskflow_app;
  GRANT SELECT,INSERT ON discord_interactions TO taskflow_app;

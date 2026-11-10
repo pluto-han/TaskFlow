@@ -111,7 +111,7 @@ def main(*, performance=False):
             pg_url = f"postgres://taskflow:{pg_password}@127.0.0.1:{pg_bindings[0]['HostPort']}/taskflow_lesson41_test?sslmode=disable"
             env = {key: value for key, value in os.environ.items()
                    if not key.startswith(("TASKFLOW_", "REDIS_", "PG")) and key not in ("DATABASE_URL", "DATABASE_URL_FILE")}
-            run(["migrate", "-path", "migrations", "-database", pg_url, "goto", "14"], capture=True, env=env)
+            run(["migrate", "-path", "migrations", "-database", pg_url, "goto", "15"], capture=True, env=env)
             run(base + ["exec", "-T", "postgres", "psql", "-X", "-U", "taskflow", "-d", "taskflow_lesson41_test",
                         "-v", "ON_ERROR_STOP=1", "-c", f"CREATE TABLE taskflow_test_lease(run_id text NOT NULL); INSERT INTO taskflow_test_lease VALUES ('{marker}');"], capture=True)
             env.update({"TASKFLOW_CACHE_TEST_ADDR": "127.0.0.1:" + port,

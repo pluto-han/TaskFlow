@@ -32,7 +32,7 @@ func fromRow(row db.User, err error) (*User, error) {
 	if !row.ID.Valid || !row.CreatedAt.Valid || row.CreatedAt.InfinityModifier != pgtype.Finite {
 		return nil, errors.New("invalid user database mapping")
 	}
-	return &User{ID: row.ID.String(), Email: row.Email, PasswordHash: row.PasswordHash, CreatedAt: row.CreatedAt.Time.UTC()}, nil
+	return &User{ID: row.ID.String(), Email: row.Email, PasswordHash: row.PasswordHash, CredentialsVersion: row.CredentialsVersion, CreatedAt: row.CreatedAt.Time.UTC()}, nil
 }
 
 func (r *PostgresRepository) Create(ctx context.Context, u *User) (*User, error) {

@@ -30,11 +30,14 @@ type BrowserPrincipal struct {
 }
 
 type Repository interface {
-	Create(context.Context, string, UserID, [32]byte) (Principal, error)
+	Create(context.Context, string, UserID, [32]byte, int64) (Principal, error)
 	FindActive(context.Context, [32]byte) (Principal, error)
-	CreateBrowser(context.Context, string, UserID, [32]byte, [32]byte) (Principal, error)
+	CreateBrowser(context.Context, string, UserID, [32]byte, [32]byte, int64) (Principal, error)
 	FindBrowser(context.Context, [32]byte) (BrowserPrincipal, error)
 	Revoke(context.Context, Principal) error
+	ListActive(context.Context, UserID, ListQuery) ([]SessionInfo, error)
+	RevokeOwned(context.Context, Principal, string) error
+	ChangePassword(context.Context, Principal, int64, string) error
 }
 
 type Passwords interface {
@@ -137,9 +140,9 @@ func (s *Service) login(ctx context.Context, input LoginRequest, csrf *[32]byte)
 	uuid := fmt.Sprintf("%x-%x-%x-%x-%x", id[:4], id[4:6], id[6:8], id[8:10], id[10:])
 	var principal Principal
 	if csrf == nil {
-		principal, err = s.sessions.Create(ctx, uuid, UserID(u.ID), digest)
+		principal, err = s.sessions.Create(ctx, uuid, UserID(u.ID), digest, u.CredentialsVersion)
 	} else {
-		principal, err = s.sessions.CreateBrowser(ctx, uuid, UserID(u.ID), digest, *csrf)
+		principal, err = s.sessions.CreateBrowser(ctx, uuid, UserID(u.ID), digest, *csrf, u.CredentialsVersion)
 	}
 	if err != nil {
 		return LoginResponse{}, user.UserResponse{}, err

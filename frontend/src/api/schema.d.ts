@@ -614,13 +614,73 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List your active sessions
+         * @description Own active, unexpired sessions only. Ordered by created_at DESC, id DESC. Default limit 20, max 100. Reject duplicate, empty or unknown query parameters. Every cursor is scoped to the authenticated user. No tokens, hashes, CSRF secrets or device/IP history.
+         */
+        get: operations["listSessions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/sessions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke one of your active sessions
+         * @description Only the authenticated owner can revoke an active session. Missing, expired, revoked and other-user targets all return 404. Cookie writes require a matching Origin and CSRF token. Revoking the current browser session clears its Cookie. No body.
+         */
+        delete: operations["revokeSession"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/password/change": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change password and revoke every session
+         * @description Requires the current password. JSON limited to 4096 bytes, unknown fields rejected. New password uses the existing registration policy. Hashing occurs outside the transaction; credential version and requesting session are rechecked under the user-row lock. Commit atomically changes the hash/version and revokes ALL sessions including the current one. Sign in again; no new session is issued. Wrong current password returns 400; concurrent credential changes return 409 (or 401 if authentication already sees revocation). Per-process budget 30/global and 5/direct-peer attempts per minute; proxy IP headers cannot bypass it.
+         */
+        post: operations["changePassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         ErrorDetail: {
             /** @enum {string} */
-            code: "AUTH_BUSY" | "EMAIL_ALREADY_EXISTS" | "FORBIDDEN" | "INTERNAL_ERROR" | "INVALID_INVITEE" | "INVALID_PROJECT" | "INVALID_QUERY" | "INVALID_REQUEST" | "INVALID_TASK" | "INVALID_USER" | "INVITATION_INVALID" | "LOGIN_RATE_LIMITED" | "METHOD_NOT_ALLOWED" | "NOT_READY" | "OWNER_REQUIRED" | "PROJECT_NOT_EMPTY" | "PROJECT_NOT_FOUND" | "REGISTRATION_BUSY" | "REQUEST_TIMEOUT" | "REQUEST_TOO_LARGE" | "ROUTE_NOT_FOUND" | "TASK_CONFLICT" | "TASK_NOT_FOUND" | "UNAUTHORIZED" | "HTTPS_REQUIRED" | "ORIGIN_NOT_ALLOWED" | "RATE_LIMITED" | "PLAN_DAY_CHANGED" | "INVALID_RECURRENCE" | "RECURRENCE_NOT_FOUND" | "RECURRENCE_CONFLICT" | "INVALID_DISCORD_BINDING" | "INVALID_DISCORD_INTERACTION" | "INVALID_DISCORD_SIGNATURE" | "DISCORD_BINDING_CONFLICT" | "DISCORD_CODE_RATE_LIMITED" | "DISCORD_DISABLED" | "AMBIGUOUS_CREDENTIALS" | "CSRF_INVALID";
+            code: "AUTH_BUSY" | "EMAIL_ALREADY_EXISTS" | "FORBIDDEN" | "INTERNAL_ERROR" | "INVALID_INVITEE" | "INVALID_PROJECT" | "INVALID_QUERY" | "INVALID_REQUEST" | "INVALID_TASK" | "INVALID_USER" | "INVITATION_INVALID" | "LOGIN_RATE_LIMITED" | "METHOD_NOT_ALLOWED" | "NOT_READY" | "OWNER_REQUIRED" | "PROJECT_NOT_EMPTY" | "PROJECT_NOT_FOUND" | "REGISTRATION_BUSY" | "REQUEST_TIMEOUT" | "REQUEST_TOO_LARGE" | "ROUTE_NOT_FOUND" | "TASK_CONFLICT" | "TASK_NOT_FOUND" | "UNAUTHORIZED" | "HTTPS_REQUIRED" | "ORIGIN_NOT_ALLOWED" | "RATE_LIMITED" | "PLAN_DAY_CHANGED" | "INVALID_RECURRENCE" | "RECURRENCE_NOT_FOUND" | "RECURRENCE_CONFLICT" | "INVALID_DISCORD_BINDING" | "INVALID_DISCORD_INTERACTION" | "INVALID_DISCORD_SIGNATURE" | "DISCORD_BINDING_CONFLICT" | "DISCORD_CODE_RATE_LIMITED" | "DISCORD_DISABLED" | "AMBIGUOUS_CREDENTIALS" | "CSRF_INVALID" | "INVALID_PASSWORD_CHANGE" | "CURRENT_PASSWORD_INCORRECT" | "SESSION_NOT_FOUND" | "CREDENTIALS_CHANGED";
             message: string;
         };
         Error: {
@@ -927,6 +987,35 @@ export interface components {
             expires_at: string;
             /** @description CSRF token only; cannot authenticate without the HttpOnly session cookie. Keep in memory. */
             csrf_token: string;
+        };
+        SessionInfo: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            expires_at: string;
+            /** @enum {string} */
+            credential_kind: "bearer" | "browser";
+            /** @description Whether this is the requesting session. No IP address, device fingerprint, token or hash is returned. */
+            current: boolean;
+        };
+        SessionPage: {
+            items: components["schemas"]["SessionInfo"][];
+            /** @description Opaque owner-bound cursor; empty when there is no next page. Not an authentication credential. */
+            next_cursor: string;
+        };
+        PasswordChangeRequest: {
+            /**
+             * Format: password
+             * @description Current password, at most 512 UTF-8 bytes.
+             */
+            current_password: string;
+            /**
+             * Format: password
+             * @description Same policy as registration: 8–128 Unicode characters, at most 512 UTF-8 bytes, not all whitespace; no trimming.
+             */
+            new_password: string;
         };
     };
     responses: {
@@ -2448,6 +2537,103 @@ export interface operations {
             400: components["responses"]["Error400"];
             401: components["responses"]["Error401"];
             403: components["responses"]["Error403"];
+            413: components["responses"]["Error413"];
+            429: components["responses"]["Error429"];
+            500: components["responses"]["Error500"];
+            503: components["responses"]["Error503"];
+            504: components["responses"]["Error504"];
+        };
+    };
+    listSessions: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated opaque correlation ID; incoming values are ignored. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionPage"];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            413: components["responses"]["Error413"];
+            429: components["responses"]["Error429"];
+            500: components["responses"]["Error500"];
+            503: components["responses"]["Error503"];
+            504: components["responses"]["Error504"];
+        };
+    };
+    revokeSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            204: {
+                headers: {
+                    /** @description Server-generated opaque correlation ID; incoming values are ignored. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
+            413: components["responses"]["Error413"];
+            429: components["responses"]["Error429"];
+            500: components["responses"]["Error500"];
+            503: components["responses"]["Error503"];
+            504: components["responses"]["Error504"];
+        };
+    };
+    changePassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordChangeRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            204: {
+                headers: {
+                    /** @description Server-generated opaque correlation ID; incoming values are ignored. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            409: components["responses"]["Error409"];
             413: components["responses"]["Error413"];
             429: components["responses"]["Error429"];
             500: components["responses"]["Error500"];

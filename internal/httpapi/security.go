@@ -83,6 +83,7 @@ func Security(options SecurityOptions) gin.HandlerFunc {
 	general := newWindowLimiter(1200, 300)
 	registration := newWindowLimiter(30, 10)
 	login := newWindowLimiter(60, 20)
+	passwordChange := newWindowLimiter(30, 5)
 	return func(c *gin.Context) {
 		c.Header("Cache-Control", "no-store")
 		c.Header("X-Content-Type-Options", "nosniff")
@@ -116,6 +117,9 @@ func Security(options SecurityOptions) gin.HandlerFunc {
 			if path == "/auth/login" || path == "/auth/browser/login" {
 				allowed = allowed && login.allow(peer)
 			}
+			if path == "/auth/password/change" {
+				allowed = allowed && passwordChange.allow(peer)
+			}
 			if !allowed {
 				c.Header("Retry-After", "60")
 				WriteError(c, 429, "RATE_LIMITED", "Please retry later")
@@ -128,7 +132,7 @@ func Security(options SecurityOptions) gin.HandlerFunc {
 		c.Request = c.Request.WithContext(ctx)
 		// Bound decoded bodies, including unknown-length/chunked input.
 		limit := int64(64 * 1024)
-		if path == "/auth/login" || path == "/auth/browser/login" || path == "/auth/register" {
+		if path == "/auth/login" || path == "/auth/browser/login" || path == "/auth/register" || path == "/auth/password/change" {
 			limit = 4096
 		}
 		if c.Request.Body != nil {

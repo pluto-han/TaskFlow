@@ -38,7 +38,7 @@ func TestSessionIntegration(t *testing.T) {
 	defer pool.Close()
 	var version int
 	var dirty bool
-	if err := pool.QueryRow(ctx, "SELECT version,dirty FROM schema_migrations").Scan(&version, &dirty); err != nil || version != 14 || dirty {
+	if err := pool.QueryRow(ctx, "SELECT version,dirty FROM schema_migrations").Scan(&version, &dirty); err != nil || version != 15 || dirty {
 		t.Fatal("unexpected migration state")
 	}
 	users := user.NewPostgresRepository(pool)
@@ -168,7 +168,7 @@ func TestSessionIntegration(t *testing.T) {
 		t.Fatal("deleted user session works")
 	}
 	// Enforce hash uniqueness at the database boundary.
-	if _, err := sessions.Create(ctx, "00000000-0000-4000-8000-000000000009", UserID(accounts[0].ID), hash); err == nil {
+	if _, err := sessions.Create(ctx, "00000000-0000-4000-8000-000000000009", UserID(accounts[0].ID), hash, 0); err == nil {
 		t.Fatal("duplicate token hash accepted")
 	}
 	canceled, stop := context.WithCancel(ctx)

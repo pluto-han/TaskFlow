@@ -2771,6 +2771,210 @@
           }
         ]
       }
+    },
+    "/auth/sessions": {
+      "get": {
+        "operationId": "listSessions",
+        "summary": "List your active sessions",
+        "description": "Own active, unexpired sessions only. Ordered by created_at DESC, id DESC. Default limit 20, max 100. Reject duplicate, empty or unknown query parameters. Every cursor is scoped to the authenticated user. No tokens, hashes, CSRF secrets or device/IP history.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated opaque correlation ID; incoming values are ignored.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 512
+            }
+          }
+        ]
+      }
+    },
+    "/auth/sessions/{id}": {
+      "delete": {
+        "operationId": "revokeSession",
+        "summary": "Revoke one of your active sessions",
+        "description": "Only the authenticated owner can revoke an active session. Missing, expired, revoked and other-user targets all return 404. Cookie writes require a matching Origin and CSRF token. Revoking the current browser session clears its Cookie. No body.",
+        "responses": {
+          "204": {
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated opaque correlation ID; incoming values are ignored.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          }
+        },
+        "security": [
+          {
+            "bearerSession": []
+          },
+          {
+            "browserSession": [],
+            "csrfToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/auth/password/change": {
+      "post": {
+        "operationId": "changePassword",
+        "summary": "Change password and revoke every session",
+        "description": "Requires the current password. JSON limited to 4096 bytes, unknown fields rejected. New password uses the existing registration policy. Hashing occurs outside the transaction; credential version and requesting session are rechecked under the user-row lock. Commit atomically changes the hash/version and revokes ALL sessions including the current one. Sign in again; no new session is issued. Wrong current password returns 400; concurrent credential changes return 409 (or 401 if authentication already sees revocation). Per-process budget 30/global and 5/direct-peer attempts per minute; proxy IP headers cannot bypass it.",
+        "responses": {
+          "204": {
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated opaque correlation ID; incoming values are ignored.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          }
+        },
+        "security": [
+          {
+            "bearerSession": []
+          },
+          {
+            "browserSession": [],
+            "csrfToken": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordChangeRequest"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2838,7 +3042,11 @@
               "DISCORD_CODE_RATE_LIMITED",
               "DISCORD_DISABLED",
               "AMBIGUOUS_CREDENTIALS",
-              "CSRF_INVALID"
+              "CSRF_INVALID",
+              "INVALID_PASSWORD_CHANGE",
+              "CURRENT_PASSWORD_INCORRECT",
+              "SESSION_NOT_FOUND",
+              "CREDENTIALS_CHANGED"
             ]
           },
           "message": {
@@ -3815,6 +4023,85 @@
             "description": "CSRF token only; cannot authenticate without the HttpOnly session cookie. Keep in memory."
           }
         }
+      },
+      "SessionInfo": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "created_at",
+          "expires_at",
+          "credential_kind",
+          "current"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "credential_kind": {
+            "type": "string",
+            "enum": [
+              "bearer",
+              "browser"
+            ]
+          },
+          "current": {
+            "type": "boolean",
+            "description": "Whether this is the requesting session. No IP address, device fingerprint, token or hash is returned."
+          }
+        }
+      },
+      "SessionPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SessionInfo"
+            }
+          },
+          "next_cursor": {
+            "type": "string",
+            "description": "Opaque owner-bound cursor; empty when there is no next page. Not an authentication credential."
+          }
+        }
+      },
+      "PasswordChangeRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "current_password",
+          "new_password"
+        ],
+        "properties": {
+          "current_password": {
+            "type": "string",
+            "format": "password",
+            "minLength": 1,
+            "description": "Current password, at most 512 UTF-8 bytes."
+          },
+          "new_password": {
+            "type": "string",
+            "format": "password",
+            "minLength": 8,
+            "maxLength": 128,
+            "description": "Same policy as registration: 8\u2013128 Unicode characters, at most 512 UTF-8 bytes, not all whitespace; no trimming."
+          }
+        }
       }
     },
     "responses": {
@@ -4045,7 +4332,9 @@
       "INVALID_RECURRENCE",
       "INVALID_DISCORD_BINDING",
       "INVALID_DISCORD_INTERACTION",
-      "AMBIGUOUS_CREDENTIALS"
+      "AMBIGUOUS_CREDENTIALS",
+      "INVALID_PASSWORD_CHANGE",
+      "CURRENT_PASSWORD_INCORRECT"
     ],
     "401": [
       "UNAUTHORIZED",
@@ -4055,7 +4344,8 @@
       "TASK_NOT_FOUND",
       "PROJECT_NOT_FOUND",
       "ROUTE_NOT_FOUND",
-      "RECURRENCE_NOT_FOUND"
+      "RECURRENCE_NOT_FOUND",
+      "SESSION_NOT_FOUND"
     ],
     "405": [
       "METHOD_NOT_ALLOWED"
@@ -4067,7 +4357,8 @@
       "OWNER_REQUIRED",
       "PLAN_DAY_CHANGED",
       "RECURRENCE_CONFLICT",
-      "DISCORD_BINDING_CONFLICT"
+      "DISCORD_BINDING_CONFLICT",
+      "CREDENTIALS_CHANGED"
     ],
     "413": [
       "REQUEST_TOO_LARGE"

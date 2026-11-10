@@ -60,8 +60,7 @@ func (s *Service) Register(ctx context.Context, input RegisterRequest) (*User, e
 		return nil, err
 	}
 	email, valid := NormalizeEmail(input.Email)
-	count := utf8.RuneCountInString(input.Password)
-	if !valid || !utf8.ValidString(input.Password) || count < 8 || count > 128 || len(input.Password) > 512 || strings.TrimSpace(input.Password) == "" {
+	if !valid || !ValidPassword(input.Password) {
 		return nil, ErrInvalidUser
 	}
 	hash, err := s.passwords.HashPassword(ctx, input.Password)
@@ -79,4 +78,10 @@ func (s *Service) Register(ctx context.Context, input RegisterRequest) (*User, e
 	id[8] = (id[8] & 0x3f) | 0x80
 	uuid := fmt.Sprintf("%x-%x-%x-%x-%x", id[0:4], id[4:6], id[6:8], id[8:10], id[10:16])
 	return s.repo.Create(ctx, &User{ID: uuid, Email: email, PasswordHash: hash})
+}
+
+// ValidPassword is shared by registration and authenticated password changes.
+func ValidPassword(password string) bool {
+	count := utf8.RuneCountInString(password)
+	return utf8.ValidString(password) && count >= 8 && count <= 128 && len(password) <= 512 && strings.TrimSpace(password) != ""
 }

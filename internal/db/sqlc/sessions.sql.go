@@ -113,9 +113,92 @@ func (q *Queries) GetActiveSession(ctx context.Context, tokenHash []byte) (GetAc
 	return i, err
 }
 
+const listActiveSessions = `-- name: ListActiveSessions :many
+SELECT id, created_at, expires_at, credential_kind
+FROM sessions
+WHERE user_id = $2 AND revoked_at IS NULL AND expires_at > now()
+  AND (NOT $3::boolean OR (created_at, id) < ($4::timestamptz, $5::uuid))
+ORDER BY created_at DESC, id DESC
+LIMIT $1
+`
+
+type ListActiveSessionsParams struct {
+	Limit          int32              `json:"limit"`
+	UserID         pgtype.UUID        `json:"user_id"`
+	HasCursor      bool               `json:"has_cursor"`
+	AfterCreatedAt pgtype.Timestamptz `json:"after_created_at"`
+	AfterID        pgtype.UUID        `json:"after_id"`
+}
+
+type ListActiveSessionsRow struct {
+	ID             pgtype.UUID        `json:"id"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	CredentialKind string             `json:"credential_kind"`
+}
+
+func (q *Queries) ListActiveSessions(ctx context.Context, arg ListActiveSessionsParams) ([]ListActiveSessionsRow, error) {
+	rows, err := q.db.Query(ctx, listActiveSessions,
+		arg.Limit,
+		arg.UserID,
+		arg.HasCursor,
+		arg.AfterCreatedAt,
+		arg.AfterID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListActiveSessionsRow
+	for rows.Next() {
+		var i ListActiveSessionsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.ExpiresAt,
+			&i.CredentialKind,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const lockActiveSession = `-- name: LockActiveSession :one
+SELECT id FROM sessions
+WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL AND expires_at > clock_timestamp()
+FOR UPDATE
+`
+
+type LockActiveSessionParams struct {
+	ID     pgtype.UUID `json:"id"`
+	UserID pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) LockActiveSession(ctx context.Context, arg LockActiveSessionParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, lockActiveSession, arg.ID, arg.UserID)
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
+const revokeAllSessions = `-- name: RevokeAllSessions :exec
+UPDATE sessions SET revoked_at = clock_timestamp()
+WHERE user_id = $1 AND revoked_at IS NULL
+`
+
+func (q *Queries) RevokeAllSessions(ctx context.Context, userID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, revokeAllSessions, userID)
+	return err
+}
+
 const revokeSession = `-- name: RevokeSession :execrows
 UPDATE sessions SET revoked_at = now()
-WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL AND expires_at > now()
+WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL AND expires_at > clock_timestamp()
 `
 
 type RevokeSessionParams struct {

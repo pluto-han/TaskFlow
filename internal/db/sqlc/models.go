@@ -134,8 +134,9 @@ type Task struct {
 }
 
 type User struct {
-	ID           pgtype.UUID        `json:"id"`
-	Email        string             `json:"email"`
-	PasswordHash string             `json:"password_hash"`
-	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	ID                 pgtype.UUID        `json:"id"`
+	Email              string             `json:"email"`
+	PasswordHash       string             `json:"password_hash"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	CredentialsVersion int64              `json:"credentials_version"`
 }

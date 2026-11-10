@@ -17,9 +17,10 @@ import (
 // password work. Invalid JSON fails normally until the middleware budget is spent.
 func TestAuthRateLimitsCannotBeBypassedByForwardedIP(t *testing.T) {
 	for _, tc := range []struct {
-		path  string
-		limit int
-	}{{"/auth/register", 10}, {"/auth/login", 20}} {
+		path          string
+		limit         int
+		initialStatus int
+	}{{"/auth/register", 10, 400}, {"/auth/login", 20, 400}, {"/auth/password/change", 5, 401}} {
 		t.Run(tc.path, func(t *testing.T) {
 			r := server.NewRouter(server.Dependencies{Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
 			for n := 0; n <= tc.limit; n++ {
@@ -28,7 +29,7 @@ func TestAuthRateLimitsCannotBeBypassedByForwardedIP(t *testing.T) {
 				req.Header.Set("X-Forwarded-For", fmt.Sprintf("192.0.2.%d", n))
 				rec := httptest.NewRecorder()
 				r.ServeHTTP(rec, req)
-				expected := 400
+				expected := tc.initialStatus
 				if n == tc.limit {
 					expected = 429
 				}
@@ -67,7 +68,7 @@ func TestBrowserAndBearerLoginSharePeerBudget(t *testing.T) {
 }
 
 func TestBrowserLoginBodyLimitMatchesLegacy(t *testing.T) {
-	for _, path := range []string{"/auth/login", "/auth/browser/login"} {
+	for _, path := range []string{"/auth/login", "/auth/browser/login", "/auth/password/change"} {
 		r := server.NewRouter(server.Dependencies{Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
 		req := httptest.NewRequest("POST", path, strings.NewReader(strings.Repeat("x", 4097)))
 		req.Header.Set("Origin", "http://127.0.0.1:5173")

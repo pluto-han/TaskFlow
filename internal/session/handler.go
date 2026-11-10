@@ -36,6 +36,16 @@ func NewHandler(service *Service, options ...httpapi.SecurityOptions) *Handler {
 
 func writeError(c *gin.Context, err error) {
 	switch {
+	case errors.Is(err, ErrInvalidSessionQuery):
+		httpapi.WriteError(c, 400, "INVALID_QUERY", "Invalid session query or ID")
+	case errors.Is(err, ErrSessionNotFound):
+		httpapi.WriteError(c, 404, "SESSION_NOT_FOUND", "Session not found")
+	case errors.Is(err, ErrInvalidPasswordChange):
+		httpapi.WriteError(c, 400, "INVALID_PASSWORD_CHANGE", "Check the current password and use 8–128 characters for the new password")
+	case errors.Is(err, ErrCurrentPassword):
+		httpapi.WriteError(c, 400, "CURRENT_PASSWORD_INCORRECT", "The current password is incorrect")
+	case errors.Is(err, ErrCredentialsChanged):
+		httpapi.WriteError(c, 409, "CREDENTIALS_CHANGED", "Credentials have changed; sign in again")
 	case errors.Is(err, ErrUnauthorized):
 		c.Header("WWW-Authenticate", "Bearer")
 		httpapi.WriteError(c, 401, "UNAUTHORIZED", "Invalid credentials or session")
@@ -175,5 +185,8 @@ func Mount(router *gin.Engine, service *Service, options ...httpapi.SecurityOpti
 	group.POST("/browser/login", limiter.Middleware, h.BrowserLogin)
 	group.GET("/browser/session", h.requireBrowser, h.BrowserSession)
 	group.POST("/browser/logout", h.requireBrowser, h.BrowserLogout)
+	group.GET("/sessions", h.RequireSession, h.ListSessions)
+	group.DELETE("/sessions/:id", h.RequireSession, h.RevokeSession)
+	group.POST("/password/change", h.RequireSession, h.ChangePassword)
 	return h
 }

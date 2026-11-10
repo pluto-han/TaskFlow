@@ -22,4 +22,21 @@ WHERE s.token_hash = $1 AND s.revoked_at IS NULL AND s.expires_at > now()
 
 -- name: RevokeSession :execrows
 UPDATE sessions SET revoked_at = now()
-WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL AND expires_at > now();
+WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL AND expires_at > clock_timestamp();
+
+-- name: LockActiveSession :one
+SELECT id FROM sessions
+WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL AND expires_at > clock_timestamp()
+FOR UPDATE;
+
+-- name: RevokeAllSessions :exec
+UPDATE sessions SET revoked_at = clock_timestamp()
+WHERE user_id = $1 AND revoked_at IS NULL;
+
+-- name: ListActiveSessions :many
+SELECT id, created_at, expires_at, credential_kind
+FROM sessions
+WHERE user_id = sqlc.arg(user_id) AND revoked_at IS NULL AND expires_at > now()
+  AND (NOT sqlc.arg(has_cursor)::boolean OR (created_at, id) < (sqlc.arg(after_created_at)::timestamptz, sqlc.arg(after_id)::uuid))
+ORDER BY created_at DESC, id DESC
+LIMIT $1;
