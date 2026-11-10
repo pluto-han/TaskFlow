@@ -38,6 +38,29 @@ test("browser to API, scheduler, outbox and stubbed Discord", async ({
   await page.getByLabel("Email address").fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "A space of your own" }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "A space of your own" }),
+  ).toBeVisible();
+  const cookies = await page.context().cookies();
+  const cookie = cookies.find((c) => c.name === "taskflow_session_dev");
+  expect(cookie?.httpOnly).toBe(true);
+  expect(cookie?.sameSite).toBe("Lax");
+  expect(await page.evaluate(() => document.cookie)).not.toContain(
+    "taskflow_session",
+  );
+  expect(
+    await page.evaluate(() => localStorage.length + sessionStorage.length),
+  ).toBe(0);
+  const tab = await page.context().newPage();
+  await tab.goto("/profile");
+  await expect(
+    tab.getByRole("heading", { name: "A space of your own" }),
+  ).toBeVisible();
+  await tab.close();
   await page
     .getByRole("button", { name: "Generate connection code", exact: true })
     .click();
@@ -73,4 +96,31 @@ test("browser to API, scheduler, outbox and stubbed Discord", async ({
   expect(messages[0].content).toContain("<@333>");
   expect(messages[0].content).toContain("Browser flow reminder");
   expect(messages[0].allowed_mentions).toEqual({ parse: [], users: ["333"] });
+  await page.getByRole("link", { name: "Profile", exact: true }).click();
+  const peer = await page.context().newPage();
+  await peer.goto("/profile");
+  await expect(peer.getByRole("button", { name: "Sign out" })).toBeVisible();
+  await peer.getByRole("button", { name: "Sign out" }).click();
+  await expect(peer).toHaveURL(/\/login$/);
+  // BroadcastChannel tells this tab to recheck; it carries no credentials.
+  await expect(page).toHaveURL(/\/login$/);
+  await peer.close();
+  await page.reload();
+  await expect(page).toHaveURL(/\/login$/);
+  async function signInAgain() {
+    await page.getByLabel("Email address").fill(email);
+    await page.getByLabel("Password", { exact: true }).fill(password);
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await expect(
+      page.getByRole("heading", { name: "A space of your own" }),
+    ).toBeVisible();
+  }
+  for (const fault of ["expire", "revoke"]) {
+    await signInAgain();
+    expect(
+      (await page.request.post(`/__fixture/session/${fault}`)).status(),
+    ).toBe(204);
+    await page.reload();
+    await expect(page).toHaveURL(/\/login$/);
+  }
 });

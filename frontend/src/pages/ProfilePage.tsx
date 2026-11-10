@@ -76,7 +76,7 @@ export function ProfilePage() {
           <p role="status">
             {auth.busy
               ? "Just a moment…"
-              : "Refreshing the page will sign you out."}
+              : "Your sign-in is kept across refreshes and tabs."}
           </p>
           <div className="actions-buttons">
             <button

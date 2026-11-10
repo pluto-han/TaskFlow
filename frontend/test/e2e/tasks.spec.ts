@@ -1,3 +1,4 @@
+import { mockBrowserAuth } from "./auth-fixture";
 import { test, expect } from "@playwright/test";
 
 test.use({ timezoneId: "Europe/Amsterdam" });
@@ -15,24 +16,10 @@ test("workspace pagination, filtering and mobile layout", async ({ page }) => {
     created_at: "2026-01-01T00:00:00Z",
     version: 1,
   };
+  const auth = mockBrowserAuth("learner@example.com");
   await page.route("http://127.0.0.1:5173/api/**", async (route) => {
     const url = new URL(route.request().url());
-    if (url.pathname.endsWith("/login"))
-      return route.fulfill({
-        json: {
-          access_token: "memory-only",
-          token_type: "Bearer",
-          expires_at: new Date(Date.now() + 3600000).toISOString(),
-        },
-      });
-    if (url.pathname.endsWith("/me"))
-      return route.fulfill({
-        json: {
-          id: "u",
-          email: "learner@example.com",
-          created_at: "2026-01-01T00:00:00Z",
-        },
-      });
+    if (await auth(route)) return;
     if (url.pathname.endsWith("/projects"))
       return route.fulfill({
         json: [

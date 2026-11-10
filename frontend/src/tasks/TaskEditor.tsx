@@ -62,8 +62,8 @@ export function TaskEditor({
     setError("");
     try {
       if (!base && draftDay) {
-        await authorize((token) =>
-          workspaceApi.createToday(token, {
+        await authorize((credentials) =>
+          workspaceApi.createToday(credentials, {
             plan_date: draftDay,
             title: title.trim(),
             description,
@@ -72,8 +72,8 @@ export function TaskEditor({
           }),
         );
       } else if (!base)
-        await authorize((token) =>
-          workspaceApi.createTask(token, {
+        await authorize((credentials) =>
+          workspaceApi.createTask(credentials, {
             title: title.trim(),
             description,
             priority,
@@ -94,8 +94,8 @@ export function TaskEditor({
           close();
           return;
         }
-        await authorize((token) =>
-          workspaceApi.updateTask(token, base.id, patch),
+        await authorize((credentials) =>
+          workspaceApi.updateTask(credentials, base.id, patch),
         );
       }
       saved();
@@ -113,7 +113,11 @@ export function TaskEditor({
     setBusy(true);
     setError("");
     try {
-      setLatest(await authorize((token) => workspaceApi.task(token, base.id)));
+      setLatest(
+        await authorize((credentials) =>
+          workspaceApi.task(credentials, base.id),
+        ),
+      );
     } catch (err) {
       setError(errorMessage(err));
     } finally {

@@ -2,6 +2,16 @@ import { test, expect } from "@playwright/test";
 
 test("login, revocation, refresh and responsive layout", async ({ page }) => {
   let expired = false;
+  let signedIn = false;
+  const restored = {
+    user: {
+      id: "user-1",
+      email: "learner@example.com",
+      created_at: "2026-01-01T00:00:00Z",
+    },
+    expires_at: "2099-01-01T00:00:00Z",
+    csrf_token: "C".repeat(43),
+  };
   await page.route(
     "http://127.0.0.1:5173/api/integrations/discord/notifications",
     (route) => route.fulfill({ json: [] }),
@@ -21,27 +31,20 @@ test("login, revocation, refresh and responsive layout", async ({ page }) => {
   );
   await page.route("**/api/auth/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
-    if (path.endsWith("/login"))
-      return route.fulfill({
-        json: {
-          access_token: "browser-memory-token",
-          token_type: "Bearer",
-          expires_at: new Date(Date.now() + 3600000).toISOString(),
-        },
-      });
-    if (path.endsWith("/logout")) return route.fulfill({ status: 204 });
-    if (expired)
+    if (path.endsWith("/login")) {
+      signedIn = true;
+      return route.fulfill({ json: restored });
+    }
+    if (path.endsWith("/logout")) {
+      signedIn = false;
+      return route.fulfill({ status: 204 });
+    }
+    if (expired || !signedIn)
       return route.fulfill({
         status: 401,
         json: { error: { code: "UNAUTHORIZED", message: "Unauthorized" } },
       });
-    return route.fulfill({
-      json: {
-        id: "user-1",
-        email: "learner@example.com",
-        created_at: "2026-01-01T00:00:00Z",
-      },
-    });
+    return route.fulfill({ json: restored });
   });
   await page.goto("/profile");
   await expect(page).toHaveURL(/\/login$/);
@@ -72,8 +75,9 @@ test("login, revocation, refresh and responsive layout", async ({ page }) => {
     fullPage: true,
   });
   await page.reload();
-  await expect(page).toHaveURL(/\/login$/);
-  await login();
+  await expect(
+    page.getByRole("heading", { name: "A space of your own" }),
+  ).toBeVisible();
   expired = true;
   await page.getByRole("button", { name: "Refresh profile" }).click();
   await expect(page.getByRole("status")).toContainText(

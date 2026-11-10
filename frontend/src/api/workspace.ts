@@ -1,3 +1,4 @@
+import type { BrowserAuth } from "./types";
 import { request } from "./client";
 import type {
   Task,
@@ -17,7 +18,12 @@ export type Filters = {
   planDate?: string;
 };
 export const workspaceApi = {
-  today(token: string, filters: Filters, cursor = "", signal?: AbortSignal) {
+  today(
+    credentials: BrowserAuth,
+    filters: Filters,
+    cursor = "",
+    signal?: AbortSignal,
+  ) {
     const params = new URLSearchParams({ limit: "20" });
     if (filters.completed) params.set("completed", filters.completed);
     if (filters.priority) params.set("priority", filters.priority);
@@ -26,14 +32,14 @@ export const workspaceApi = {
       `/tasks/today?${params}`,
       "GET",
       undefined,
-      token,
+      credentials,
       signal,
     );
   },
-  createToday: (token: string, body: CreateTodayTask) =>
-    request<Task>("/tasks/today", "POST", body, token),
+  createToday: (credentials: BrowserAuth, body: CreateTodayTask) =>
+    request<Task>("/tasks/today", "POST", body, credentials),
   async tasks(
-    token: string,
+    credentials: BrowserAuth,
     filters: Filters,
     cursor = "",
     signal?: AbortSignal,
@@ -49,7 +55,7 @@ export const workspaceApi = {
       `/tasks?${params}`,
       "GET",
       undefined,
-      token,
+      credentials,
       signal,
       (response) => {
         next = response.headers.get("X-Next-Cursor") || "";
@@ -57,35 +63,45 @@ export const workspaceApi = {
     );
     return { items, next };
   },
-  task: (token: string, id: string) =>
-    request<Task>(`/tasks/${encodeURIComponent(id)}`, "GET", undefined, token),
-  createTask: (token: string, body: CreateTask) =>
-    request<Task>("/tasks", "POST", body, token),
-  updateTask: (token: string, id: string, body: UpdateTask) =>
-    request<Task>(`/tasks/${encodeURIComponent(id)}`, "PATCH", body, token),
-  deleteTask: (token: string, id: string) =>
+  task: (credentials: BrowserAuth, id: string) =>
+    request<Task>(
+      `/tasks/${encodeURIComponent(id)}`,
+      "GET",
+      undefined,
+      credentials,
+    ),
+  createTask: (credentials: BrowserAuth, body: CreateTask) =>
+    request<Task>("/tasks", "POST", body, credentials),
+  updateTask: (credentials: BrowserAuth, id: string, body: UpdateTask) =>
+    request<Task>(
+      `/tasks/${encodeURIComponent(id)}`,
+      "PATCH",
+      body,
+      credentials,
+    ),
+  deleteTask: (credentials: BrowserAuth, id: string) =>
     request<void>(
       `/tasks/${encodeURIComponent(id)}`,
       "DELETE",
       undefined,
-      token,
+      credentials,
     ),
-  projects: (token: string, signal?: AbortSignal) =>
-    request<Project[]>("/projects", "GET", undefined, token, signal),
-  createProject: (token: string, body: CreateProject) =>
-    request<Project>("/projects", "POST", body, token),
-  updateProject: (token: string, id: string, body: UpdateProject) =>
+  projects: (credentials: BrowserAuth, signal?: AbortSignal) =>
+    request<Project[]>("/projects", "GET", undefined, credentials, signal),
+  createProject: (credentials: BrowserAuth, body: CreateProject) =>
+    request<Project>("/projects", "POST", body, credentials),
+  updateProject: (credentials: BrowserAuth, id: string, body: UpdateProject) =>
     request<Project>(
       `/projects/${encodeURIComponent(id)}`,
       "PATCH",
       body,
-      token,
+      credentials,
     ),
-  deleteProject: (token: string, id: string) =>
+  deleteProject: (credentials: BrowserAuth, id: string) =>
     request<void>(
       `/projects/${encodeURIComponent(id)}`,
       "DELETE",
       undefined,
-      token,
+      credentials,
     ),
 };

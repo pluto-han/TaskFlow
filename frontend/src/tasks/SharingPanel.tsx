@@ -33,14 +33,14 @@ export function SharingPanel({
     const controller = new AbortController();
     request.current = controller;
     try {
-      const result = await authorize((token) =>
-        sharingApi.members(token, project.id, controller.signal),
+      const result = await authorize((credentials) =>
+        sharingApi.members(credentials, project.id, controller.signal),
       );
       if (controller.signal.aborted) return;
       setMembers(result);
       if (owner) {
-        const invites = await authorize((token) =>
-          sharingApi.invitations(token, project.id, controller.signal),
+        const invites = await authorize((credentials) =>
+          sharingApi.invitations(credentials, project.id, controller.signal),
         );
         if (!controller.signal.aborted) setInvitations(invites);
       }
@@ -51,7 +51,7 @@ export function SharingPanel({
     }
   }, [authorize, owner, project.id]);
   useEffect(() => {
-    // Fetch current membership; roles are never taken from the session token.
+    // Fetch current membership; roles are never taken from the session credentials.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
     return () => request.current?.abort();
@@ -62,8 +62,8 @@ export function SharingPanel({
     setLink("");
     setCopied(false);
     try {
-      const result = await authorize((token) =>
-        sharingApi.invite(token, project.id, recipient.trim()),
+      const result = await authorize((credentials) =>
+        sharingApi.invite(credentials, project.id, recipient.trim()),
       );
       setLink(`${window.location.origin}/invite#token=${result.token}`);
       setRecipient("");
@@ -149,9 +149,9 @@ export function SharingPanel({
                           label: "Transfer ownership",
                           description: `Transfer ownership to ${member.user_id}? You will become a member, and all unused invitations will expire.`,
                           run: () =>
-                            authorize((token) =>
+                            authorize((credentials) =>
                               sharingApi.transfer(
-                                token,
+                                credentials,
                                 project.id,
                                 member.user_id,
                               ),
@@ -170,9 +170,9 @@ export function SharingPanel({
                           description:
                             "This member will lose access to the project. Their tasks will stay in place.",
                           run: () =>
-                            authorize((token) =>
+                            authorize((credentials) =>
                               sharingApi.remove(
-                                token,
+                                credentials,
                                 project.id,
                                 member.user_id,
                               ),
@@ -197,7 +197,9 @@ export function SharingPanel({
                   description:
                     "You will lose access to this project, including tasks you created. Your tasks will stay in the project.",
                   run: () =>
-                    authorize((token) => sharingApi.leave(token, project.id)),
+                    authorize((credentials) =>
+                      sharingApi.leave(credentials, project.id),
+                    ),
                 })
               }
             >
@@ -289,8 +291,12 @@ export function SharingPanel({
                             description:
                               "This link will no longer let anyone join the project.",
                             run: () =>
-                              authorize((token) =>
-                                sharingApi.revoke(token, project.id, i.id),
+                              authorize((credentials) =>
+                                sharingApi.revoke(
+                                  credentials,
+                                  project.id,
+                                  i.id,
+                                ),
                               ),
                           })
                         }

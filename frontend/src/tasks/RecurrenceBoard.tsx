@@ -30,8 +30,8 @@ export function RecurrenceBoard() {
       request.current = controller;
       setBusy(true);
       try {
-        const page = await authorize((token) =>
-          recurrenceApi.list(token, after, controller.signal),
+        const page = await authorize((credentials) =>
+          recurrenceApi.list(credentials, after, controller.signal),
         );
         if (controller.signal.aborted) return;
         setItems((old) => (after ? [...old, ...page.items] : page.items));
@@ -155,8 +155,8 @@ export function RecurrenceBoard() {
                 disabled={busy}
                 onClick={() =>
                   void mutate(() =>
-                    authorize((token) =>
-                      recurrenceApi.update(token, rule.id, {
+                    authorize((credentials) =>
+                      recurrenceApi.update(credentials, rule.id, {
                         version: rule.version,
                         paused: !rule.paused,
                       }),
@@ -227,7 +227,9 @@ export function RecurrenceBoard() {
               disabled={busy}
               onClick={() =>
                 void mutate(() =>
-                  authorize((token) => recurrenceApi.remove(token, deleting)),
+                  authorize((credentials) =>
+                    recurrenceApi.remove(credentials, deleting),
+                  ),
                 )
               }
             >
@@ -259,7 +261,9 @@ export function RecurrenceEditor({
   const [discordBound, setDiscordBound] = useState<boolean | null>(null);
   useEffect(() => {
     const controller = new AbortController();
-    void authorize((token) => discordApi.status(token, controller.signal))
+    void authorize((credentials) =>
+      discordApi.status(credentials, controller.signal),
+    )
       .then((result) => {
         if (!controller.signal.aborted) setDiscordBound(result.bound);
       })
@@ -280,8 +284,8 @@ export function RecurrenceEditor({
     const controller = new AbortController();
     const timer = setTimeout(() => {
       setDates([]);
-      void authorize((token) =>
-        recurrenceApi.preview(token, anchor, interval, controller.signal),
+      void authorize((credentials) =>
+        recurrenceApi.preview(credentials, anchor, interval, controller.signal),
       )
         .then((result) => {
           if (!controller.signal.aborted) {
@@ -322,8 +326,8 @@ export function RecurrenceEditor({
         reminder_enabled: reminderEnabled,
       };
       if (rule)
-        await authorize((token) =>
-          recurrenceApi.update(token, rule.id, {
+        await authorize((credentials) =>
+          recurrenceApi.update(credentials, rule.id, {
             ...body,
             version: rule.version,
             ...(anchor !== rule.anchor_date || interval !== rule.interval_days
@@ -332,8 +336,8 @@ export function RecurrenceEditor({
           }),
         );
       else
-        await authorize((token) =>
-          recurrenceApi.create(token, { ...body, anchor_date: anchor }),
+        await authorize((credentials) =>
+          recurrenceApi.create(credentials, { ...body, anchor_date: anchor }),
         );
       saved();
     } catch (err) {

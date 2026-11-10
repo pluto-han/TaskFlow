@@ -20,7 +20,7 @@ Visit [TaskFlow](https://taskflow.hancongzhang.com), create an account, and add 
 
 To share a project, ask the other person for the account ID shown in their Profile. Open Members & invitations in your project, create an invitation for that account, and share the link with them.
 
-Tasks are saved to your account. Currently, refreshing the page or opening a new tab requires signing in again.
+Tasks are saved to your account. Your sign-in stays available across page refreshes and tabs for up to 24 hours. Signing out ends the session on the server.
 
 ## Discord reminders
 

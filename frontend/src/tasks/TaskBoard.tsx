@@ -55,10 +55,10 @@ export function TaskBoard({
       try {
         const response = await authorize<
           TodayPage | { items: Task[]; next: string }
-        >((token) =>
+        >((credentials) =>
           today
-            ? workspaceApi.today(token, filters, after, request.signal)
-            : workspaceApi.tasks(token, filters, after, request.signal),
+            ? workspaceApi.today(credentials, filters, after, request.signal)
+            : workspaceApi.tasks(credentials, filters, after, request.signal),
         );
         if (request.signal.aborted) return null;
         let result: { items: Task[]; next: string };
@@ -156,8 +156,8 @@ export function TaskBoard({
       ),
     );
     try {
-      const updated = await authorize((token) =>
-        workspaceApi.updateTask(token, item.id, {
+      const updated = await authorize((credentials) =>
+        workspaceApi.updateTask(credentials, item.id, {
           version: item.version,
           completed: !item.completed,
         }),
@@ -357,8 +357,8 @@ export function TaskBoard({
           name={deleting.title}
           close={() => setDeleting(null)}
           remove={async () => {
-            await authorize((token) =>
-              workspaceApi.deleteTask(token, deleting.id),
+            await authorize((credentials) =>
+              workspaceApi.deleteTask(credentials, deleting.id),
             );
             await load();
           }}

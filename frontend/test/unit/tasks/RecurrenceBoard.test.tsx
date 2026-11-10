@@ -1,12 +1,19 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
-import { RecurrenceBoard, RecurrenceEditor } from "../../../src/tasks/RecurrenceBoard";
+import {
+  RecurrenceBoard,
+  RecurrenceEditor,
+} from "../../../src/tasks/RecurrenceBoard";
 import { MemoryRouter } from "react-router";
 import { discordApi } from "../../../src/api/discord";
 import { recurrenceApi, type Recurrence } from "../../../src/api/recurrences";
 import { ApiError } from "../../../src/api/client";
-const authorize = <T,>(action: (token: string) => Promise<T>) => action("test");
-vi.mock("../../../src/auth/AuthProvider", () => ({ useAuth: () => ({ authorize }) }));
+const authorize = <T,>(
+  action: (credentials: { csrfToken: string }) => Promise<T>,
+) => action({ csrfToken: "test" });
+vi.mock("../../../src/auth/AuthProvider", () => ({
+  useAuth: () => ({ authorize }),
+}));
 const rule: Recurrence = {
   reminder_enabled: false,
   id: "r",
@@ -59,14 +66,17 @@ it("defaults to server day, previews and creates a rule without task or project 
   await screen.findByText(/Schedule preview: 2026-11-05/);
   fireEvent.click(screen.getByRole("button", { name: "Save schedule" }));
   await waitFor(() => expect(saved).toHaveBeenCalledOnce());
-  expect(create).toHaveBeenCalledWith("test", {
-    title: "Read",
-    description: "",
-    priority: 2,
-    anchor_date: "2026-11-05",
-    interval_days: 3,
-    reminder_enabled: false,
-  });
+  expect(create).toHaveBeenCalledWith(
+    { csrfToken: "test" },
+    {
+      title: "Read",
+      description: "",
+      priority: 2,
+      anchor_date: "2026-11-05",
+      interval_days: 3,
+      reminder_enabled: false,
+    },
+  );
 });
 
 it("requires a future re-anchor and retains the draft on a version conflict", async () => {
@@ -103,7 +113,7 @@ it("requires a future re-anchor and retains the draft on a version conflict", as
   expect(screen.getByLabelText("Repeat every (days)")).toHaveValue(7);
   expect(update).toHaveBeenCalledTimes(1);
   expect(update).toHaveBeenCalledWith(
-    "test",
+    { csrfToken: "test" },
     "r",
     expect.objectContaining({ version: 1, anchor_date: "2026-11-06" }),
   );
@@ -128,7 +138,7 @@ it("pauses with a version and confirms deletion preserving history", async () =>
   ).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "Pause" }));
   await waitFor(() =>
-    expect(update).toHaveBeenCalledWith("test", "r", {
+    expect(update).toHaveBeenCalledWith({ csrfToken: "test" }, "r", {
       version: 1,
       paused: true,
     }),
@@ -142,7 +152,9 @@ it("pauses with a version and confirms deletion preserving history", async () =>
   ).toBeVisible();
   expect(remove).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "Confirm delete" }));
-  await waitFor(() => expect(remove).toHaveBeenCalledWith("test", rule));
+  await waitFor(() =>
+    expect(remove).toHaveBeenCalledWith({ csrfToken: "test" }, rule),
+  );
 });
 
 it("shows the opt-in scheduler state from the API", async () => {
@@ -203,7 +215,7 @@ it("saves the reminder choice only on a recurring rule", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Save schedule" }));
   await waitFor(() =>
     expect(create).toHaveBeenCalledWith(
-      "test",
+      { csrfToken: "test" },
       expect.objectContaining({ reminder_enabled: true }),
     ),
   );

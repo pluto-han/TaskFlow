@@ -1,10 +1,4 @@
-import {
-  act,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { beforeEach, expect, it, vi } from "vitest";
@@ -18,8 +12,8 @@ const account = {
   created_at: "2026-01-01T00:00:00Z",
 };
 const session = () => ({
-  access_token: "test-memory-only",
-  token_type: "Bearer" as const,
+  user: account,
+  csrf_token: "C".repeat(43),
   expires_at: new Date(Date.now() + 3_600_000).toISOString(),
 });
 function mount(path = "/login") {
@@ -31,6 +25,7 @@ function mount(path = "/login") {
 }
 async function fillLogin() {
   const user = userEvent.setup();
+  await screen.findByLabelText("Email address");
   await user.type(screen.getByLabelText("Email address"), account.email);
   await user.type(
     screen.getByLabelText("Password", { exact: true }),
@@ -51,11 +46,11 @@ beforeEach(() => {
     bound_at: null,
   });
   vi.spyOn(api, "login").mockResolvedValue(session());
-  vi.spyOn(api, "me").mockResolvedValue(account);
+  vi.spyOn(api, "session").mockRejectedValue(new ApiError("UNAUTHORIZED", 401));
   vi.spyOn(api, "logout").mockResolvedValue(undefined);
   vi.spyOn(api, "register").mockResolvedValue(account);
 });
-it("guards profile and loses session on a full page remount without persisting credentials", async () => {
+it("restores a valid session on remount without persisting credentials", async () => {
   const view = mount("/profile");
   expect(
     await screen.findByRole("heading", { name: "Welcome back." }),
@@ -64,16 +59,17 @@ it("guards profile and loses session on a full page remount without persisting c
   expect(
     await screen.findByRole("heading", { name: "A space of your own" }),
   ).toBeVisible();
-  expect(api.me).toHaveBeenCalledWith(
-    "test-memory-only",
+  expect(api.login).toHaveBeenCalledWith(
+    { email: account.email, password: "a long test passphrase" },
     expect.any(AbortSignal),
   );
   expect(localStorage.length).toBe(0);
   expect(sessionStorage.length).toBe(0);
   view.unmount();
+  vi.mocked(api.session).mockResolvedValue(session());
   mount("/profile");
   expect(
-    await screen.findByRole("heading", { name: "Welcome back." }),
+    await screen.findByRole("heading", { name: "A space of your own" }),
   ).toBeVisible();
 });
 it("shows incorrect credentials without rendering a profile", async () => {
@@ -83,7 +79,7 @@ it("shows incorrect credentials without rendering a profile", async () => {
   expect(await screen.findByRole("alert")).toHaveTextContent(
     "The email or password is incorrect",
   );
-  expect(api.me).not.toHaveBeenCalled();
+  expect(api.session).toHaveBeenCalledTimes(1);
 });
 it("validates register, prevents duplicates while loading and does not auto-login", async () => {
   let finish!: (value: typeof account) => void;
@@ -94,6 +90,7 @@ it("validates register, prevents duplicates while loading and does not auto-logi
   );
   const user = userEvent.setup();
   mount("/register");
+  await screen.findByLabelText("Email address");
   await user.click(screen.getByRole("button", { name: /Create account/ }));
   expect(screen.getByLabelText("Email address")).toHaveFocus();
   expect(api.register).not.toHaveBeenCalled();
@@ -123,7 +120,7 @@ it("clears the session after a protected endpoint returns 401", async () => {
   mount();
   const user = await fillLogin();
   await screen.findByRole("heading", { name: "A space of your own" });
-  vi.mocked(api.me).mockRejectedValue(new ApiError("UNAUTHORIZED", 401));
+  vi.mocked(api.session).mockRejectedValue(new ApiError("UNAUTHORIZED", 401));
   await user.click(screen.getByRole("button", { name: "Refresh profile" }));
   expect(
     await screen.findByRole("heading", { name: "Welcome back." }),
@@ -163,16 +160,16 @@ it("does not restore a session from a late login response after navigation", asy
   expect(
     screen.getByRole("heading", { name: "Make yourself a little space" }),
   ).toBeVisible();
-  await waitFor(() =>
-    expect(api.logout).toHaveBeenCalledWith("test-memory-only"),
-  );
+  expect(api.logout).not.toHaveBeenCalled();
 });
 it("shows a duplicate-email error on register", async () => {
   vi.mocked(api.register).mockRejectedValue(
     new ApiError("EMAIL_ALREADY_EXISTS", 409),
   );
   mount("/register");
+  await screen.findByLabelText("Email address");
   const user = userEvent.setup();
+  await screen.findByLabelText("Email address");
   await user.type(screen.getByLabelText("Email address"), account.email);
   await user.type(
     screen.getByLabelText("Password", { exact: true }),
@@ -196,6 +193,7 @@ it("expires the session locally without waiting for another API call", async () 
       expires_at: new Date(Date.now() + 10_000).toISOString(),
     });
     mount();
+    await act(async () => {});
     fireEvent.change(screen.getByLabelText("Email address"), {
       target: { value: account.email },
     });

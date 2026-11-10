@@ -47,8 +47,8 @@ function Workspace() {
     projectRequest.current = controller;
     const signal = controller.signal;
     try {
-      const result = await authorize((token) =>
-        workspaceApi.projects(token, signal),
+      const result = await authorize((credentials) =>
+        workspaceApi.projects(credentials, signal),
       );
       if (!signal?.aborted) {
         setProjects(result);
@@ -329,8 +329,8 @@ function Workspace() {
           project
           close={() => setDeleting(null)}
           remove={async () => {
-            await authorize((token) =>
-              workspaceApi.deleteProject(token, deleting.id),
+            await authorize((credentials) =>
+              workspaceApi.deleteProject(credentials, deleting.id),
             );
             if (project === deleting.id)
               filter({ project: "", completed, priority });

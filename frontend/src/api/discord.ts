@@ -1,30 +1,31 @@
+import type { BrowserAuth } from "./types";
 import { request } from "./client";
 import type { components } from "./schema";
 type Schemas = components["schemas"];
 export const discordApi = {
-  notifications: (token: string, signal?: AbortSignal) =>
+  notifications: (credentials: BrowserAuth, signal?: AbortSignal) =>
     request<Schemas["NotificationEvent"][]>(
       "/integrations/discord/notifications",
       "GET",
       undefined,
-      token,
+      credentials,
       signal,
     ),
-  status: (token: string, signal?: AbortSignal) =>
+  status: (credentials: BrowserAuth, signal?: AbortSignal) =>
     request<Schemas["DiscordBinding"]>(
       "/integrations/discord",
       "GET",
       undefined,
-      token,
+      credentials,
       signal,
     ),
-  issue: (token: string) =>
+  issue: (credentials: BrowserAuth) =>
     request<Schemas["DiscordBindingCode"]>(
       "/integrations/discord/code",
       "POST",
       undefined,
-      token,
+      credentials,
     ),
-  unbind: (token: string, version: number) =>
-    request<void>("/integrations/discord", "DELETE", { version }, token),
+  unbind: (credentials: BrowserAuth, version: number) =>
+    request<void>("/integrations/discord", "DELETE", { version }, credentials),
 };

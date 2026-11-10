@@ -8,13 +8,20 @@ import {
   type ReactNode,
 } from "react";
 import { api, ApiError, errorMessage } from "../api/client";
-import type { LoginRequest, User } from "../api/types";
+import type {
+  BrowserAuth,
+  BrowserSession,
+  LoginRequest,
+  User,
+} from "../api/types";
 
-type Session = { token: string; user: User; expiresAt: number };
+type Session = { credentials: BrowserAuth; user: User; expiresAt: number };
 type Auth = {
-  authorize<T>(operation: (token: string) => Promise<T>): Promise<T>;
+  authorize<T>(operation: (credentials: BrowserAuth) => Promise<T>): Promise<T>;
   user: User | null;
   expiresAt: number | null;
+  startup: "loading" | "ready" | "error";
+  retry(): Promise<void>;
   busy: boolean;
   error: string;
   notice: string;
@@ -24,16 +31,40 @@ type Auth = {
 };
 const AuthContext = createContext<Auth | null>(null);
 
+function restored(value: BrowserSession): Session {
+  const expiresAt = Date.parse(value.expires_at);
+  if (!Number.isFinite(expiresAt) || expiresAt <= Date.now())
+    throw new ApiError("UNAUTHORIZED", 401);
+  if (!value.user?.id || !/^[A-Za-z0-9_-]{43}$/.test(value.csrf_token))
+    throw new ApiError("INVALID_RESPONSE");
+  return {
+    user: value.user,
+    expiresAt,
+    credentials: { csrfToken: value.csrf_token },
+  };
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  // Credentials exist only in this mounted provider, never storage or URLs.
+  // The login credential is in an HttpOnly cookie. Only CSRF/user data live here.
   const [session, setSession] = useState<Session | null>(null);
   const current = useRef<Session | null>(null);
+  const [startup, setStartup] = useState<Auth["startup"]>("loading");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const operation = useRef<AbortController | null>(null);
-
+  const generation = useRef(0);
+  const verification = useRef<Promise<boolean> | null>(null);
+  const verified = useRef(true);
+  const channel = useRef<BroadcastChannel | null>(null);
+  const notify = useCallback(() => channel.current?.postMessage("changed"), []);
   const save = useCallback((value: Session | null) => {
+    if (
+      current.current?.user.id !== value?.user.id ||
+      current.current?.credentials.csrfToken !== value?.credentials.csrfToken
+    )
+      generation.current++;
+    verified.current = true;
     current.current = value;
     setSession(value);
   }, []);
@@ -42,6 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       operation.current?.abort();
       operation.current = null;
       save(null);
+      setStartup("ready");
       setBusy(false);
       setError("");
       setNotice(message);
@@ -58,27 +90,68 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return controller;
   }, []);
 
+  const restore = useCallback(
+    async (gate: boolean) => {
+      const hadSession = !!current.current;
+      const controller = begin();
+      verified.current = false;
+      if (gate) {
+        save(null);
+        setStartup("loading");
+      }
+      try {
+        const result = await api.session(controller.signal);
+        controller.signal.throwIfAborted();
+        save(restored(result));
+        setStartup("ready");
+        return true;
+      } catch (err) {
+        if (controller.signal.aborted) return false;
+        if (err instanceof ApiError && err.status === 401) {
+          clear(
+            hadSession ? "Your session has ended. Please sign in again." : "",
+          );
+          return true;
+        } else {
+          setError(errorMessage(err));
+          if (gate) setStartup("error");
+          return false;
+        }
+      } finally {
+        if (operation.current === controller) {
+          operation.current = null;
+          setBusy(false);
+        }
+      }
+    },
+    [begin, clear, save],
+  );
+  const retry = useCallback(async () => {
+    await restore(true);
+  }, [restore]);
+  const refresh = useCallback(async () => {
+    if (operation.current || !current.current) return;
+    const pending = restore(false);
+    verification.current = pending;
+    await pending;
+    if (verification.current === pending) verification.current = null;
+  }, [restore]);
+
   const login = useCallback(
     async (input: LoginRequest, signal?: AbortSignal) => {
       const controller = begin();
       const abort = () => controller.abort();
       signal?.addEventListener("abort", abort, { once: true });
       if (signal?.aborted) controller.abort();
-      let token: string | undefined;
       try {
         const result = await api.login(input, controller.signal);
-        token = result.access_token;
         controller.signal.throwIfAborted();
-        const user = await api.me(token, controller.signal);
-        controller.signal.throwIfAborted();
-        const expiresAt = Date.parse(result.expires_at);
-        if (!Number.isFinite(expiresAt) || expiresAt <= Date.now())
-          throw new ApiError("UNAUTHORIZED", 401);
-        if (!controller.signal.aborted) save({ token, user, expiresAt });
+        save(restored(result));
+        setStartup("ready");
+        notify();
       } catch (err) {
-        // A login can succeed while loading the profile fails. Revoke that unused
-        // session best-effort; never retain its token in browser storage.
-        if (token) void api.logout(token).catch(() => undefined);
+        // Do not revoke via a cancelled response: the shared cookie may already
+        // belong to a newer login in another tab. Reconcile on next bootstrap/focus.
         if (!controller.signal.aborted) throw err;
       } finally {
         signal?.removeEventListener("abort", abort);
@@ -88,94 +161,108 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
     },
-    [begin, save],
+    [begin, notify, save],
   );
-
-  const refresh = useCallback(async () => {
-    const active = current.current;
-    if (!active || operation.current) return;
-    const controller = begin();
-    try {
-      const user = await api.me(active.token, controller.signal);
-      if (!controller.signal.aborted && current.current === active)
-        save({ ...active, user });
-    } catch (err) {
-      if (controller.signal.aborted) return;
-      if (err instanceof ApiError && err.status === 401)
-        clear("Your session has ended. Please sign in again.");
-      else setError(errorMessage(err));
-    } finally {
-      if (operation.current === controller) {
-        operation.current = null;
-        setBusy(false);
-      }
-    }
-  }, [begin, clear, save]);
 
   const logout = useCallback(async () => {
     const active = current.current;
     if (!active) return;
     const controller = begin();
     try {
-      await api.logout(active.token, controller.signal);
-      if (!controller.signal.aborted) clear("You have signed out safely.");
+      await api.logout(active.credentials, controller.signal);
+      controller.signal.throwIfAborted();
+      clear("You have signed out safely.");
+      notify();
     } catch (err) {
       if (controller.signal.aborted) return;
-      if (err instanceof ApiError && err.status === 401)
+      if (err instanceof ApiError && err.status === 401) {
         clear("You are signed out. Please sign in again.");
-      else setError(`We could not sign you out. ${errorMessage(err)}`);
+        notify();
+      } else if (err instanceof ApiError && err.code === "CSRF_INVALID") {
+        await restore(true);
+      } else setError(`We could not sign you out. ${errorMessage(err)}`);
     } finally {
       if (operation.current === controller) {
         operation.current = null;
         setBusy(false);
       }
     }
-  }, [begin, clear]);
+  }, [begin, clear, notify, restore]);
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    // Bootstrap synchronizes React with the server session; loading starts true.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void restore(true);
+    if (typeof window.BroadcastChannel === "function") {
+      channel.current = new BroadcastChannel("taskflow:session");
+      channel.current.onmessage = (event: MessageEvent<unknown>) => {
+        if (event.data === "changed") void restore(true);
+      };
+    }
+    const focus = () => {
+      if (!operation.current && current.current) void refresh();
+      else if (!operation.current) void restore(false);
+    };
+    window.addEventListener("focus", focus);
+    return () => {
       operation.current?.abort();
-    },
-    [],
-  );
+      channel.current?.close();
+      channel.current = null;
+      window.removeEventListener("focus", focus);
+    };
+  }, [restore, refresh]);
+
   useEffect(() => {
     if (!session) return;
-    const expire = () => {
-      if (Date.now() >= session.expiresAt)
-        clear("Your session has expired. Please sign in again.");
-      else void refresh();
-    };
     const timer = window.setTimeout(
-      expire,
+      () => {
+        clear("Your session has expired. Please sign in again.");
+        notify();
+      },
       Math.min(Math.max(0, session.expiresAt - Date.now()), 2_147_483_647),
     );
-    window.addEventListener("focus", expire);
-    return () => {
-      window.clearTimeout(timer);
-      window.removeEventListener("focus", expire);
-    };
-  }, [session, clear, refresh]);
+    return () => window.clearTimeout(timer);
+  }, [session, clear, notify]);
 
   const authorize = useCallback(
-    async <T,>(action: (token: string) => Promise<T>): Promise<T> => {
+    async <T,>(
+      action: (credentials: BrowserAuth) => Promise<T>,
+    ): Promise<T> => {
       const active = current.current;
+      const epoch = generation.current;
       if (!active) throw new ApiError("UNAUTHORIZED", 401);
       try {
-        const result = await action(active.token);
-        if (current.current?.token !== active.token)
+        // A later explicit user action may recover a failed background check.
+        if (!verified.current && !verification.current) await refresh();
+        if (verification.current) await verification.current;
+        if (generation.current !== epoch)
+          throw new DOMException("Session changed", "AbortError");
+        if (!verified.current) throw new ApiError("NETWORK_ERROR");
+        const result = await action(active.credentials);
+        if (verification.current) await verification.current;
+        if (!verified.current) throw new ApiError("NETWORK_ERROR");
+        if (generation.current !== epoch)
           throw new DOMException("Session changed", "AbortError");
         return result;
       } catch (err) {
-        if (
-          err instanceof ApiError &&
-          err.status === 401 &&
-          current.current?.token === active.token
-        )
+        if (verification.current) await verification.current;
+        if (generation.current !== epoch)
+          throw new DOMException("Session changed", "AbortError");
+        if (!verified.current) throw new ApiError("NETWORK_ERROR");
+        if (err instanceof ApiError && err.status === 401) {
           clear("Your session has ended. Please sign in again.");
+          notify();
+        } else if (
+          err instanceof ApiError &&
+          (err.code === "CSRF_INVALID" || err.code === "AMBIGUOUS_CREDENTIALS")
+        ) {
+          // Recheck identity, but never retry a business mutation automatically.
+          void restore(true);
+        }
         throw err;
       }
     },
-    [clear],
+    [clear, notify, restore, refresh],
   );
 
   return (
@@ -184,6 +271,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         authorize,
         user: session?.user ?? null,
         expiresAt: session?.expiresAt ?? null,
+        startup,
+        retry,
         busy,
         error,
         notice,

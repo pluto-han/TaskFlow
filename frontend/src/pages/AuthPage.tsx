@@ -230,7 +230,7 @@ export function AuthPage({ register = false }: { register?: boolean }) {
           </>
         )}
         <p className="footnote">
-          Your session stays in this tab. Refreshing the page will sign you out.
+          Stay signed in across refreshes and tabs until your session expires.
         </p>
       </section>
     </div>

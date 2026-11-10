@@ -8,7 +8,9 @@ import type { Task } from "../../../src/api/types";
 
 vi.mock("../../../src/auth/AuthProvider", () => ({
   useAuth: () => ({
-    authorize: <T,>(action: (token: string) => Promise<T>) => action("test"),
+    authorize: <T,>(
+      action: (credentials: { csrfToken: string }) => Promise<T>,
+    ) => action({ csrfToken: "test" }),
   }),
 }));
 const task: Task = {
@@ -52,20 +54,28 @@ it("omits an unchanged due date, retaining original precision", async () => {
   const user = userEvent.setup();
   await user.type(screen.getByLabelText("Task title"), " more");
   await user.click(screen.getByRole("button", { name: "Save task" }));
-  expect(workspaceApi.updateTask).toHaveBeenCalledWith("test", "task1", {
-    version: 4,
-    title: "Read more",
-  });
+  expect(workspaceApi.updateTask).toHaveBeenCalledWith(
+    { csrfToken: "test" },
+    "task1",
+    {
+      version: 4,
+      title: "Read more",
+    },
+  );
 });
 it("sends explicit null when clearing the due date", async () => {
   open();
   const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: "Clear due date" }));
   await user.click(screen.getByRole("button", { name: "Save task" }));
-  expect(workspaceApi.updateTask).toHaveBeenCalledWith("test", "task1", {
-    version: 4,
-    due_date: null,
-  });
+  expect(workspaceApi.updateTask).toHaveBeenCalledWith(
+    { csrfToken: "test" },
+    "task1",
+    {
+      version: 4,
+      due_date: null,
+    },
+  );
 });
 it("sends UTC for a changed local input", async () => {
   open();
@@ -74,10 +84,14 @@ it("sends UTC for a changed local input", async () => {
   });
   fireEvent.click(screen.getByRole("button", { name: "Save task" }));
   await waitFor(() =>
-    expect(workspaceApi.updateTask).toHaveBeenCalledWith("test", "task1", {
-      version: 4,
-      due_date: new Date(2026, 11, 15, 10, 30).toISOString(),
-    }),
+    expect(workspaceApi.updateTask).toHaveBeenCalledWith(
+      { csrfToken: "test" },
+      "task1",
+      {
+        version: 4,
+        due_date: new Date(2026, 11, 15, 10, 30).toISOString(),
+      },
+    ),
   );
 });
 it("keeps the draft on 409 and never silently retries with a new version", async () => {
@@ -105,10 +119,14 @@ it("keeps the draft on 409 and never silently retries with a new version", async
   expect(screen.getByLabelText("Task title")).toHaveValue("Changed elsewhere");
   await user.type(screen.getByLabelText("Task title"), " resolved");
   await user.click(screen.getByRole("button", { name: "Save task" }));
-  expect(workspaceApi.updateTask).toHaveBeenLastCalledWith("test", "task1", {
-    version: 5,
-    title: "Changed elsewhere resolved",
-  });
+  expect(workspaceApi.updateTask).toHaveBeenLastCalledWith(
+    { csrfToken: "test" },
+    "task1",
+    {
+      version: 5,
+      title: "Changed elsewhere resolved",
+    },
+  );
 });
 
 it("disables moving a task created by someone else while permitting edits", async () => {

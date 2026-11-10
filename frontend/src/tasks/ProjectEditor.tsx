@@ -44,12 +44,15 @@ export function ProjectEditor({
           close();
           return;
         }
-        await authorize((token) =>
-          workspaceApi.updateProject(token, project.id, patch),
+        await authorize((credentials) =>
+          workspaceApi.updateProject(credentials, project.id, patch),
         );
       } else
-        await authorize((token) =>
-          workspaceApi.createProject(token, { name: name.trim(), description }),
+        await authorize((credentials) =>
+          workspaceApi.createProject(credentials, {
+            name: name.trim(),
+            description,
+          }),
         );
       saved();
     } catch (err) {

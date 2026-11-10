@@ -11,8 +11,12 @@ import { workspaceApi } from "../../../src/api/workspace";
 import { ApiError } from "../../../src/api/client";
 import type { Task } from "../../../src/api/types";
 
-const authorize = <T,>(action: (token: string) => Promise<T>) => action("test");
-vi.mock("../../../src/auth/AuthProvider", () => ({ useAuth: () => ({ authorize }) }));
+const authorize = <T,>(
+  action: (credentials: { csrfToken: string }) => Promise<T>,
+) => action({ csrfToken: "test" });
+vi.mock("../../../src/auth/AuthProvider", () => ({
+  useAuth: () => ({ authorize }),
+}));
 const task: Task = {
   can_move: true,
   plan_date: null,
@@ -80,7 +84,7 @@ it("loads the next cursor, deduplicates rows, and resets on a filter switch", as
   expect(await screen.findByText("Task two")).toBeVisible();
   expect(screen.getAllByRole("checkbox")).toHaveLength(2);
   expect(workspaceApi.tasks).toHaveBeenLastCalledWith(
-    "test",
+    { csrfToken: "test" },
     filters,
     "cursor-one",
     expect.any(AbortSignal),
@@ -89,7 +93,7 @@ it("loads the next cursor, deduplicates rows, and resets on a filter switch", as
   expect(await screen.findByText("No tasks here yet")).toBeVisible();
   expect(screen.queryByText("Task one")).not.toBeInTheDocument();
   expect(workspaceApi.tasks).toHaveBeenLastCalledWith(
-    "test",
+    { csrfToken: "test" },
     { ...filters, project: "none" },
     "",
     expect.any(AbortSignal),
@@ -132,9 +136,13 @@ it("keeps the confirmed new version even when the following refresh fails", asyn
   await waitFor(() => expect(checkbox).toBeEnabled());
   fireEvent.click(checkbox);
   await waitFor(() =>
-    expect(workspaceApi.updateTask).toHaveBeenLastCalledWith("test", task.id, {
-      version: 2,
-      completed: false,
-    }),
+    expect(workspaceApi.updateTask).toHaveBeenLastCalledWith(
+      { csrfToken: "test" },
+      task.id,
+      {
+        version: 2,
+        completed: false,
+      },
+    ),
   );
 });

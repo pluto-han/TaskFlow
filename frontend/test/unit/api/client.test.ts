@@ -3,16 +3,16 @@ import { api, ApiError, errorMessage } from "../../../src/api/client";
 
 afterEach(() => vi.unstubAllGlobals());
 describe("API transport", () => {
-  it("uses only same-origin requests, Bearer headers, and no persistence/cookies", async () => {
+  it("uses only same-origin cookies without exposing login credentials or using browser storage", async () => {
     const fetcher = vi
       .fn()
       .mockResolvedValue(new Response(JSON.stringify({ id: "u" })));
     vi.stubGlobal("fetch", fetcher);
-    await api.me("secret");
+    await api.session();
     const [url, options] = fetcher.mock.calls[0];
-    expect(url).toBe("/api/auth/me");
-    expect(options.headers.get("Authorization")).toBe("Bearer secret");
-    expect(options.credentials).toBe("omit");
+    expect(url).toBe("/api/auth/browser/session");
+    expect(options.headers.has("Authorization")).toBe(false);
+    expect(options.credentials).toBe("same-origin");
     expect(options.redirect).toBe("error");
     expect(options.cache).toBe("no-store");
     expect(localStorage.length).toBe(0);
@@ -26,7 +26,10 @@ describe("API transport", () => {
     vi.stubGlobal("fetch", fetcher);
     await api.login({ email: "a@example.com", password: "long password" });
     expect(fetcher.mock.calls[0][1].headers.has("Authorization")).toBe(false);
-    await expect(api.logout("secret")).resolves.toBeUndefined();
+    expect(fetcher.mock.calls[0][1].headers.has("X-CSRF-Token")).toBe(false);
+    await expect(api.logout({ csrfToken: "secret" })).resolves.toBeUndefined();
+    expect(fetcher.mock.calls[1][1].headers.get("X-CSRF-Token")).toBe("secret");
+    expect(fetcher.mock.calls[1][1].headers.has("Authorization")).toBe(false);
   });
   it("preserves stable error codes without displaying server details", async () => {
     vi.stubGlobal(
@@ -40,7 +43,7 @@ describe("API transport", () => {
         ),
       ),
     );
-    await expect(api.me("secret")).rejects.toMatchObject({
+    await expect(api.session()).rejects.toMatchObject({
       status: 401,
       code: "UNAUTHORIZED",
       requestId: "request-1",
@@ -54,20 +57,20 @@ describe("API transport", () => {
       .mockRejectedValueOnce(new TypeError("secret-host"))
       .mockResolvedValueOnce(new Response("not JSON"));
     vi.stubGlobal("fetch", fetcher);
-    await expect(api.me("secret")).rejects.toMatchObject({
+    await expect(api.session()).rejects.toMatchObject({
       code: "HTTP_ERROR",
       status: 502,
     });
-    await expect(api.me("secret")).rejects.toMatchObject({
+    await expect(api.session()).rejects.toMatchObject({
       code: "NETWORK_ERROR",
     });
-    await expect(api.me("secret")).rejects.toMatchObject({
+    await expect(api.session()).rejects.toMatchObject({
       code: "INVALID_RESPONSE",
     });
     const controller = new AbortController();
     controller.abort();
     fetcher.mockRejectedValueOnce(new DOMException("aborted", "AbortError"));
-    await expect(api.me("secret", controller.signal)).rejects.toMatchObject({
+    await expect(api.session(controller.signal)).rejects.toMatchObject({
       name: "AbortError",
     });
   });
@@ -82,7 +85,7 @@ it("reads the pagination header without losing project filters", async () => {
     );
   vi.stubGlobal("fetch", fetcher);
   const page = await workspaceApi.tasks(
-    "secret",
+    { csrfToken: "secret" },
     { project: "none", completed: "false", priority: "3" },
     "a+b",
   );

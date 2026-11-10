@@ -1,28 +1,15 @@
+import { mockBrowserAuth } from "./auth-fixture";
 import { test, expect } from "@playwright/test";
 
 test("recurrence management keeps existing styling and works on mobile", async ({
   page,
 }) => {
   let rule: Record<string, unknown> | null = null;
+  const auth = mockBrowserAuth("recurrence@example.com");
   await page.route("http://127.0.0.1:5173/api/**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
-    if (path.endsWith("/login"))
-      return route.fulfill({
-        json: {
-          access_token: "test",
-          token_type: "Bearer",
-          expires_at: "2099-01-01T00:00:00Z",
-        },
-      });
-    if (path.endsWith("/me"))
-      return route.fulfill({
-        json: {
-          id: "u",
-          email: "recurrence@example.com",
-          created_at: "2026-01-01T00:00:00Z",
-        },
-      });
+    if (await auth(route)) return;
     if (path.endsWith("/integrations/discord"))
       return route.fulfill({
         json: {

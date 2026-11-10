@@ -24,8 +24,8 @@ export function DiscordSettings() {
     const controller = new AbortController();
     request.current = controller;
     try {
-      const result = await authorize((token) =>
-        discordApi.status(token, controller.signal),
+      const result = await authorize((credentials) =>
+        discordApi.status(credentials, controller.signal),
       );
       if (controller.signal.aborted) return;
       setBinding(result);
@@ -47,7 +47,9 @@ export function DiscordSettings() {
   }, [load]);
   const loadNotifications = useCallback(async () => {
     try {
-      const data = await authorize((token) => discordApi.notifications(token));
+      const data = await authorize((credentials) =>
+        discordApi.notifications(credentials),
+      );
       if (active.current) {
         setNotifications(data);
         setNotificationsError("");
@@ -77,7 +79,9 @@ export function DiscordSettings() {
     setCode(null);
     setCopy("");
     try {
-      const result = await authorize((token) => discordApi.issue(token));
+      const result = await authorize((credentials) =>
+        discordApi.issue(credentials),
+      );
       if (active.current) setCode(result);
     } catch (err) {
       if (active.current) setError(errorMessage(err));
@@ -90,7 +94,9 @@ export function DiscordSettings() {
     setBusy(true);
     setError("");
     try {
-      await authorize((token) => discordApi.unbind(token, binding.version));
+      await authorize((credentials) =>
+        discordApi.unbind(credentials, binding.version),
+      );
       if (!active.current) return;
       setCode(null);
       setConfirm(false);
@@ -266,7 +272,7 @@ export function DiscordSettings() {
                         discord_unavailable:
                           "Discord is temporarily unavailable",
                         discord_token_invalid:
-                          "The bot token is invalid. Please check the configuration.",
+                          "The bot credentials is invalid. Please check the configuration.",
                         discord_permission:
                           "The bot does not have access to this channel",
                         discord_channel_missing: "Channel unavailable",

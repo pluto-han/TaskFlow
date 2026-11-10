@@ -1,7 +1,8 @@
 import type {
   ErrorResponse,
   LoginRequest,
-  LoginResponse,
+  BrowserSession,
+  BrowserAuth,
   RegisterRequest,
   User,
 } from "./types";
@@ -23,20 +24,21 @@ export async function request<T>(
   path: string,
   method: string,
   body?: unknown,
-  token?: string,
+  credentials?: BrowserAuth,
   signal?: AbortSignal,
   onResponse?: (response: Response) => void,
 ): Promise<T> {
   const headers = new Headers({ Accept: "application/json" });
   if (body !== undefined) headers.set("Content-Type", "application/json");
-  if (token) headers.set("Authorization", `Bearer ${token}`);
+  if (credentials && !["GET", "HEAD", "OPTIONS"].includes(method))
+    headers.set("X-CSRF-Token", credentials.csrfToken);
   let response: Response;
   try {
     response = await fetch(`/api${path}`, {
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
-      credentials: "omit",
+      credentials: "same-origin",
       cache: "no-store",
       redirect: "error",
       signal: AbortSignal.any([
@@ -79,17 +81,39 @@ export const api = {
   register: (input: RegisterRequest, signal?: AbortSignal) =>
     request<User>("/auth/register", "POST", input, undefined, signal),
   login: (input: LoginRequest, signal?: AbortSignal) =>
-    request<LoginResponse>("/auth/login", "POST", input, undefined, signal),
-  me: (token: string, signal?: AbortSignal) =>
-    request<User>("/auth/me", "GET", undefined, token, signal),
-  logout: (token: string, signal?: AbortSignal) =>
-    request<void>("/auth/logout", "POST", undefined, token, signal),
+    request<BrowserSession>(
+      "/auth/browser/login",
+      "POST",
+      input,
+      undefined,
+      signal,
+    ),
+  session: (signal?: AbortSignal) =>
+    request<BrowserSession>(
+      "/auth/browser/session",
+      "GET",
+      undefined,
+      undefined,
+      signal,
+    ),
+  logout: (credentials: BrowserAuth, signal?: AbortSignal) =>
+    request<void>(
+      "/auth/browser/logout",
+      "POST",
+      undefined,
+      credentials,
+      signal,
+    ),
 };
 
 export function errorMessage(error: unknown): string {
   if (!(error instanceof ApiError))
     return "We could not complete that just now. Please try again.";
   const messages: Record<string, string> = {
+    CSRF_INVALID:
+      "Your session has changed. Refresh your profile before trying again.",
+    AMBIGUOUS_CREDENTIALS:
+      "Conflicting sign-in information was sent. Clear this site's cookies and sign in again.",
     RATE_LIMITED: "Too many requests. Please try again in a minute.",
     HTTPS_REQUIRED: "Please use the secure HTTPS address.",
     ORIGIN_NOT_ALLOWED:

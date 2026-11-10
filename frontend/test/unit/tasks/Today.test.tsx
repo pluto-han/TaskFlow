@@ -13,7 +13,9 @@ import { WorkspacePage } from "../../../src/pages/WorkspacePage";
 import { workspaceApi } from "../../../src/api/workspace";
 import { ApiError } from "../../../src/api/client";
 import type { Task, TodayPage } from "../../../src/api/types";
-const authorize = <T,>(action: (token: string) => Promise<T>) => action("test");
+const authorize = <T,>(
+  action: (credentials: { csrfToken: string }) => Promise<T>,
+) => action({ csrfToken: "test" });
 vi.mock("../../../src/auth/AuthProvider", () => ({
   useAuth: () => ({ authorize, user: { id: "user" } }),
 }));
@@ -121,13 +123,16 @@ it("handles PLAN_DAY_CHANGED separately from version conflict and never auto-sub
   expect(create).toHaveBeenCalledTimes(1);
   fireEvent.click(screen.getByRole("button", { name: "Save task" }));
   await waitFor(() => expect(saved).toHaveBeenCalledOnce());
-  expect(create).toHaveBeenLastCalledWith("test", {
-    plan_date: "2026-11-06",
-    title: "My draft",
-    description: "",
-    priority: 2,
-    due_date: null,
-  });
+  expect(create).toHaveBeenLastCalledWith(
+    { csrfToken: "test" },
+    {
+      plan_date: "2026-11-06",
+      title: "My draft",
+      description: "",
+      priority: 2,
+      due_date: null,
+    },
+  );
 });
 
 it("restarts pagination when yesterday's cursor is rejected", async () => {
@@ -256,7 +261,7 @@ it("switches navigation, hides project creation in today and filters history onl
   });
   await waitFor(() =>
     expect(tasks).toHaveBeenLastCalledWith(
-      "test",
+      { csrfToken: "test" },
       expect.objectContaining({ planDate: "2026-11-04" }),
       "",
       expect.any(AbortSignal),

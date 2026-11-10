@@ -9,7 +9,9 @@ const state = vi.hoisted(() => ({ loggedIn: true }));
 vi.mock("../../../src/auth/AuthProvider", () => ({
   useAuth: () => ({
     user: state.loggedIn ? { email: "recipient@example.com" } : null,
-    authorize: <T,>(action: (token: string) => Promise<T>) => action("session"),
+    authorize: <T,>(
+      action: (credentials: { csrfToken: string }) => Promise<T>,
+    ) => action({ csrfToken: "session" }),
   }),
 }));
 beforeEach(() => {
@@ -31,7 +33,7 @@ it("requires explicit acceptance and clears the in-memory invitation after succe
     "You are part of the project now",
   );
   expect(sharingApi.accept).toHaveBeenCalledWith(
-    "session",
+    { csrfToken: "session" },
     "invitation-secret",
   );
   expect(consumed).toHaveBeenCalledOnce();

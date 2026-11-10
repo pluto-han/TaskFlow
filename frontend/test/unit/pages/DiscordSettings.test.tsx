@@ -10,8 +10,12 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { DiscordSettings } from "../../../src/pages/DiscordSettings";
 import { discordApi } from "../../../src/api/discord";
 import { ApiError } from "../../../src/api/client";
-const authorize = <T,>(action: (token: string) => Promise<T>) => action("test");
-vi.mock("../../../src/auth/AuthProvider", () => ({ useAuth: () => ({ authorize }) }));
+const authorize = <T,>(
+  action: (credentials: { csrfToken: string }) => Promise<T>,
+) => action({ csrfToken: "test" });
+vi.mock("../../../src/auth/AuthProvider", () => ({
+  useAuth: () => ({ authorize }),
+}));
 beforeEach(() => {
   vi.spyOn(discordApi, "notifications").mockResolvedValue([]);
 });
@@ -65,7 +69,9 @@ it("issues a private code in memory, refreshes binding and unbinds with a versio
   expect(unbind).not.toHaveBeenCalled();
   status.mockResolvedValue({ ...empty, version: 3 });
   fireEvent.click(screen.getByRole("button", { name: "Confirm disconnect" }));
-  await waitFor(() => expect(unbind).toHaveBeenCalledWith("test", 2));
+  await waitFor(() =>
+    expect(unbind).toHaveBeenCalledWith({ csrfToken: "test" }, 2),
+  );
   await waitFor(() =>
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
   );

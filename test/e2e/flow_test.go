@@ -23,6 +23,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pluto-han/taskflow/internal/auth"
 	"github.com/pluto-han/taskflow/internal/discord"
+	"github.com/pluto-han/taskflow/internal/httpapi"
 	"github.com/pluto-han/taskflow/internal/integration"
 	"github.com/pluto-han/taskflow/internal/notification"
 	"github.com/pluto-han/taskflow/internal/project"
@@ -63,8 +64,12 @@ func TestBrowserDiscordFlow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	mux := http.NewServeMux()
+	app := httptest.NewUnstartedServer(mux)
+	defer app.Listener.Close()
+	origin := "http://" + app.Listener.Addr().String()
 	projects := project.NewPostgresRepository(pool)
-	router := server.NewRouter(server.Dependencies{Notifications: notification.NewService(pool, nil), Discord: discord.NewHandler(public, "777", bindings), Integrations: bindings, Recurrences: recurrence.NewServiceWithScheduler(recurrence.NewPostgresRepository(pool), true), Users: user.NewService(user.NewPostgresRepository(pool), auth.PasswordHasher{}), Sessions: sessionService, Tasks: task.NewService(task.NewPostgresRepository(pool), projects), Projects: project.NewService(projects), Ping: pool.Ping})
+	router := server.NewRouter(server.Dependencies{Security: httpapi.SecurityOptions{PublicOrigin: origin}, Notifications: notification.NewService(pool, nil), Discord: discord.NewHandler(public, "777", bindings), Integrations: bindings, Recurrences: recurrence.NewServiceWithScheduler(recurrence.NewPostgresRepository(pool), true), Users: user.NewService(user.NewPostgresRepository(pool), auth.PasswordHasher{}), Sessions: sessionService, Tasks: task.NewService(task.NewPostgresRepository(pool), projects), Projects: project.NewService(projects), Ping: pool.Ping})
 	var mu sync.Mutex
 	var messages []map[string]any
 	fakeDiscord := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -110,7 +115,6 @@ func TestBrowserDiscordFlow(t *testing.T) {
 	if _, err = os.Stat(filepath.Join(dist, "index.html")); err != nil {
 		t.Fatal("build frontend first: npm run build")
 	}
-	mux := http.NewServeMux()
 	mux.Handle("/api/", http.StripPrefix("/api", router))
 	mux.HandleFunc("/__fixture/bind", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" {
@@ -141,6 +145,38 @@ func TestBrowserDiscordFlow(t *testing.T) {
 		w.WriteHeader(response.Code)
 		_, _ = w.Write(response.Body.Bytes())
 	})
+
+	// Only this guarded disposable fixture exposes session fault controls.
+	mux.HandleFunc("/__fixture/session/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			http.Error(w, "method", 405)
+			return
+		}
+		cookie, err := r.Cookie("taskflow_session_dev")
+		if err != nil {
+			http.Error(w, "session", 401)
+			return
+		}
+		principal, err := sessionService.AuthenticateBrowser(r.Context(), cookie.Value)
+		if err != nil {
+			http.Error(w, "session", 401)
+			return
+		}
+		switch r.URL.Path {
+		case "/__fixture/session/revoke":
+			err = sessionService.Logout(r.Context(), principal.Principal)
+		case "/__fixture/session/expire":
+			_, err = pool.Exec(r.Context(), "UPDATE sessions SET created_at=now()-interval '2 days',expires_at=now() WHERE id=$1 AND user_id=$2", principal.SessionID, string(principal.UserID))
+		default:
+			http.NotFound(w, r)
+			return
+		}
+		if err != nil {
+			http.Error(w, "session fixture failed", 500)
+			return
+		}
+		w.WriteHeader(204)
+	})
 	mux.HandleFunc("/__fixture/pump", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" {
 			http.Error(w, "method", 405)
@@ -164,8 +200,16 @@ func TestBrowserDiscordFlow(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(messages)
 	})
-	mux.Handle("/", http.FileServer(http.Dir(dist)))
-	app := httptest.NewServer(mux)
+	files := http.FileServer(http.Dir(dist))
+	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/", "/login", "/register", "/profile", "/tasks", "/invite":
+			http.ServeFile(w, r, filepath.Join(dist, "index.html"))
+		default:
+			files.ServeHTTP(w, r)
+		}
+	}))
+	app.Start()
 	defer app.Close()
 	cmd := exec.CommandContext(ctx, "npx", "playwright", "test", "test/e2e/flow-live.spec.ts", "--config", "playwright.flow.config.ts")
 	cmd.Dir = filepath.Join(root, "frontend")
