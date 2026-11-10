@@ -52,6 +52,7 @@ func (f *fakePasswords) VerifyPassword(_ context.Context, _ string, hash string)
 }
 
 type fakeSessions struct {
+	Repository
 	p                       Principal
 	hash                    [32]byte
 	err                     error

@@ -45,6 +45,34 @@ func (r *PostgresRepository) FindActive(ctx context.Context, hash [32]byte) (Pri
 	row, err := r.queries.GetActiveSession(ctx, hash[:])
 	return mapPrincipal(row.ID, row.UserID, row.ExpiresAt, err)
 }
+
+func (r *PostgresRepository) CreateBrowser(ctx context.Context, id string, uid UserID, hash, csrf [32]byte) (Principal, error) {
+	var sid, userID pgtype.UUID
+	if err := sid.Scan(id); err != nil {
+		return Principal{}, err
+	}
+	if err := userID.Scan(string(uid)); err != nil {
+		return Principal{}, err
+	}
+	row, err := r.queries.CreateBrowserSession(ctx, db.CreateBrowserSessionParams{
+		ID: sid, UserID: userID, TokenHash: hash[:], CsrfSecret: csrf[:],
+	})
+	return mapPrincipal(row.ID, row.UserID, row.ExpiresAt, err)
+}
+
+func (r *PostgresRepository) FindBrowser(ctx context.Context, hash [32]byte) (BrowserPrincipal, error) {
+	row, err := r.queries.GetActiveBrowserSession(ctx, hash[:])
+	p, err := mapPrincipal(row.ID, row.UserID, row.ExpiresAt, err)
+	if err != nil {
+		return BrowserPrincipal{}, err
+	}
+	if len(row.CsrfSecret) != 32 {
+		return BrowserPrincipal{}, errors.New("invalid browser session mapping")
+	}
+	result := BrowserPrincipal{Principal: p}
+	copy(result.CSRFSecret[:], row.CsrfSecret)
+	return result, nil
+}
 func (r *PostgresRepository) Revoke(ctx context.Context, p Principal) error {
 	var id, uid pgtype.UUID
 	if err := id.Scan(p.SessionID); err != nil {

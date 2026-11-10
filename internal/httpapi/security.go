@@ -77,7 +77,8 @@ func trustedTLS(c *gin.Context, options SecurityOptions) bool {
 }
 
 // Security protects the production router, including error and unmatched routes.
-// Same-origin Bearer clients need no CORS grants or ambient cookie credentials.
+// Browser and Bearer clients share budgets. Cookie/CSRF checks live with session
+// authentication; no cross-origin credential grants are provided here.
 func Security(options SecurityOptions) gin.HandlerFunc {
 	general := newWindowLimiter(1200, 300)
 	registration := newWindowLimiter(30, 10)
@@ -112,7 +113,7 @@ func Security(options SecurityOptions) gin.HandlerFunc {
 			if path == "/auth/register" {
 				allowed = allowed && registration.allow(peer)
 			}
-			if path == "/auth/login" {
+			if path == "/auth/login" || path == "/auth/browser/login" {
 				allowed = allowed && login.allow(peer)
 			}
 			if !allowed {
@@ -127,7 +128,7 @@ func Security(options SecurityOptions) gin.HandlerFunc {
 		c.Request = c.Request.WithContext(ctx)
 		// Bound decoded bodies, including unknown-length/chunked input.
 		limit := int64(64 * 1024)
-		if path == "/auth/login" || path == "/auth/register" {
+		if path == "/auth/login" || path == "/auth/browser/login" || path == "/auth/register" {
 			limit = 4096
 		}
 		if c.Request.Body != nil {

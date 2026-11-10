@@ -13,21 +13,22 @@ import time
 ROOT = Path(__file__).resolve().parents[1]
 SUITES = [
     ("TASKFLOW_TEST_DATABASE_URL", 12, 4),
-    ("TASKFLOW_SESSION_TEST_DATABASE_URL", 13, 5),
-    ("TASKFLOW_TASK_TEST_DATABASE_URL", 14, 13),
-    ("TASKFLOW_PAGINATION_TEST_DATABASE_URL", 15, 13),
-    ("TASKFLOW_PROJECT_TEST_DATABASE_URL", 16, 13),
-    ("TASKFLOW_API_TEST_DATABASE_URL", 17, 13),
-    ("TASKFLOW_SHARING_TEST_DATABASE_URL", 20, 13),
-    ("TASKFLOW_RELIABILITY_TEST_DATABASE_URL", 21, 13),
-    ("TASKFLOW_TODAY_TEST_DATABASE_URL", 29, 13),
-    ("TASKFLOW_RECURRENCE_TEST_DATABASE_URL", 31, 13),
-    ("TASKFLOW_SCHEDULER_TEST_DATABASE_URL", 32, 13),
-    ("TASKFLOW_DISCORD_TEST_DATABASE_URL", 33, 13),
-    ("TASKFLOW_NOTIFICATION_TEST_DATABASE_URL", 34, 13),
-    ("TASKFLOW_FLOW_TEST_DATABASE_URL", 35, 13),
-    ("TASKFLOW_BROWSER_TEST_DATABASE_URL", 37, 13),
-    ("TASKFLOW_CACHE_INVALIDATION_TEST_DATABASE_URL", 40, 13),
+    ("TASKFLOW_SESSION_TEST_DATABASE_URL", 13, 14),
+    ("TASKFLOW_TASK_TEST_DATABASE_URL", 14, 14),
+    ("TASKFLOW_PAGINATION_TEST_DATABASE_URL", 15, 14),
+    ("TASKFLOW_PROJECT_TEST_DATABASE_URL", 16, 14),
+    ("TASKFLOW_API_TEST_DATABASE_URL", 17, 14),
+    ("TASKFLOW_SHARING_TEST_DATABASE_URL", 20, 14),
+    ("TASKFLOW_RELIABILITY_TEST_DATABASE_URL", 21, 14),
+    ("TASKFLOW_TODAY_TEST_DATABASE_URL", 29, 14),
+    ("TASKFLOW_RECURRENCE_TEST_DATABASE_URL", 31, 14),
+    ("TASKFLOW_SCHEDULER_TEST_DATABASE_URL", 32, 14),
+    ("TASKFLOW_DISCORD_TEST_DATABASE_URL", 33, 14),
+    ("TASKFLOW_NOTIFICATION_TEST_DATABASE_URL", 34, 14),
+    ("TASKFLOW_FLOW_TEST_DATABASE_URL", 35, 14),
+    ("TASKFLOW_BROWSER_TEST_DATABASE_URL", 37, 14),
+    ("TASKFLOW_CACHE_INVALIDATION_TEST_DATABASE_URL", 40, 14),
+    ("TASKFLOW_BROWSER_SESSION_TEST_DATABASE_URL", 45, 14),
 ]
 
 
@@ -70,7 +71,7 @@ def round_tests(number, output, browser=False):
             db = f"taskflow_lesson{lesson}_test"
             run(["docker", "exec", name, "createdb", "-U", "taskflow", db], capture=True)
             url = f"postgres://taskflow:{password}@127.0.0.1:{port}/{db}?sslmode=disable"
-            run(["migrate", "-path", "migrations", "-database", url, "goto", str(9 if lesson in (29, 35) else 10 if lesson == 31 else 12 if lesson == 34 else version)], capture=True, env=env)
+            run(["migrate", "-path", "migrations", "-database", url, "goto", str(9 if lesson in (29, 35) else 10 if lesson == 31 else 12 if lesson == 34 else 13 if lesson == 45 else version)], capture=True, env=env)
             def sql(query):
                 return run(["docker", "exec", "-i", name, "psql", "-X", "-U", "taskflow", "-d", db,
                             "-At", "-v", "ON_ERROR_STOP=1"], capture=True, input=query)
@@ -89,7 +90,7 @@ def round_tests(number, output, browser=False):
                 snapshot_query = """SELECT json_build_object(
                     'users',(SELECT json_agg(u ORDER BY id) FROM users u),
                     'projects',(SELECT json_agg(p ORDER BY id) FROM projects p),
-                    'sessions',(SELECT json_agg(s ORDER BY id) FROM sessions s),
+                    'sessions',(SELECT json_agg(s ORDER BY id) FROM (SELECT id,user_id,token_hash,created_at,expires_at,revoked_at FROM sessions) s),
                     'tasks',(SELECT json_agg(t ORDER BY id) FROM
                       (SELECT id,title,description,completed,priority,created_at,due_date,version,owner_id,project_id FROM tasks) t));"""
                 before = sql(snapshot_query)
@@ -136,7 +137,21 @@ def round_tests(number, output, browser=False):
                 if sql("SELECT count(*) FROM notification_outbox;") != "0":
                     raise RuntimeError("v12 upgrade generated notifications")
                 sql("DELETE FROM discord_bindings WHERE owner_id='00000000-0000-4000-8000-000000000090'; DELETE FROM recurrence_rules WHERE id='00000000-0000-4000-8000-000000000091'; DELETE FROM users WHERE id='00000000-0000-4000-8000-000000000090';")
-                print("PASS: v12 -> v13 preserves binding and recurrence; reminders default off", flush=True)
+                print("PASS: v12 -> current preserves binding and recurrence; reminders default off", flush=True)
+            if lesson == 45:
+                sql("""
+                    INSERT INTO users(id,email,password_hash) VALUES
+                      ('00000000-0000-4000-8000-000000000045','upgrade45@example.com','fixture-only');
+                    INSERT INTO sessions(id,user_id,token_hash,expires_at) VALUES
+                      ('00000000-0000-4000-8000-000000000046','00000000-0000-4000-8000-000000000045',decode(repeat('ab',32),'hex'),now()+interval '1 day');
+                """)
+                snapshot = "SELECT row_to_json(s)::text FROM sessions s WHERE id='00000000-0000-4000-8000-000000000046';"
+                before = json.loads(sql(snapshot))
+                run(["migrate", "-path", "migrations", "-database", url, "goto", str(version)], capture=True, env=env)
+                after = json.loads(sql(snapshot))
+                if after.pop("credential_kind") != "bearer" or after.pop("csrf_secret") is not None or before != after:
+                    raise RuntimeError("v13 upgrade changed legacy session data or credential kind")
+                print("PASS: v13 -> v14 preserves the legacy session, defaulting to bearer without CSRF", flush=True)
             if sql("SELECT version::text || ':' || dirty::text FROM schema_migrations;") != f"{version}:false":
                 raise RuntimeError("migration did not reach a clean expected version")
             sql("CREATE TABLE taskflow_test_lease(run_id text NOT NULL); "

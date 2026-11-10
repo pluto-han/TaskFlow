@@ -56,7 +56,7 @@ func TestTaskPaginationIntegration(t *testing.T) {
 	defer pool.Close()
 	var version int
 	var dirty bool
-	if err := pool.QueryRow(ctx, "SELECT version,dirty FROM schema_migrations").Scan(&version, &dirty); err != nil || version != 13 || dirty {
+	if err := pool.QueryRow(ctx, "SELECT version,dirty FROM schema_migrations").Scan(&version, &dirty); err != nil || version != 14 || dirty {
 		t.Fatal("unexpected schema state")
 	}
 	// Atomic insert fails on pre-existing fixture IDs: never clean another run's rows.

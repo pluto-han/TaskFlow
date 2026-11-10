@@ -15,9 +15,24 @@ import (
 	"github.com/pluto-han/taskflow/internal/httpapi"
 )
 
-type Handler struct{ service *Service }
+type Handler struct {
+	service       *Service
+	browserOrigin string
+	secureCookie  bool
+}
 
-func NewHandler(service *Service) *Handler { return &Handler{service: service} }
+func NewHandler(service *Service, options ...httpapi.SecurityOptions) *Handler {
+	security := httpapi.SecurityOptions{}
+	if len(options) > 0 {
+		security = options[0]
+	}
+	origin := security.PublicOrigin
+	if origin == "" && !security.Production {
+		origin = "http://127.0.0.1:5173"
+	}
+	return &Handler{service: service, browserOrigin: origin,
+		secureCookie: security.Production || strings.HasPrefix(strings.ToLower(origin), "https://")}
+}
 
 func writeError(c *gin.Context, err error) {
 	switch {
@@ -35,11 +50,11 @@ func writeError(c *gin.Context, err error) {
 	}
 }
 
-func (h *Handler) Login(c *gin.Context) {
+func readLogin(c *gin.Context) (LoginRequest, bool) {
 	media, _, err := mime.ParseMediaType(c.GetHeader("Content-Type"))
 	if err != nil || media != "application/json" {
 		httpapi.WriteError(c, 400, "INVALID_REQUEST", "Expected application/json")
-		return
+		return LoginRequest{}, false
 	}
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 4096)
 	raw, err := io.ReadAll(c.Request.Body)
@@ -50,11 +65,22 @@ func (h *Handler) Login(c *gin.Context) {
 		} else {
 			httpapi.WriteError(c, 400, "INVALID_REQUEST", "Invalid request body")
 		}
-		return
+		return LoginRequest{}, false
 	}
 	var input LoginRequest
 	if !utf8.Valid(raw) || json.Unmarshal(raw, &input) != nil {
 		httpapi.WriteError(c, 400, "INVALID_REQUEST", "Invalid request body")
+		return LoginRequest{}, false
+	}
+	return input, true
+}
+
+func (h *Handler) Login(c *gin.Context) {
+	if !h.bearerOnly(c) {
+		return
+	}
+	input, ok := readLogin(c)
+	if !ok {
 		return
 	}
 	result, err := h.service.Login(c.Request.Context(), input)
@@ -66,27 +92,51 @@ func (h *Handler) Login(c *gin.Context) {
 }
 
 func (h *Handler) RequireSession(c *gin.Context) {
+	cookie, present, valid := h.sessionCookie(c.Request)
 	headers := c.Request.Header.Values("Authorization")
+	if len(headers) > 0 && present {
+		ambiguousCredentials(c)
+		return
+	}
+	if present {
+		if !valid {
+			h.rejectSession(c, ErrUnauthorized)
+			return
+		}
+		if !h.browserOriginAllowed(c, isMutation(c.Request.Method)) {
+			return
+		}
+		p, err := h.service.AuthenticateBrowser(c.Request.Context(), cookie)
+		if err != nil {
+			h.rejectSession(c, err)
+			return
+		}
+		if isMutation(c.Request.Method) && !validCSRF(c, p.CSRFSecret) {
+			return
+		}
+		ctx := context.WithValue(c.Request.Context(), browserPrincipalKey{}, p)
+		c.Request = c.Request.WithContext(context.WithValue(ctx, principalKey{}, p.Principal))
+		c.Next()
+		return
+	}
 	if len(headers) != 1 {
-		writeError(c, ErrUnauthorized)
-		c.Abort()
+		h.rejectSession(c, ErrUnauthorized)
 		return
 	}
 	fields := strings.Fields(headers[0])
 	if len(fields) != 2 || !strings.EqualFold(fields[0], "Bearer") {
-		writeError(c, ErrUnauthorized)
-		c.Abort()
+		h.rejectSession(c, ErrUnauthorized)
 		return
 	}
 	p, err := h.service.Authenticate(c.Request.Context(), fields[1])
 	if err != nil {
-		writeError(c, err)
-		c.Abort()
+		h.rejectSession(c, err)
 		return
 	}
 	c.Request = c.Request.WithContext(context.WithValue(c.Request.Context(), principalKey{}, p))
 	c.Next()
 }
+
 func (h *Handler) Me(c *gin.Context) {
 	p, ok := CurrentPrincipal(c.Request.Context())
 	if !ok {
@@ -114,11 +164,16 @@ func (h *Handler) Logout(c *gin.Context) {
 }
 
 // Mount is shared by main and integration tests so route protection is tested.
-func Mount(router *gin.Engine, service *Service) {
-	h := NewHandler(service)
+func Mount(router *gin.Engine, service *Service, options ...httpapi.SecurityOptions) *Handler {
+	h := NewHandler(service, options...)
 	group := router.Group("/auth")
 	group.Use(func(c *gin.Context) { c.Header("Cache-Control", "no-store"); c.Header("Pragma", "no-cache"); c.Next() })
-	group.POST("/login", NewLoginLimiter().Middleware, h.Login)
-	group.GET("/me", h.RequireSession, h.Me)
-	group.POST("/logout", h.RequireSession, h.Logout)
+	limiter := NewLoginLimiter()
+	group.POST("/login", limiter.Middleware, h.Login)
+	group.GET("/me", h.requireBearer, h.Me)
+	group.POST("/logout", h.requireBearer, h.Logout)
+	group.POST("/browser/login", limiter.Middleware, h.BrowserLogin)
+	group.GET("/browser/session", h.requireBrowser, h.BrowserSession)
+	group.POST("/browser/logout", h.requireBrowser, h.BrowserLogout)
+	return h
 }

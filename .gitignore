@@ -25,3 +25,7 @@ project-structure.md
 /docs/review/README.md
 /test/*/README.md
 /test/README.md
+.agents
+AGENTS.md
+skills-lock.json
+docs/*.md

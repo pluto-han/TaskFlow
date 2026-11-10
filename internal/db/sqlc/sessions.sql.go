@@ -11,6 +11,37 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createBrowserSession = `-- name: CreateBrowserSession :one
+INSERT INTO sessions (id, user_id, token_hash, expires_at, credential_kind, csrf_secret)
+VALUES ($1, $2, $3, now() + interval '24 hours', 'browser', $4)
+RETURNING id, user_id, expires_at
+`
+
+type CreateBrowserSessionParams struct {
+	ID         pgtype.UUID `json:"id"`
+	UserID     pgtype.UUID `json:"user_id"`
+	TokenHash  []byte      `json:"token_hash"`
+	CsrfSecret []byte      `json:"csrf_secret"`
+}
+
+type CreateBrowserSessionRow struct {
+	ID        pgtype.UUID        `json:"id"`
+	UserID    pgtype.UUID        `json:"user_id"`
+	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+}
+
+func (q *Queries) CreateBrowserSession(ctx context.Context, arg CreateBrowserSessionParams) (CreateBrowserSessionRow, error) {
+	row := q.db.QueryRow(ctx, createBrowserSession,
+		arg.ID,
+		arg.UserID,
+		arg.TokenHash,
+		arg.CsrfSecret,
+	)
+	var i CreateBrowserSessionRow
+	err := row.Scan(&i.ID, &i.UserID, &i.ExpiresAt)
+	return i, err
+}
+
 const createSession = `-- name: CreateSession :one
 INSERT INTO sessions (id, user_id, token_hash, expires_at)
 VALUES ($1, $2, $3, now() + interval '24 hours')
@@ -36,10 +67,37 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (C
 	return i, err
 }
 
+const getActiveBrowserSession = `-- name: GetActiveBrowserSession :one
+SELECT s.id, s.user_id, s.expires_at, s.csrf_secret
+FROM sessions s JOIN users u ON u.id = s.user_id
+WHERE s.token_hash = $1 AND s.revoked_at IS NULL AND s.expires_at > now()
+  AND s.credential_kind = 'browser'
+`
+
+type GetActiveBrowserSessionRow struct {
+	ID         pgtype.UUID        `json:"id"`
+	UserID     pgtype.UUID        `json:"user_id"`
+	ExpiresAt  pgtype.Timestamptz `json:"expires_at"`
+	CsrfSecret []byte             `json:"csrf_secret"`
+}
+
+func (q *Queries) GetActiveBrowserSession(ctx context.Context, tokenHash []byte) (GetActiveBrowserSessionRow, error) {
+	row := q.db.QueryRow(ctx, getActiveBrowserSession, tokenHash)
+	var i GetActiveBrowserSessionRow
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.ExpiresAt,
+		&i.CsrfSecret,
+	)
+	return i, err
+}
+
 const getActiveSession = `-- name: GetActiveSession :one
 SELECT s.id, s.user_id, s.expires_at
 FROM sessions s JOIN users u ON u.id = s.user_id
 WHERE s.token_hash = $1 AND s.revoked_at IS NULL AND s.expires_at > now()
+  AND s.credential_kind = 'bearer'
 `
 
 type GetActiveSessionRow struct {

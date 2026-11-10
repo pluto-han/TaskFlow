@@ -50,9 +50,9 @@ func NewRouter(d Dependencies) *gin.Engine {
 		httpapi.WriteError(c, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "Method not allowed")
 	})
 	httpapi.MountHealth(router, d.Ping)
-	session.Mount(router, d.Sessions)
+	sessions := session.Mount(router, d.Sessions, d.Security)
 	router.POST("/auth/register", user.NewHandler(d.Users).Register)
-	authentication := session.NewHandler(d.Sessions).RequireSession
+	authentication := sessions.RequireSession
 	router.POST(discord.Path, d.Discord.Handle)
 	integration.Mount(router, d.Integrations, authentication)
 	notification.Mount(router, d.Notifications, authentication)

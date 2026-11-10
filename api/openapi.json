@@ -14,6 +14,9 @@
   "security": [
     {
       "bearerSession": []
+    },
+    {
+      "browserSession": []
     }
   ],
   "paths": {
@@ -193,8 +196,16 @@
           },
           "429": {
             "$ref": "#/components/responses/Error429"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
           }
-        }
+        },
+        "security": [
+          {
+            "bearerSession": []
+          }
+        ]
       }
     },
     "/auth/logout": {
@@ -234,15 +245,23 @@
           },
           "429": {
             "$ref": "#/components/responses/Error429"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
           }
-        }
+        },
+        "security": [
+          {
+            "bearerSession": []
+          }
+        ]
       }
     },
     "/tasks": {
       "get": {
         "operationId": "listTasks",
         "summary": "listTasks",
-        "description": "Visible tasks: private unclassified tasks created by caller, plus tasks in projects currently owned by or shared with caller. Every page rechecks membership; old cursors never grant access. Array response; X-Next-Cursor omitted when exhausted. Cursor is bound to user and filters. Not a snapshot.",
+        "description": "Visible tasks: private unclassified tasks created by caller, plus tasks in projects currently owned by or shared with caller. Every page rechecks membership; old cursors never grant access. Array response; X-Next-Cursor omitted when exhausted. Cursor is bound to user and filters. Not a snapshot. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.",
         "responses": {
           "200": {
             "description": "Success",
@@ -376,14 +395,14 @@
               "type": "string",
               "format": "date"
             },
-            "description": "Exact YYYY-MM-DD within years 0001–9999. Selects own planned tasks, including history. Empty, duplicate or invalid dates return 400. Bound into cursor scope."
+            "description": "Exact YYYY-MM-DD within years 0001\u20139999. Selects own planned tasks, including history. Empty, duplicate or invalid dates return 400. Bound into cursor scope."
           }
         ]
       },
       "post": {
         "operationId": "createTask",
         "summary": "createTask",
-        "description": "Owner comes from session and remains the immutable creator. Creating inside a project requires current access. Other members will be able to read/edit/delete the task.",
+        "description": "Owner comes from session and remains the immutable creator. Creating inside a project requires current access. Other members will be able to read/edit/delete the task. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.",
         "responses": {
           "201": {
             "description": "Success",
@@ -450,14 +469,23 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "bearerSession": []
+          },
+          {
+            "browserSession": [],
+            "csrfToken": []
+          }
+        ]
       }
     },
     "/tasks/{id}": {
       "get": {
         "operationId": "getTask",
         "summary": "getTask",
-        "description": "",
+        "description": "Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.",
         "responses": {
           "200": {
             "description": "Success",
@@ -500,6 +528,9 @@
           },
           "429": {
             "$ref": "#/components/responses/Error429"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
           }
         },
         "parameters": [
@@ -516,7 +547,7 @@
       "patch": {
         "operationId": "updateTask",
         "summary": "updateTask",
-        "description": "Members may edit any project task. Only creator may move or unassign; current source and target access are required. PATCH version and omitted/null semantics remain unchanged. 403 for unauthorized movement; 404 for inaccessible source.",
+        "description": "Members may edit any project task. Only creator may move or unassign; current source and target access are required. PATCH version and omitted/null semantics remain unchanged. 403 for unauthorized movement; 404 for inaccessible source. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.",
         "responses": {
           "200": {
             "description": "Success",
@@ -590,12 +621,21 @@
               "type": "string"
             }
           }
+        ],
+        "security": [
+          {
+            "bearerSession": []
+          },
+          {
+            "browserSession": [],
+            "csrfToken": []
+          }
         ]
       },
       "delete": {
         "operationId": "deleteTask",
         "summary": "deleteTask",
-        "description": "Project owner/member may delete any project task; private tasks only their creator. No version precondition on DELETE.",
+        "description": "Project owner/member may delete any project task; private tasks only their creator. No version precondition on DELETE. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.",
         "responses": {
           "204": {
             "description": "Success",
@@ -631,6 +671,9 @@
           },
           "429": {
             "$ref": "#/components/responses/Error429"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
           }
         },
         "parameters": [
@@ -642,6 +685,15 @@
               "type": "string"
             }
           }
+        ],
+        "security": [
+          {
+            "bearerSession": []
+          },
+          {
+            "browserSession": [],
+            "csrfToken": []
+          }
         ]
       }
     },
@@ -649,7 +701,7 @@
       "get": {
         "operationId": "listProjects",
         "summary": "listProjects",
-        "description": "Projects owned by or shared with the caller, newest first. Unpaginated. Each includes caller role.",
+        "description": "Projects owned by or shared with the caller, newest first. Unpaginated. Each includes caller role. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.",
         "responses": {
           "200": {
             "description": "Success",
@@ -692,13 +744,16 @@
           },
           "429": {
             "$ref": "#/components/responses/Error429"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
           }
         }
       },
       "post": {
         "operationId": "createProject",
         "summary": "createProject",
-        "description": "Body limit 64 KiB; unknown fields rejected. Owner comes from session.",
+        "description": "Body limit 64 KiB; unknown fields rejected. Owner comes from session. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.",
         "responses": {
           "201": {
             "description": "Success",
@@ -762,14 +817,23 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "bearerSession": []
+          },
+          {
+            "browserSession": [],
+            "csrfToken": []
+          }
+        ]
       }
     },
     "/projects/{id}": {
       "get": {
         "operationId": "getProject",
         "summary": "getProject",
-        "description": "",
+        "description": "Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.",
         "responses": {
           "200": {
             "description": "Success",
@@ -832,7 +896,7 @@
       "patch": {
         "operationId": "updateProject",
         "summary": "updateProject",
-        "description": "Owner only. Same-field last-write-wins; no project version. Body 64 KiB; unknown fields rejected.",
+        "description": "Owner only. Same-field last-write-wins; no project version. Body 64 KiB; unknown fields rejected. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.",
         "responses": {
           "200": {
             "description": "Success",
@@ -903,12 +967,21 @@
               "format": "uuid"
             }
           }
+        ],
+        "security": [
+          {
+            "bearerSession": []
+          },
+          {
+            "browserSession": [],
+            "csrfToken": []
+          }
         ]
       },
       "delete": {
         "operationId": "deleteProject",
         "summary": "deleteProject",
-        "description": "Owner only, 409 if tasks remain. Memberships/invitations are cleaned up; tasks never cascade.",
+        "description": "Owner only, 409 if tasks remain. Memberships/invitations are cleaned up; tasks never cascade. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.",
         "responses": {
           "204": {
             "description": "Success",
@@ -961,6 +1034,15 @@
               "type": "string",
               "format": "uuid"
             }
+          }
+        ],
+        "security": [
+          {
+            "bearerSession": []
+          },
+          {
+            "browserSession": [],
+            "csrfToken": []
           }
         ]
       }
@@ -1083,7 +1165,7 @@
       "get": {
         "operationId": "listMembers",
         "summary": "listMembers",
-        "description": "Owner and members can list IDs and roles. No emails.",
+        "description": "Owner and members can list IDs and roles. No emails. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.",
         "responses": {
           "200": {
             "description": "Success",
@@ -1153,7 +1235,7 @@
       "delete": {
         "operationId": "removeMember",
         "summary": "removeMember",
-        "description": "Owner only. Cannot remove the owner. Existing sessions lose subsequent project access immediately after commit.",
+        "description": "Owner only. Cannot remove the owner. Existing sessions lose subsequent project access immediately after commit. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.",
         "responses": {
           "204": {
             "description": "Success",
@@ -1215,6 +1297,15 @@
               "format": "uuid"
             }
           }
+        ],
+        "security": [
+          {
+            "bearerSession": []
+          },
+          {
+            "browserSession": [],
+            "csrfToken": []
+          }
         ]
       }
     },
@@ -1222,7 +1313,7 @@
       "post": {
         "operationId": "leaveProject",
         "summary": "leaveProject",
-        "description": "Member leaves. Owner must transfer first (409 OWNER_REQUIRED). Tasks remain in the project.",
+        "description": "Member leaves. Owner must transfer first (409 OWNER_REQUIRED). Tasks remain in the project. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.",
         "responses": {
           "204": {
             "description": "Success",
@@ -1275,6 +1366,15 @@
               "format": "uuid"
             }
           }
+        ],
+        "security": [
+          {
+            "bearerSession": []
+          },
+          {
+            "browserSession": [],
+            "csrfToken": []
+          }
         ]
       }
     },
@@ -1282,7 +1382,7 @@
       "post": {
         "operationId": "transferOwnership",
         "summary": "transferOwnership",
-        "description": "Owner only; target must be a current member. Old owner becomes member. Pending invitations are revoked atomically.",
+        "description": "Owner only; target must be a current member. Old owner becomes member. Pending invitations are revoked atomically. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.",
         "responses": {
           "204": {
             "description": "Success",
@@ -1345,14 +1445,23 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "bearerSession": []
+          },
+          {
+            "browserSession": [],
+            "csrfToken": []
+          }
+        ]
       }
     },
     "/projects/{id}/invitations": {
       "get": {
         "operationId": "listInvitations",
         "summary": "listInvitations",
-        "description": "Owner only; token never returned in this list.",
+        "description": "Owner only; token never returned in this list. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.",
         "responses": {
           "200": {
             "description": "Success",
@@ -1420,7 +1529,7 @@
       "post": {
         "operationId": "createInvitation",
         "summary": "createInvitation",
-        "description": "Owner only; recipient must be a registered user who is not already a member. 24-hour single-use recipient-bound token, returned once. Reissuing revokes prior outstanding invitations for that recipient. No email sent.",
+        "description": "Owner only; recipient must be a registered user who is not already a member. 24-hour single-use recipient-bound token, returned once. Reissuing revokes prior outstanding invitations for that recipient. No email sent. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.",
         "responses": {
           "201": {
             "description": "Success",
@@ -1490,14 +1599,23 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "bearerSession": []
+          },
+          {
+            "browserSession": [],
+            "csrfToken": []
+          }
+        ]
       }
     },
     "/projects/{id}/invitations/{invitationID}": {
       "delete": {
         "operationId": "revokeInvitation",
         "summary": "revokeInvitation",
-        "description": "Owner only. Accepted tokens cannot be revoked; remove the member instead.",
+        "description": "Owner only. Accepted tokens cannot be revoked; remove the member instead. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.",
         "responses": {
           "204": {
             "description": "Success",
@@ -1559,6 +1677,15 @@
               "format": "uuid"
             }
           }
+        ],
+        "security": [
+          {
+            "bearerSession": []
+          },
+          {
+            "browserSession": [],
+            "csrfToken": []
+          }
         ]
       }
     },
@@ -1566,7 +1693,7 @@
       "post": {
         "operationId": "acceptInvitation",
         "summary": "acceptInvitation",
-        "description": "Authenticated intended recipient only. Invalid, expired, revoked, used or mismatched tokens return generic INVITATION_INVALID. Request bodies must not be logged.",
+        "description": "Authenticated intended recipient only. Invalid, expired, revoked, used or mismatched tokens return generic INVITATION_INVALID. Request bodies must not be logged. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.",
         "responses": {
           "200": {
             "description": "Success",
@@ -1635,14 +1762,23 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "bearerSession": []
+          },
+          {
+            "browserSession": [],
+            "csrfToken": []
+          }
+        ]
       }
     },
     "/tasks/today": {
       "get": {
         "operationId": "listTodayTasks",
         "summary": "List private tasks planned for today",
-        "description": "Read-only Amsterdam day snapshot at request acceptance. No cleanup or task generation. project_id and plan_date filters are rejected. A cursor from a different business date returns 400 INVALID_QUERY. Completed tasks remain until the day changes. Re-fetch after next_day_at; requests accepted before midnight may finish after it and still describe the previous date.",
+        "description": "Read-only Amsterdam day snapshot at request acceptance. No cleanup or task generation. project_id and plan_date filters are rejected. A cursor from a different business date returns 400 INVALID_QUERY. Completed tasks remain until the day changes. Re-fetch after next_day_at; requests accepted before midnight may finish after it and still describe the previous date. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.",
         "responses": {
           "200": {
             "description": "Success",
@@ -1763,7 +1899,7 @@
       "post": {
         "operationId": "createTodayTask",
         "summary": "Create a private task planned for today",
-        "description": "The submitted plan_date is only an optimistic date check, not an arbitrary date assignment. Server acceptance time sets both date and created_at. Yesterday/future dates return 409 PLAN_DAY_CHANGED; malformed dates return 400. A request accepted before midnight can commit after midnight as a historical task; refresh using returned plan_date. No project or scheduling support.",
+        "description": "The submitted plan_date is only an optimistic date check, not an arbitrary date assignment. Server acceptance time sets both date and created_at. Yesterday/future dates return 409 PLAN_DAY_CHANGED; malformed dates return 400. A request accepted before midnight can commit after midnight as a historical task; refresh using returned plan_date. No project or scheduling support. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.",
         "responses": {
           "201": {
             "description": "Success",
@@ -1831,7 +1967,16 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "bearerSession": []
+          },
+          {
+            "browserSession": [],
+            "csrfToken": []
+          }
+        ]
       }
     },
     "/recurrences": {
@@ -1891,7 +2036,7 @@
             }
           }
         ],
-        "description": "Owner-only stable UUID keyset pagination. Unknown/empty/duplicate parameters rejected. Cursor bound to owner, not an authorization token. Scheduler is not implemented in Lesson 31."
+        "description": "Owner-only stable UUID keyset pagination. Unknown/empty/duplicate parameters rejected. Cursor bound to owner, not an authorization token. Scheduler is not implemented in Lesson 31. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token."
       },
       "post": {
         "operationId": "createRecurrence",
@@ -1938,7 +2083,17 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "bearerSession": []
+          },
+          {
+            "browserSession": [],
+            "csrfToken": []
+          }
+        ],
+        "description": "Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token."
       }
     },
     "/recurrences/preview": {
@@ -1988,7 +2143,16 @@
             }
           }
         },
-        "description": "Read-only preview (no database writes); supports past anchors to preview existing rules from Amsterdam today. Returns at most five dates; at year 9999 fewer may remain."
+        "description": "Read-only preview (no database writes); supports past anchors to preview existing rules from Amsterdam today. Returns at most five dates; at year 9999 fewer may remain. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.",
+        "security": [
+          {
+            "bearerSession": []
+          },
+          {
+            "browserSession": [],
+            "csrfToken": []
+          }
+        ]
       }
     },
     "/recurrences/{id}": {
@@ -2041,7 +2205,8 @@
               "format": "uuid"
             }
           }
-        ]
+        ],
+        "description": "Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token."
       },
       "patch": {
         "operationId": "updateRecurrence",
@@ -2105,7 +2270,17 @@
               "format": "uuid"
             }
           }
-        ]
+        ],
+        "security": [
+          {
+            "bearerSession": []
+          },
+          {
+            "browserSession": [],
+            "csrfToken": []
+          }
+        ],
+        "description": "Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token."
       },
       "delete": {
         "operationId": "deleteRecurrence",
@@ -2162,7 +2337,17 @@
               "format": "uuid"
             }
           }
-        ]
+        ],
+        "security": [
+          {
+            "bearerSession": []
+          },
+          {
+            "browserSession": [],
+            "csrfToken": []
+          }
+        ],
+        "description": "Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token."
       }
     },
     "/integrations/discord": {
@@ -2187,8 +2372,12 @@
           },
           "503": {
             "$ref": "#/components/responses/Error503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
           }
-        }
+        },
+        "description": "Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token."
       },
       "delete": {
         "operationId": "unbindDiscord",
@@ -2224,13 +2413,23 @@
           "503": {
             "$ref": "#/components/responses/Error503"
           }
-        }
+        },
+        "security": [
+          {
+            "bearerSession": []
+          },
+          {
+            "browserSession": [],
+            "csrfToken": []
+          }
+        ],
+        "description": "Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token."
       }
     },
     "/integrations/discord/code": {
       "post": {
         "operationId": "issueDiscordBindingCode",
-        "description": "Issues a code only for the authenticated user. Previous code is revoked. Max 3 per minute.",
+        "description": "Issues a code only for the authenticated user. Previous code is revoked. Max 3 per minute. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.",
         "responses": {
           "201": {
             "description": "Success",
@@ -2257,7 +2456,16 @@
           "503": {
             "$ref": "#/components/responses/Error503"
           }
-        }
+        },
+        "security": [
+          {
+            "bearerSession": []
+          },
+          {
+            "browserSession": [],
+            "csrfToken": []
+          }
+        ]
       }
     },
     "/discord/interactions": {
@@ -2328,7 +2536,7 @@
     "/integrations/discord/notifications": {
       "get": {
         "operationId": "listDiscordNotifications",
-        "description": "Most recent 50 notifications for the authenticated user.",
+        "description": "Most recent 50 notifications for the authenticated user. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.",
         "responses": {
           "200": {
             "description": "Recent notification events",
@@ -2351,8 +2559,217 @@
           },
           "503": {
             "$ref": "#/components/responses/Error503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
           }
         }
+      }
+    },
+    "/auth/browser/login": {
+      "post": {
+        "operationId": "browserLogin",
+        "summary": "browserLogin",
+        "description": "Create a fresh 24-hour Cookie session. JSON limited to 4096 bytes. Requires exactly one matching Origin; no Authorization header. An existing single cookie may be replaced. Shares legacy login budgets. Session credential is returned only in Set-Cookie, never JSON.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated opaque correlation ID; incoming values are ignored.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Set-Cookie": {
+                "description": "HttpOnly session credential (or its removal); production Secure SameSite=Lax Path=/ and no Domain. Never log this header.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrowserSession"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          }
+        },
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              },
+              "example": {
+                "email": "learner@example.com",
+                "password": "a long learning passphrase"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "description": "Exact configured public origin; missing, null, duplicate or foreign values are rejected.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/auth/browser/session": {
+      "get": {
+        "operationId": "browserSession",
+        "summary": "browserSession",
+        "description": "Restore the current browser session. Optional Origin must match if present; cross-site fetches are rejected. No expiry extension or CSRF rotation. A confirmed 401 clears the expected cookie; dependency errors do not.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated opaque correlation ID; incoming values are ignored.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrowserSession"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          }
+        },
+        "security": [
+          {
+            "browserSession": []
+          }
+        ]
+      }
+    },
+    "/auth/browser/logout": {
+      "post": {
+        "operationId": "browserLogout",
+        "summary": "browserLogout",
+        "description": "Revoke the browser session, then expire its cookie. Requires exactly one matching Origin and X-CSRF-Token. Failures do not claim successful revocation.",
+        "responses": {
+          "204": {
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated opaque correlation ID; incoming values are ignored.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Set-Cookie": {
+                "description": "HttpOnly session credential (or its removal); production Secure SameSite=Lax Path=/ and no Domain. Never log this header.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          }
+        },
+        "security": [
+          {
+            "browserSession": [],
+            "csrfToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "description": "Exact configured public origin; missing, null, duplicate or foreign values are rejected.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
       }
     }
   },
@@ -2362,6 +2779,18 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "opaque session token"
+      },
+      "browserSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "__Host-taskflow_session",
+        "description": "Production HttpOnly Secure SameSite=Lax cookie, Path=/, no Domain. Loopback HTTP development uses taskflow_session_dev. Never send both Bearer and session cookies."
+      },
+      "csrfToken": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-CSRF-Token",
+        "description": "Session-bound token returned by browser login/bootstrap, required with a matching Origin for cookie-authenticated mutations. Not a login credential."
       }
     },
     "schemas": {
@@ -2407,7 +2836,9 @@
               "INVALID_DISCORD_SIGNATURE",
               "DISCORD_BINDING_CONFLICT",
               "DISCORD_CODE_RATE_LIMITED",
-              "DISCORD_DISABLED"
+              "DISCORD_DISABLED",
+              "AMBIGUOUS_CREDENTIALS",
+              "CSRF_INVALID"
             ]
           },
           "message": {
@@ -2452,14 +2883,14 @@
         "properties": {
           "email": {
             "type": "string",
-            "description": "Trimmed and lowercased; common unquoted ASCII address, 3–254 bytes."
+            "description": "Trimmed and lowercased; common unquoted ASCII address, 3\u2013254 bytes."
           },
           "password": {
             "type": "string",
             "minLength": 8,
             "maxLength": 128,
             "writeOnly": true,
-            "description": "8–128 Unicode characters, at most 512 UTF-8 bytes, not whitespace-only."
+            "description": "8\u2013128 Unicode characters, at most 512 UTF-8 bytes, not whitespace-only."
           }
         },
         "required": [
@@ -2634,7 +3065,7 @@
           "priority"
         ],
         "additionalProperties": false,
-        "description": "Title must contain non-whitespace text. Missing/null project_id means unclassified. Due dates must be RFC3339 within years 1–9999."
+        "description": "Title must contain non-whitespace text. Missing/null project_id means unclassified. Due dates must be RFC3339 within years 1\u20139999."
       },
       "UpdateTask": {
         "type": "object",
@@ -2723,7 +3154,7 @@
         "properties": {
           "name": {
             "type": "string",
-            "description": "Trim before validation; 1–100 Unicode characters after trimming, no NUL."
+            "description": "Trim before validation; 1\u2013100 Unicode characters after trimming, no NUL."
           },
           "description": {
             "type": "string",
@@ -2742,7 +3173,7 @@
           "name": {
             "type": "string",
             "nullable": true,
-            "description": "Trimmed, 1–100 characters; null/missing preserves, no NUL."
+            "description": "Trimmed, 1\u2013100 characters; null/missing preserves, no NUL."
           },
           "description": {
             "type": "string",
@@ -3358,6 +3789,32 @@
             "format": "date-time"
           }
         }
+      },
+      "BrowserSession": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "user",
+          "expires_at",
+          "csrf_token"
+        ],
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/User"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Absolute expiry; bootstrap does not extend it."
+          },
+          "csrf_token": {
+            "type": "string",
+            "minLength": 43,
+            "maxLength": 43,
+            "pattern": "^[A-Za-z0-9_-]{43}$",
+            "description": "CSRF token only; cannot authenticate without the HttpOnly session cookie. Keep in memory."
+          }
+        }
       }
     },
     "responses": {
@@ -3587,7 +4044,8 @@
       "INVALID_INVITEE",
       "INVALID_RECURRENCE",
       "INVALID_DISCORD_BINDING",
-      "INVALID_DISCORD_INTERACTION"
+      "INVALID_DISCORD_INTERACTION",
+      "AMBIGUOUS_CREDENTIALS"
     ],
     "401": [
       "UNAUTHORIZED",
@@ -3634,7 +4092,8 @@
     "403": [
       "FORBIDDEN",
       "HTTPS_REQUIRED",
-      "ORIGIN_NOT_ALLOWED"
+      "ORIGIN_NOT_ALLOWED",
+      "CSRF_INVALID"
     ]
   }
 }

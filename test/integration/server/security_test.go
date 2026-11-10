@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/pluto-han/taskflow/internal/httpapi"
 	"github.com/pluto-han/taskflow/internal/server"
 )
 
@@ -38,5 +40,66 @@ func TestAuthRateLimitsCannotBeBypassedByForwardedIP(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestBrowserAndBearerLoginSharePeerBudget(t *testing.T) {
+	r := server.NewRouter(server.Dependencies{Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), Security: httpapi.SecurityOptions{PublicOrigin: "http://127.0.0.1:5173"}})
+	for n := 0; n < 22; n++ {
+		path := "/auth/login"
+		if n%2 == 1 {
+			path = "/auth/browser/login"
+		}
+		req := httptest.NewRequest("POST", path, strings.NewReader("not JSON"))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Origin", "http://127.0.0.1:5173")
+		req.Header.Set("X-Forwarded-For", fmt.Sprintf("192.0.2.%d", n))
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+		want := 400
+		if n >= 20 {
+			want = 429
+		}
+		if rec.Code != want {
+			t.Fatalf("attempt %d (%s): got %d want %d", n, path, rec.Code, want)
+		}
+	}
+}
+
+func TestBrowserLoginBodyLimitMatchesLegacy(t *testing.T) {
+	for _, path := range []string{"/auth/login", "/auth/browser/login"} {
+		r := server.NewRouter(server.Dependencies{Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+		req := httptest.NewRequest("POST", path, strings.NewReader(strings.Repeat("x", 4097)))
+		req.Header.Set("Origin", "http://127.0.0.1:5173")
+		req.ContentLength = -1
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+		if rec.Code != 413 {
+			t.Fatalf("%s: got %d", path, rec.Code)
+		}
+	}
+}
+
+func TestBrowserLoginUsesTrustedTLSBoundary(t *testing.T) {
+	_, trusted, _ := net.ParseCIDR("127.0.0.1/32")
+	r := server.NewRouter(server.Dependencies{Security: httpapi.SecurityOptions{Production: true, PublicOrigin: "https://tasks.example.com", TrustedProxies: []*net.IPNet{trusted}}, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	for _, tc := range []struct {
+		peer, proto string
+		want        int
+	}{
+		{"192.0.2.1:1234", "https", 403},
+		{"127.0.0.1:1234", "http", 403},
+		{"127.0.0.1:1234", "https", 400},
+	} {
+		req := httptest.NewRequest("POST", "/auth/browser/login", strings.NewReader("{"))
+		req.RemoteAddr = tc.peer
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Origin", "https://tasks.example.com")
+		req.Header.Set("X-Forwarded-Proto", tc.proto)
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+		if rec.Code != tc.want {
+			t.Fatalf("peer=%s proto=%s status=%d", tc.peer, tc.proto, rec.Code)
+		}
 	}
 }

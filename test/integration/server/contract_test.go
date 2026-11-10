@@ -48,6 +48,7 @@ type operation struct {
 	} `json:"parameters"`
 }
 type document struct {
+	Security   []map[string][]string           `json:"security"`
 	OpenAPI    string                          `json:"openapi"`
 	Paths      map[string]map[string]operation `json:"paths"`
 	Components struct {
@@ -110,12 +111,21 @@ func TestContractRoutesAndReferences(t *testing.T) {
 					t.Error("missing required path parameter")
 				}
 			}
-			public := strings.HasPrefix(path, "/health") || path == "/auth/register" || path == "/auth/login" || path == "/discord/interactions"
-			if public && op.Security == nil {
-				t.Errorf("public route inherits bearer requirement: %s", path)
+			public := strings.HasPrefix(path, "/health") || path == "/auth/register" || path == "/auth/login" || path == "/auth/browser/login" || path == "/discord/interactions"
+			want := []map[string][]string(nil) // GET business routes inherit both mechanisms.
+			if public {
+				want = []map[string][]string{}
+			} else if path == "/auth/me" || path == "/auth/logout" {
+				want = []map[string][]string{{"bearerSession": {}}}
+			} else if path == "/auth/browser/session" {
+				want = []map[string][]string{{"browserSession": {}}}
+			} else if path == "/auth/browser/logout" {
+				want = []map[string][]string{{"browserSession": {}, "csrfToken": {}}}
+			} else if method != "get" && method != "head" && method != "options" {
+				want = []map[string][]string{{"bearerSession": {}}, {"browserSession": {}, "csrfToken": {}}}
 			}
-			if !public && op.Security != nil {
-				t.Errorf("protected route overrides bearer requirement: %s", path)
+			if !reflect.DeepEqual(op.Security, want) {
+				t.Errorf("incorrect authentication/CSRF contract: %s %s", method, path)
 			}
 		}
 	}
@@ -157,7 +167,10 @@ func TestContractRoutesAndReferences(t *testing.T) {
 
 func TestContractDTOFields(t *testing.T) {
 	d, _ := readContract(t)
-	for name, value := range map[string]any{"NotificationEvent": notification.Event{}, "DiscordBinding": integration.Binding{}, "DiscordBindingCode": integration.Code{}, "UnbindDiscord": integration.UnbindRequest{}, "Recurrence": recurrence.Rule{}, "CreateRecurrence": recurrence.CreateRequest{}, "UpdateRecurrence": recurrence.UpdateRequest{}, "DeleteRecurrence": recurrence.DeleteRequest{}, "PreviewRecurrenceRequest": recurrence.PreviewRequest{}, "RecurrencePreview": recurrence.Preview{}, "RecurrencePage": recurrence.Page{}, "RegisterRequest": user.RegisterRequest{}, "LoginRequest": session.LoginRequest{}, "LoginResponse": session.LoginResponse{}, "User": user.UserResponse{}, "Task": task.Task{}, "CreateTask": task.CreateTaskRequest{}, "CreateTodayTask": task.CreateTodayTaskRequest{}, "TodayPage": task.TodayPage{}, "UpdateTask": task.UpdateTaskRequest{}, "Member": project.Member{}, "Invitation": project.Invitation{}, "InviteRequest": project.InviteRequest{}, "AcceptRequest": project.AcceptRequest{}, "Project": project.Project{}, "CreateProject": project.CreateRequest{}, "UpdateProject": project.UpdateRequest{}, "Error": httpapi.ErrorResponse{}, "ErrorDetail": httpapi.ErrorDetail{}} {
+	if !reflect.DeepEqual(d.Security, []map[string][]string{{"bearerSession": {}}, {"browserSession": {}}}) {
+		t.Fatal("global authentication must allow either mechanism, never require both")
+	}
+	for name, value := range map[string]any{"BrowserSession": session.BrowserResponse{}, "NotificationEvent": notification.Event{}, "DiscordBinding": integration.Binding{}, "DiscordBindingCode": integration.Code{}, "UnbindDiscord": integration.UnbindRequest{}, "Recurrence": recurrence.Rule{}, "CreateRecurrence": recurrence.CreateRequest{}, "UpdateRecurrence": recurrence.UpdateRequest{}, "DeleteRecurrence": recurrence.DeleteRequest{}, "PreviewRecurrenceRequest": recurrence.PreviewRequest{}, "RecurrencePreview": recurrence.Preview{}, "RecurrencePage": recurrence.Page{}, "RegisterRequest": user.RegisterRequest{}, "LoginRequest": session.LoginRequest{}, "LoginResponse": session.LoginResponse{}, "User": user.UserResponse{}, "Task": task.Task{}, "CreateTask": task.CreateTaskRequest{}, "CreateTodayTask": task.CreateTodayTaskRequest{}, "TodayPage": task.TodayPage{}, "UpdateTask": task.UpdateTaskRequest{}, "Member": project.Member{}, "Invitation": project.Invitation{}, "InviteRequest": project.InviteRequest{}, "AcceptRequest": project.AcceptRequest{}, "Project": project.Project{}, "CreateProject": project.CreateRequest{}, "UpdateProject": project.UpdateRequest{}, "Error": httpapi.ErrorResponse{}, "ErrorDetail": httpapi.ErrorDetail{}} {
 		t.Run(name, func(t *testing.T) {
 			fields := map[string]bool{}
 			typ := reflect.TypeOf(value)
@@ -271,6 +284,9 @@ func TestRouterErrorAndHealthContracts(t *testing.T) {
 			url := strings.ReplaceAll(path, "{id}", "00000000-0000-4000-8000-000000000001")
 			req := httptest.NewRequest(strings.ToUpper(method), url, strings.NewReader("{"))
 			req.Header.Set("Content-Type", "application/json")
+			if path == "/auth/browser/login" {
+				req.Header.Set("Origin", "http://127.0.0.1:5173")
+			}
 			rec := httptest.NewRecorder()
 			r.ServeHTTP(rec, req)
 			expected := 401
@@ -279,7 +295,7 @@ func TestRouterErrorAndHealthContracts(t *testing.T) {
 			}
 			if strings.HasPrefix(path, "/health") {
 				expected = 200
-			} else if path == "/auth/login" || path == "/auth/register" {
+			} else if path == "/auth/login" || path == "/auth/register" || path == "/auth/browser/login" {
 				expected = 400
 			}
 			if rec.Code != expected {

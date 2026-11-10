@@ -54,3 +54,21 @@ func TestMetricsAddressBoundary(t *testing.T) {
 		}
 	}
 }
+
+func TestBrowserDevelopmentOrigin(t *testing.T) {
+	defaults, err := (Config{Environment: "development", HTTPAddr: "127.0.0.1:9090"}).Security()
+	if err != nil || defaults.PublicOrigin != "http://127.0.0.1:5173" {
+		t.Fatal("missing safe browser origin default")
+	}
+	for _, origin := range []string{"http://localhost:5173", "http://[::1]:5173", "http://127.0.0.2:5174", "https://preview.example.com"} {
+		options, err := (Config{Environment: "development", PublicOrigin: origin}).Security()
+		if err != nil || options.PublicOrigin != origin {
+			t.Errorf("rejected development origin: %s", origin)
+		}
+	}
+	for _, origin := range []string{"http://example.com", "http://192.168.1.2:5173", "http://0.0.0.0:5173", "http://localhost.evil.example:5173"} {
+		if _, err := (Config{Environment: "development", PublicOrigin: origin}).Security(); err == nil {
+			t.Errorf("accepted external HTTP origin: %s", origin)
+		}
+	}
+}

@@ -90,13 +90,13 @@ export interface paths {
         };
         /**
          * listTasks
-         * @description Visible tasks: private unclassified tasks created by caller, plus tasks in projects currently owned by or shared with caller. Every page rechecks membership; old cursors never grant access. Array response; X-Next-Cursor omitted when exhausted. Cursor is bound to user and filters. Not a snapshot.
+         * @description Visible tasks: private unclassified tasks created by caller, plus tasks in projects currently owned by or shared with caller. Every page rechecks membership; old cursors never grant access. Array response; X-Next-Cursor omitted when exhausted. Cursor is bound to user and filters. Not a snapshot. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.
          */
         get: operations["listTasks"];
         put?: never;
         /**
          * createTask
-         * @description Owner comes from session and remains the immutable creator. Creating inside a project requires current access. Other members will be able to read/edit/delete the task.
+         * @description Owner comes from session and remains the immutable creator. Creating inside a project requires current access. Other members will be able to read/edit/delete the task. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.
          */
         post: operations["createTask"];
         delete?: never;
@@ -112,20 +112,23 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** getTask */
+        /**
+         * getTask
+         * @description Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.
+         */
         get: operations["getTask"];
         put?: never;
         post?: never;
         /**
          * deleteTask
-         * @description Project owner/member may delete any project task; private tasks only their creator. No version precondition on DELETE.
+         * @description Project owner/member may delete any project task; private tasks only their creator. No version precondition on DELETE. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.
          */
         delete: operations["deleteTask"];
         options?: never;
         head?: never;
         /**
          * updateTask
-         * @description Members may edit any project task. Only creator may move or unassign; current source and target access are required. PATCH version and omitted/null semantics remain unchanged. 403 for unauthorized movement; 404 for inaccessible source.
+         * @description Members may edit any project task. Only creator may move or unassign; current source and target access are required. PATCH version and omitted/null semantics remain unchanged. 403 for unauthorized movement; 404 for inaccessible source. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.
          */
         patch: operations["updateTask"];
         trace?: never;
@@ -139,13 +142,13 @@ export interface paths {
         };
         /**
          * listProjects
-         * @description Projects owned by or shared with the caller, newest first. Unpaginated. Each includes caller role.
+         * @description Projects owned by or shared with the caller, newest first. Unpaginated. Each includes caller role. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.
          */
         get: operations["listProjects"];
         put?: never;
         /**
          * createProject
-         * @description Body limit 64 KiB; unknown fields rejected. Owner comes from session.
+         * @description Body limit 64 KiB; unknown fields rejected. Owner comes from session. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.
          */
         post: operations["createProject"];
         delete?: never;
@@ -161,20 +164,23 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** getProject */
+        /**
+         * getProject
+         * @description Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.
+         */
         get: operations["getProject"];
         put?: never;
         post?: never;
         /**
          * deleteProject
-         * @description Owner only, 409 if tasks remain. Memberships/invitations are cleaned up; tasks never cascade.
+         * @description Owner only, 409 if tasks remain. Memberships/invitations are cleaned up; tasks never cascade. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.
          */
         delete: operations["deleteProject"];
         options?: never;
         head?: never;
         /**
          * updateProject
-         * @description Owner only. Same-field last-write-wins; no project version. Body 64 KiB; unknown fields rejected.
+         * @description Owner only. Same-field last-write-wins; no project version. Body 64 KiB; unknown fields rejected. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.
          */
         patch: operations["updateProject"];
         trace?: never;
@@ -248,7 +254,7 @@ export interface paths {
         };
         /**
          * listMembers
-         * @description Owner and members can list IDs and roles. No emails.
+         * @description Owner and members can list IDs and roles. No emails. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.
          */
         get: operations["listMembers"];
         put?: never;
@@ -271,7 +277,7 @@ export interface paths {
         post?: never;
         /**
          * removeMember
-         * @description Owner only. Cannot remove the owner. Existing sessions lose subsequent project access immediately after commit.
+         * @description Owner only. Cannot remove the owner. Existing sessions lose subsequent project access immediately after commit. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.
          */
         delete: operations["removeMember"];
         options?: never;
@@ -290,7 +296,7 @@ export interface paths {
         put?: never;
         /**
          * leaveProject
-         * @description Member leaves. Owner must transfer first (409 OWNER_REQUIRED). Tasks remain in the project.
+         * @description Member leaves. Owner must transfer first (409 OWNER_REQUIRED). Tasks remain in the project. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.
          */
         post: operations["leaveProject"];
         delete?: never;
@@ -310,7 +316,7 @@ export interface paths {
         put?: never;
         /**
          * transferOwnership
-         * @description Owner only; target must be a current member. Old owner becomes member. Pending invitations are revoked atomically.
+         * @description Owner only; target must be a current member. Old owner becomes member. Pending invitations are revoked atomically. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.
          */
         post: operations["transferOwnership"];
         delete?: never;
@@ -328,13 +334,13 @@ export interface paths {
         };
         /**
          * listInvitations
-         * @description Owner only; token never returned in this list.
+         * @description Owner only; token never returned in this list. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.
          */
         get: operations["listInvitations"];
         put?: never;
         /**
          * createInvitation
-         * @description Owner only; recipient must be a registered user who is not already a member. 24-hour single-use recipient-bound token, returned once. Reissuing revokes prior outstanding invitations for that recipient. No email sent.
+         * @description Owner only; recipient must be a registered user who is not already a member. 24-hour single-use recipient-bound token, returned once. Reissuing revokes prior outstanding invitations for that recipient. No email sent. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.
          */
         post: operations["createInvitation"];
         delete?: never;
@@ -355,7 +361,7 @@ export interface paths {
         post?: never;
         /**
          * revokeInvitation
-         * @description Owner only. Accepted tokens cannot be revoked; remove the member instead.
+         * @description Owner only. Accepted tokens cannot be revoked; remove the member instead. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.
          */
         delete: operations["revokeInvitation"];
         options?: never;
@@ -374,7 +380,7 @@ export interface paths {
         put?: never;
         /**
          * acceptInvitation
-         * @description Authenticated intended recipient only. Invalid, expired, revoked, used or mismatched tokens return generic INVITATION_INVALID. Request bodies must not be logged.
+         * @description Authenticated intended recipient only. Invalid, expired, revoked, used or mismatched tokens return generic INVITATION_INVALID. Request bodies must not be logged. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.
          */
         post: operations["acceptInvitation"];
         delete?: never;
@@ -392,13 +398,13 @@ export interface paths {
         };
         /**
          * List private tasks planned for today
-         * @description Read-only Amsterdam day snapshot at request acceptance. No cleanup or task generation. project_id and plan_date filters are rejected. A cursor from a different business date returns 400 INVALID_QUERY. Completed tasks remain until the day changes. Re-fetch after next_day_at; requests accepted before midnight may finish after it and still describe the previous date.
+         * @description Read-only Amsterdam day snapshot at request acceptance. No cleanup or task generation. project_id and plan_date filters are rejected. A cursor from a different business date returns 400 INVALID_QUERY. Completed tasks remain until the day changes. Re-fetch after next_day_at; requests accepted before midnight may finish after it and still describe the previous date. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.
          */
         get: operations["listTodayTasks"];
         put?: never;
         /**
          * Create a private task planned for today
-         * @description The submitted plan_date is only an optimistic date check, not an arbitrary date assignment. Server acceptance time sets both date and created_at. Yesterday/future dates return 409 PLAN_DAY_CHANGED; malformed dates return 400. A request accepted before midnight can commit after midnight as a historical task; refresh using returned plan_date. No project or scheduling support.
+         * @description The submitted plan_date is only an optimistic date check, not an arbitrary date assignment. Server acceptance time sets both date and created_at. Yesterday/future dates return 409 PLAN_DAY_CHANGED; malformed dates return 400. A request accepted before midnight can commit after midnight as a historical task; refresh using returned plan_date. No project or scheduling support. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.
          */
         post: operations["createTodayTask"];
         delete?: never;
@@ -416,11 +422,14 @@ export interface paths {
         };
         /**
          * listRecurrences
-         * @description Owner-only stable UUID keyset pagination. Unknown/empty/duplicate parameters rejected. Cursor bound to owner, not an authorization token. Scheduler is not implemented in Lesson 31.
+         * @description Owner-only stable UUID keyset pagination. Unknown/empty/duplicate parameters rejected. Cursor bound to owner, not an authorization token. Scheduler is not implemented in Lesson 31. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.
          */
         get: operations["listRecurrences"];
         put?: never;
-        /** createRecurrence */
+        /**
+         * createRecurrence
+         * @description Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.
+         */
         post: operations["createRecurrence"];
         delete?: never;
         options?: never;
@@ -439,7 +448,7 @@ export interface paths {
         put?: never;
         /**
          * previewRecurrence
-         * @description Read-only preview (no database writes); supports past anchors to preview existing rules from Amsterdam today. Returns at most five dates; at year 9999 fewer may remain.
+         * @description Read-only preview (no database writes); supports past anchors to preview existing rules from Amsterdam today. Returns at most five dates; at year 9999 fewer may remain. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.
          */
         post: operations["previewRecurrence"];
         delete?: never;
@@ -455,15 +464,24 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** getRecurrence */
+        /**
+         * getRecurrence
+         * @description Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.
+         */
         get: operations["getRecurrence"];
         put?: never;
         post?: never;
-        /** deleteRecurrence */
+        /**
+         * deleteRecurrence
+         * @description Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.
+         */
         delete: operations["deleteRecurrence"];
         options?: never;
         head?: never;
-        /** updateRecurrence */
+        /**
+         * updateRecurrence
+         * @description Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token.
+         */
         patch: operations["updateRecurrence"];
         trace?: never;
     };
@@ -474,9 +492,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** @description Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token. */
         get: operations["getDiscordBinding"];
         put?: never;
         post?: never;
+        /** @description Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token. */
         delete: operations["unbindDiscord"];
         options?: never;
         head?: never;
@@ -492,7 +512,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Issues a code only for the authenticated user. Previous code is revoked. Max 3 per minute. */
+        /** @description Issues a code only for the authenticated user. Previous code is revoked. Max 3 per minute. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token. */
         post: operations["issueDiscordBindingCode"];
         delete?: never;
         options?: never;
@@ -524,10 +544,70 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Most recent 50 notifications for the authenticated user. */
+        /** @description Most recent 50 notifications for the authenticated user. Authentication accepts either Bearer or the session cookie, never both. Cookie writes require a matching Origin and X-CSRF-Token. */
         get: operations["listDiscordNotifications"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/browser/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * browserLogin
+         * @description Create a fresh 24-hour Cookie session. JSON limited to 4096 bytes. Requires exactly one matching Origin; no Authorization header. An existing single cookie may be replaced. Shares legacy login budgets. Session credential is returned only in Set-Cookie, never JSON.
+         */
+        post: operations["browserLogin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/browser/session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * browserSession
+         * @description Restore the current browser session. Optional Origin must match if present; cross-site fetches are rejected. No expiry extension or CSRF rotation. A confirmed 401 clears the expected cookie; dependency errors do not.
+         */
+        get: operations["browserSession"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/browser/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * browserLogout
+         * @description Revoke the browser session, then expire its cookie. Requires exactly one matching Origin and X-CSRF-Token. Failures do not claim successful revocation.
+         */
+        post: operations["browserLogout"];
         delete?: never;
         options?: never;
         head?: never;
@@ -540,7 +620,7 @@ export interface components {
     schemas: {
         ErrorDetail: {
             /** @enum {string} */
-            code: "AUTH_BUSY" | "EMAIL_ALREADY_EXISTS" | "FORBIDDEN" | "INTERNAL_ERROR" | "INVALID_INVITEE" | "INVALID_PROJECT" | "INVALID_QUERY" | "INVALID_REQUEST" | "INVALID_TASK" | "INVALID_USER" | "INVITATION_INVALID" | "LOGIN_RATE_LIMITED" | "METHOD_NOT_ALLOWED" | "NOT_READY" | "OWNER_REQUIRED" | "PROJECT_NOT_EMPTY" | "PROJECT_NOT_FOUND" | "REGISTRATION_BUSY" | "REQUEST_TIMEOUT" | "REQUEST_TOO_LARGE" | "ROUTE_NOT_FOUND" | "TASK_CONFLICT" | "TASK_NOT_FOUND" | "UNAUTHORIZED" | "HTTPS_REQUIRED" | "ORIGIN_NOT_ALLOWED" | "RATE_LIMITED" | "PLAN_DAY_CHANGED" | "INVALID_RECURRENCE" | "RECURRENCE_NOT_FOUND" | "RECURRENCE_CONFLICT" | "INVALID_DISCORD_BINDING" | "INVALID_DISCORD_INTERACTION" | "INVALID_DISCORD_SIGNATURE" | "DISCORD_BINDING_CONFLICT" | "DISCORD_CODE_RATE_LIMITED" | "DISCORD_DISABLED";
+            code: "AUTH_BUSY" | "EMAIL_ALREADY_EXISTS" | "FORBIDDEN" | "INTERNAL_ERROR" | "INVALID_INVITEE" | "INVALID_PROJECT" | "INVALID_QUERY" | "INVALID_REQUEST" | "INVALID_TASK" | "INVALID_USER" | "INVITATION_INVALID" | "LOGIN_RATE_LIMITED" | "METHOD_NOT_ALLOWED" | "NOT_READY" | "OWNER_REQUIRED" | "PROJECT_NOT_EMPTY" | "PROJECT_NOT_FOUND" | "REGISTRATION_BUSY" | "REQUEST_TIMEOUT" | "REQUEST_TOO_LARGE" | "ROUTE_NOT_FOUND" | "TASK_CONFLICT" | "TASK_NOT_FOUND" | "UNAUTHORIZED" | "HTTPS_REQUIRED" | "ORIGIN_NOT_ALLOWED" | "RATE_LIMITED" | "PLAN_DAY_CHANGED" | "INVALID_RECURRENCE" | "RECURRENCE_NOT_FOUND" | "RECURRENCE_CONFLICT" | "INVALID_DISCORD_BINDING" | "INVALID_DISCORD_INTERACTION" | "INVALID_DISCORD_SIGNATURE" | "DISCORD_BINDING_CONFLICT" | "DISCORD_CODE_RATE_LIMITED" | "DISCORD_DISABLED" | "AMBIGUOUS_CREDENTIALS" | "CSRF_INVALID";
             message: string;
         };
         Error: {
@@ -838,6 +918,16 @@ export interface components {
             /** Format: date-time */
             created_at: string;
         };
+        BrowserSession: {
+            user: components["schemas"]["User"];
+            /**
+             * Format: date-time
+             * @description Absolute expiry; bootstrap does not extend it.
+             */
+            expires_at: string;
+            /** @description CSRF token only; cannot authenticate without the HttpOnly session cookie. Keep in memory. */
+            csrf_token: string;
+        };
     };
     responses: {
         /** @description INVALID_REQUEST, INVALID_USER, INVALID_TASK, INVALID_PROJECT, INVALID_QUERY, INVITATION_INVALID, INVALID_INVITEE */
@@ -1072,6 +1162,7 @@ export interface operations {
                     "application/json": components["schemas"]["User"];
                 };
             };
+            400: components["responses"]["Error400"];
             401: components["responses"]["Error401"];
             403: components["responses"]["Error403"];
             413: components["responses"]["Error413"];
@@ -1099,6 +1190,7 @@ export interface operations {
                 };
                 content?: never;
             };
+            400: components["responses"]["Error400"];
             401: components["responses"]["Error401"];
             403: components["responses"]["Error403"];
             413: components["responses"]["Error413"];
@@ -1224,6 +1316,7 @@ export interface operations {
                     "application/json": components["schemas"]["Task"];
                 };
             };
+            400: components["responses"]["Error400"];
             401: components["responses"]["Error401"];
             403: components["responses"]["Error403"];
             404: components["responses"]["Error404"];
@@ -1254,6 +1347,7 @@ export interface operations {
                 };
                 content?: never;
             };
+            400: components["responses"]["Error400"];
             401: components["responses"]["Error401"];
             403: components["responses"]["Error403"];
             404: components["responses"]["Error404"];
@@ -1328,6 +1422,7 @@ export interface operations {
                     "application/json": components["schemas"]["Project"][];
                 };
             };
+            400: components["responses"]["Error400"];
             401: components["responses"]["Error401"];
             403: components["responses"]["Error403"];
             413: components["responses"]["Error413"];
@@ -2132,6 +2227,7 @@ export interface operations {
                     "application/json": components["schemas"]["DiscordBinding"];
                 };
             };
+            400: components["responses"]["Error400"];
             401: components["responses"]["Error401"];
             500: components["responses"]["Error500"];
             503: components["responses"]["Error503"];
@@ -2245,9 +2341,118 @@ export interface operations {
                     "application/json": components["schemas"]["NotificationEvent"][];
                 };
             };
+            400: components["responses"]["Error400"];
             401: components["responses"]["Error401"];
             500: components["responses"]["Error500"];
             503: components["responses"]["Error503"];
+        };
+    };
+    browserLogin: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Exact configured public origin; missing, null, duplicate or foreign values are rejected. */
+                Origin: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "email": "learner@example.com",
+                 *       "password": "a long learning passphrase"
+                 *     }
+                 */
+                "application/json": components["schemas"]["LoginRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated opaque correlation ID; incoming values are ignored. */
+                    "X-Request-ID"?: string;
+                    /** @description HttpOnly session credential (or its removal); production Secure SameSite=Lax Path=/ and no Domain. Never log this header. */
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrowserSession"];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            413: components["responses"]["Error413"];
+            429: components["responses"]["Error429"];
+            500: components["responses"]["Error500"];
+            503: components["responses"]["Error503"];
+            504: components["responses"]["Error504"];
+        };
+    };
+    browserSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated opaque correlation ID; incoming values are ignored. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrowserSession"];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            413: components["responses"]["Error413"];
+            429: components["responses"]["Error429"];
+            500: components["responses"]["Error500"];
+            503: components["responses"]["Error503"];
+            504: components["responses"]["Error504"];
+        };
+    };
+    browserLogout: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Exact configured public origin; missing, null, duplicate or foreign values are rejected. */
+                Origin: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            204: {
+                headers: {
+                    /** @description Server-generated opaque correlation ID; incoming values are ignored. */
+                    "X-Request-ID"?: string;
+                    /** @description HttpOnly session credential (or its removal); production Secure SameSite=Lax Path=/ and no Domain. Never log this header. */
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            413: components["responses"]["Error413"];
+            429: components["responses"]["Error429"];
+            500: components["responses"]["Error500"];
+            503: components["responses"]["Error503"];
+            504: components["responses"]["Error504"];
         };
     };
 }

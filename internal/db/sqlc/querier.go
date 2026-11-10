@@ -13,6 +13,7 @@ import (
 type Querier interface {
 	AdvanceRecurrence(ctx context.Context, arg AdvanceRecurrenceParams) error
 	ConsumeDiscordCode(ctx context.Context, arg ConsumeDiscordCodeParams) error
+	CreateBrowserSession(ctx context.Context, arg CreateBrowserSessionParams) (CreateBrowserSessionRow, error)
 	CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error)
 	CreateRecurrence(ctx context.Context, arg CreateRecurrenceParams) (RecurrenceRule, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (CreateSessionRow, error)
@@ -22,6 +23,7 @@ type Querier interface {
 	DeleteTask(ctx context.Context, arg DeleteTaskParams) (string, error)
 	EnsureDiscordBinding(ctx context.Context, ownerID pgtype.UUID) error
 	FindDiscordInteraction(ctx context.Context, interactionID string) (string, error)
+	GetActiveBrowserSession(ctx context.Context, tokenHash []byte) (GetActiveBrowserSessionRow, error)
 	GetActiveSession(ctx context.Context, tokenHash []byte) (GetActiveSessionRow, error)
 	GetDiscordBinding(ctx context.Context, ownerID pgtype.UUID) (DiscordBinding, error)
 	GetProject(ctx context.Context, arg GetProjectParams) (Project, error)

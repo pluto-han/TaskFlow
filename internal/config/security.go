@@ -42,9 +42,18 @@ func (c Config) Security() (httpapi.SecurityOptions, error) {
 		if options.Production && u.Scheme != "https" {
 			return options, errors.New("production origin must use HTTPS")
 		}
+		if !options.Production && u.Scheme == "http" {
+			ip := net.ParseIP(u.Hostname())
+			if u.Hostname() != "localhost" && (ip == nil || !ip.IsLoopback()) {
+				return options, errors.New("development HTTP origin must be loopback")
+			}
+		}
 	}
 	if options.Production && c.PublicOrigin == "" {
 		return options, errors.New("production requires TASKFLOW_PUBLIC_ORIGIN")
+	}
+	if !options.Production && options.PublicOrigin == "" {
+		options.PublicOrigin = "http://127.0.0.1:5173"
 	}
 	for _, raw := range strings.Split(c.TrustedProxies, ",") {
 		if strings.TrimSpace(raw) == "" {
