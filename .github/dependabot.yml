@@ -1,0 +1,64 @@
+version: 2
+
+# Version updates open PRs; existing pull_request CI validates them.
+# Minor/patch updates are grouped; major updates remain separate PRs.
+# Security updates also need enabling in repository security settings.
+# Review Go toolchain changes alongside the golang Docker image update.
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Europe/Amsterdam
+    open-pull-requests-limit: 5
+    groups:
+      go-minor-and-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:15"
+      timezone: Europe/Amsterdam
+    open-pull-requests-limit: 5
+    groups:
+      frontend-minor-and-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  - package-ecosystem: docker
+    directories:
+      - /
+      - /frontend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:30"
+      timezone: Europe/Amsterdam
+    open-pull-requests-limit: 5
+    groups:
+      docker-minor-and-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:45"
+      timezone: Europe/Amsterdam
+    open-pull-requests-limit: 5
+    groups:
+      actions-minor-and-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: [minor, patch]
