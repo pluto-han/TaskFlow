@@ -30,3 +30,4 @@ AGENTS.md
 skills-lock.json
 docs/*.md
 README_dev.md
+/devdoc
