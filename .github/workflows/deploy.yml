@@ -39,7 +39,7 @@ jobs:
       migrate: ${{ steps.images.outputs.migrate }}
       web: ${{ steps.images.outputs.web }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Log in to GHCR
