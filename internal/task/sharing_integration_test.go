@@ -36,8 +36,8 @@ func TestSharingIntegration(t *testing.T) {
 	defer pool.Close()
 	var version int
 	var dirty bool
-	if e = pool.QueryRow(ctx, "SELECT version,dirty FROM schema_migrations").Scan(&version, &dirty); e != nil || version != 15 || dirty {
-		t.Fatal("requires clean schema 15")
+	if e = pool.QueryRow(ctx, "SELECT version,dirty FROM schema_migrations").Scan(&version, &dirty); e != nil || version != 17 || dirty {
+		t.Fatal("requires clean schema 17")
 	}
 	const stranger session.UserID = "00000000-0000-4000-8000-000000000003"
 	_, e = pool.Exec(ctx, `INSERT INTO users(id,email,password_hash) VALUES($1,'sharing-a@example.com','test'),($2,'sharing-b@example.com','test'),($3,'sharing-c@example.com','test')`, string(testOwner), string(otherOwner), string(stranger))

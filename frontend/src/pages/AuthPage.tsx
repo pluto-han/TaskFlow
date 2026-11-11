@@ -205,6 +205,11 @@ export function AuthPage({ register = false }: { register?: boolean }) {
                   )}
                 </div>
               )}
+              {!register && (
+                <Link className="auth-forgot" to="/forgot-password">
+                  Forgot your password?
+                </Link>
+              )}
               <button
                 className="button primary wide"
                 disabled={submitting}

@@ -130,3 +130,21 @@ func TestNotificationMetricsAreBounded(t *testing.T) {
 		}
 	}
 }
+
+func TestEmailMetricLabelsAreBounded(t *testing.T) {
+	m := telemetry.New(nil, nil)
+	secret := "recipient@example.com/private-capability"
+	m.MailResult(secret)
+	m.MailResult("success")
+	result := httptest.NewRecorder()
+	m.Handler().ServeHTTP(result, httptest.NewRequest("GET", "/metrics", nil))
+	text := result.Body.String()
+	if strings.Contains(text, secret) {
+		t.Fatal("sensitive mail metric label")
+	}
+	for _, expected := range []string{`taskflow_email_send_total{outcome="error"} 1`, `taskflow_email_send_total{outcome="success"} 1`} {
+		if !strings.Contains(text, expected) {
+			t.Fatal("missing bounded mail result")
+		}
+	}
+}

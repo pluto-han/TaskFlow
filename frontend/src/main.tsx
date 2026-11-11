@@ -4,24 +4,13 @@ import { BrowserRouter } from "react-router";
 import { App } from "./App";
 import "./styles.css";
 
-// Capture fragments before the router mounts, then remove them from history.
-// Never store invitation credentials in query strings or browser storage.
-const fragment =
-  window.location.pathname === "/invite"
-    ? new URLSearchParams(window.location.hash.slice(1)).get("token") || ""
-    : "";
-const invitationToken = /^[A-Za-z0-9_-]{43}$/.test(fragment) ? fragment : "";
-if (window.location.pathname === "/invite")
-  window.history.replaceState(
-    window.history.state,
-    "",
-    window.location.pathname + window.location.search,
-  );
+import { captureLink } from "./auth/capability";
+const link = captureLink(window.location, window.history);
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <BrowserRouter>
-      <App invitationToken={invitationToken} />
+      <App {...link} />
     </BrowserRouter>
   </StrictMode>,
 );

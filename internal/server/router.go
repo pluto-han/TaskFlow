@@ -10,6 +10,7 @@ import (
 	"github.com/pluto-han/taskflow/internal/discord"
 	"github.com/pluto-han/taskflow/internal/httpapi"
 	"github.com/pluto-han/taskflow/internal/integration"
+	"github.com/pluto-han/taskflow/internal/mail"
 	"github.com/pluto-han/taskflow/internal/notification"
 	"github.com/pluto-han/taskflow/internal/project"
 	"github.com/pluto-han/taskflow/internal/recurrence"
@@ -19,6 +20,7 @@ import (
 )
 
 type Dependencies struct {
+	Mail          *mail.Service
 	Notifications *notification.Service
 	Discord       *discord.Handler
 	Integrations  *integration.Service
@@ -53,6 +55,7 @@ func NewRouter(d Dependencies) *gin.Engine {
 	sessions := session.Mount(router, d.Sessions, d.Security)
 	router.POST("/auth/register", user.NewHandler(d.Users).Register)
 	authentication := sessions.RequireSession
+	mail.Mount(router, d.Mail, authentication)
 	router.POST(discord.Path, d.Discord.Handle)
 	integration.Mount(router, d.Integrations, authentication)
 	notification.Mount(router, d.Notifications, authentication)

@@ -95,3 +95,16 @@ it("reads the pagination header without losing project filters", async () => {
   expect(url.searchParams.get("cursor")).toBe("a+b");
   expect(url.searchParams.get("completed")).toBe("false");
 });
+
+it("accepts bodyless 202 responses without exposing a capability in the URL", async () => {
+  const fetcher = vi
+    .fn()
+    .mockResolvedValue(new Response(null, { status: 202 }));
+  vi.stubGlobal("fetch", fetcher);
+  const { accountApi } = await import("../../../src/api/account");
+  await expect(
+    accountApi.requestReset("a@example.com"),
+  ).resolves.toBeUndefined();
+  expect(fetcher.mock.calls[0][0]).toBe("/api/auth/password/reset/request");
+  expect(fetcher.mock.calls[0][1].headers.has("X-CSRF-Token")).toBe(false);
+});

@@ -53,7 +53,7 @@ func TestBrowserSessionHTTPIntegration(t *testing.T) {
 	defer admin.Close()
 	var version int
 	var dirty bool
-	if err := admin.QueryRow(ctx, "SELECT version,dirty FROM schema_migrations").Scan(&version, &dirty); err != nil || version != 15 || dirty {
+	if err := admin.QueryRow(ctx, "SELECT version,dirty FROM schema_migrations").Scan(&version, &dirty); err != nil || version != 17 || dirty {
 		t.Fatal("requires clean migration 15")
 	}
 	// The runner created this row before v14. It must still authenticate as Bearer.

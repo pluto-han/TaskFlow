@@ -41,7 +41,7 @@ func TestPostgresRegistrationIntegration(t *testing.T) {
 	defer pool.Close()
 	var version int
 	var dirty bool
-	if err := pool.QueryRow(ctx, "SELECT version, dirty FROM schema_migrations").Scan(&version, &dirty); err != nil || version != 15 || dirty {
+	if err := pool.QueryRow(ctx, "SELECT version, dirty FROM schema_migrations").Scan(&version, &dirty); err != nil || version != 17 || dirty {
 		t.Fatalf("schema: %d %v %v", version, dirty, err)
 	}
 	repo := NewPostgresRepository(pool)

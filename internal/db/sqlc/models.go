@@ -30,6 +30,36 @@ type DiscordInteraction struct {
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 }
 
+type EmailOutbox struct {
+	ID            pgtype.UUID        `json:"id"`
+	TokenHash     []byte             `json:"token_hash"`
+	Recipient     pgtype.Text        `json:"recipient"`
+	Link          pgtype.Text        `json:"link"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt     pgtype.Timestamptz `json:"expires_at"`
+	NextAttemptAt pgtype.Timestamptz `json:"next_attempt_at"`
+	Attempts      int32              `json:"attempts"`
+	Status        string             `json:"status"`
+	LeaseID       pgtype.UUID        `json:"lease_id"`
+	LeaseUntil    pgtype.Timestamptz `json:"lease_until"`
+}
+
+type EmailResetRequest struct {
+	ID         pgtype.UUID        `json:"id"`
+	TargetHash []byte             `json:"target_hash"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
+type EmailToken struct {
+	TokenHash          []byte             `json:"token_hash"`
+	UserID             pgtype.UUID        `json:"user_id"`
+	Purpose            string             `json:"purpose"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt          pgtype.Timestamptz `json:"expires_at"`
+	ConsumedAt         pgtype.Timestamptz `json:"consumed_at"`
+	CredentialsVersion pgtype.Int8        `json:"credentials_version"`
+}
+
 type NotificationCooldown struct {
 	Scope   string             `json:"scope"`
 	UntilAt pgtype.Timestamptz `json:"until_at"`
@@ -139,4 +169,5 @@ type User struct {
 	PasswordHash       string             `json:"password_hash"`
 	CreatedAt          pgtype.Timestamptz `json:"created_at"`
 	CredentialsVersion int64              `json:"credentials_version"`
+	EmailVerifiedAt    pgtype.Timestamptz `json:"email_verified_at"`
 }

@@ -28,6 +28,7 @@ type Auth = {
   login(input: LoginRequest, signal?: AbortSignal): Promise<void>;
   logout(): Promise<void>;
   refresh(): Promise<void>;
+  endSession(message: string): void;
 };
 const AuthContext = createContext<Auth | null>(null);
 
@@ -79,6 +80,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setNotice(message);
     },
     [save],
+  );
+  const endSession = useCallback(
+    (message: string) => {
+      clear(message);
+      notify();
+    },
+    [clear, notify],
   );
   const begin = useCallback(() => {
     operation.current?.abort();
@@ -279,6 +287,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         logout,
         refresh,
+        endSession,
       }}
     >
       {children}

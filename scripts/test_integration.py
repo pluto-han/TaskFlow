@@ -12,24 +12,24 @@ import time
 
 ROOT = Path(__file__).resolve().parents[1]
 SUITES = [
-    ("TASKFLOW_TEST_DATABASE_URL", 12, 15),
-    ("TASKFLOW_SESSION_TEST_DATABASE_URL", 13, 15),
-    ("TASKFLOW_TASK_TEST_DATABASE_URL", 14, 15),
-    ("TASKFLOW_PAGINATION_TEST_DATABASE_URL", 15, 15),
-    ("TASKFLOW_PROJECT_TEST_DATABASE_URL", 16, 15),
-    ("TASKFLOW_API_TEST_DATABASE_URL", 17, 15),
-    ("TASKFLOW_SHARING_TEST_DATABASE_URL", 20, 15),
-    ("TASKFLOW_RELIABILITY_TEST_DATABASE_URL", 21, 15),
-    ("TASKFLOW_TODAY_TEST_DATABASE_URL", 29, 15),
-    ("TASKFLOW_RECURRENCE_TEST_DATABASE_URL", 31, 15),
-    ("TASKFLOW_SCHEDULER_TEST_DATABASE_URL", 32, 15),
-    ("TASKFLOW_DISCORD_TEST_DATABASE_URL", 33, 15),
-    ("TASKFLOW_NOTIFICATION_TEST_DATABASE_URL", 34, 15),
-    ("TASKFLOW_FLOW_TEST_DATABASE_URL", 35, 15),
-    ("TASKFLOW_BROWSER_TEST_DATABASE_URL", 37, 15),
-    ("TASKFLOW_CACHE_INVALIDATION_TEST_DATABASE_URL", 40, 15),
-    ("TASKFLOW_BROWSER_SESSION_TEST_DATABASE_URL", 45, 15),
-    ("TASKFLOW_ACCOUNT_TEST_DATABASE_URL", 47, 15),
+    ("TASKFLOW_TEST_DATABASE_URL", 12, 17),
+    ("TASKFLOW_SESSION_TEST_DATABASE_URL", 13, 17),
+    ("TASKFLOW_TASK_TEST_DATABASE_URL", 14, 17),
+    ("TASKFLOW_PAGINATION_TEST_DATABASE_URL", 15, 17),
+    ("TASKFLOW_PROJECT_TEST_DATABASE_URL", 16, 17),
+    ("TASKFLOW_API_TEST_DATABASE_URL", 17, 17),
+    ("TASKFLOW_SHARING_TEST_DATABASE_URL", 20, 17),
+    ("TASKFLOW_RELIABILITY_TEST_DATABASE_URL", 21, 17),
+    ("TASKFLOW_TODAY_TEST_DATABASE_URL", 29, 17),
+    ("TASKFLOW_RECURRENCE_TEST_DATABASE_URL", 31, 17),
+    ("TASKFLOW_SCHEDULER_TEST_DATABASE_URL", 32, 17),
+    ("TASKFLOW_DISCORD_TEST_DATABASE_URL", 33, 17),
+    ("TASKFLOW_NOTIFICATION_TEST_DATABASE_URL", 34, 17),
+    ("TASKFLOW_FLOW_TEST_DATABASE_URL", 35, 17),
+    ("TASKFLOW_BROWSER_TEST_DATABASE_URL", 37, 17),
+    ("TASKFLOW_CACHE_INVALIDATION_TEST_DATABASE_URL", 40, 17),
+    ("TASKFLOW_BROWSER_SESSION_TEST_DATABASE_URL", 45, 17),
+    ("TASKFLOW_ACCOUNT_TEST_DATABASE_URL", 47, 17),
 ]
 
 
@@ -162,11 +162,22 @@ def round_tests(number, output, browser=False):
                 """)
                 before_user = json.loads(sql("SELECT to_jsonb(u) FROM users u WHERE email='upgrade47@example.com';"))
                 before_sessions = sql("SELECT jsonb_agg(to_jsonb(s) ORDER BY id) FROM sessions s;")
+                run(["migrate", "-path", "migrations", "-database", url, "goto", "16"], capture=True, env=env)
+                sql("""INSERT INTO email_tokens(token_hash,user_id,purpose,expires_at)
+                    VALUES(decode(repeat('ed',32),'hex'),'00000000-0000-4000-8000-000000000047','verify_email',now()+interval '1 day');
+                    INSERT INTO email_outbox(id,token_hash,recipient,link,expires_at)
+                    VALUES('00000000-0000-4000-8000-000000000049',decode(repeat('ed',32),'hex'),'upgrade47@example.com','fixture-only',now()+interval '1 day');""")
+                token_before = json.loads(sql("SELECT to_jsonb(t) FROM email_tokens t;"))
+                outbox_before = sql("SELECT to_jsonb(o) FROM email_outbox o;")
                 run(["migrate", "-path", "migrations", "-database", url, "goto", str(version)], capture=True, env=env)
+                token_after = json.loads(sql("SELECT to_jsonb(t) FROM email_tokens t;"))
+                if token_after.pop("credentials_version") is not None or token_after != token_before or outbox_before != sql("SELECT to_jsonb(o) FROM email_outbox o;"):
+                    raise RuntimeError("v16 upgrade changed verification token/outbox data")
+                print("PASS: v16 -> current preserves pending verification tokens and delivery materials", flush=True)
                 after_user = json.loads(sql("SELECT to_jsonb(u) FROM users u WHERE email='upgrade47@example.com';"))
-                if after_user.pop("credentials_version") != 0 or before_user != after_user or before_sessions != sql("SELECT jsonb_agg(to_jsonb(s) ORDER BY id) FROM sessions s;"):
+                if after_user.pop("email_verified_at") is not None or after_user.pop("credentials_version") != 0 or before_user != after_user or before_sessions != sql("SELECT jsonb_agg(to_jsonb(s) ORDER BY id) FROM sessions s;"):
                     raise RuntimeError("v14 upgrade changed existing user/session data")
-                print("PASS: v14 -> v15 preserves user and session data; credential version defaults to zero", flush=True)
+                print("PASS: v14 -> current preserves users/sessions; credential version is zero and email remains unverified", flush=True)
             if sql("SELECT version::text || ':' || dirty::text FROM schema_migrations;") != f"{version}:false":
                 raise RuntimeError("migration did not reach a clean expected version")
             sql("CREATE TABLE taskflow_test_lease(run_id text NOT NULL); "

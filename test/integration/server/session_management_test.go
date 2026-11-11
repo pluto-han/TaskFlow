@@ -55,8 +55,8 @@ func accountDatabase(t *testing.T) *accountFixture {
 	t.Cleanup(admin.Close)
 	var version int
 	var dirty bool
-	if err := admin.QueryRow(ctx, "SELECT version,dirty FROM schema_migrations").Scan(&version, &dirty); err != nil || version != 15 || dirty {
-		t.Fatal("requires clean schema 15")
+	if err := admin.QueryRow(ctx, "SELECT version,dirty FROM schema_migrations").Scan(&version, &dirty); err != nil || version != 17 || dirty {
+		t.Fatal("requires clean schema 17")
 	}
 	role := "account_test_" + strings.ToLower(rand.Text())
 	quoted := pgx.Identifier{role}.Sanitize()
@@ -71,8 +71,8 @@ func accountDatabase(t *testing.T) *accountFixture {
 		}
 	})
 	if _, err := admin.Exec(ctx, "REVOKE CREATE ON SCHEMA public FROM PUBLIC; GRANT USAGE ON SCHEMA public TO "+quoted+
-		"; GRANT SELECT,INSERT ON users TO "+quoted+"; GRANT UPDATE(password_hash,credentials_version) ON users TO "+quoted+
-		"; GRANT SELECT,INSERT,UPDATE ON sessions TO "+quoted); err != nil {
+		"; GRANT SELECT,INSERT ON users TO "+quoted+"; GRANT UPDATE(password_hash,credentials_version,email_verified_at) ON users TO "+quoted+
+		"; GRANT SELECT,INSERT,UPDATE,DELETE ON email_tokens,email_outbox,email_reset_requests TO "+quoted+"; GRANT SELECT,INSERT,UPDATE ON sessions TO "+quoted); err != nil {
 		t.Fatal("fixture grants failed")
 	}
 	runtimeCfg := cfg.Copy()

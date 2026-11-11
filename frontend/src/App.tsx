@@ -1,9 +1,18 @@
 import { Fragment, type ReactNode, useEffect, useRef, useState } from "react";
-import { Link, Navigate, Route, Routes, useLocation } from "react-router";
+import {
+  Link,
+  Navigate,
+  Outlet,
+  Route,
+  Routes,
+  useLocation,
+} from "react-router";
 import { AuthProvider, useAuth } from "./auth/AuthProvider";
 import { AuthPage } from "./pages/AuthPage";
 import { WorkspacePage } from "./pages/WorkspacePage";
 import { InvitePage } from "./pages/InvitePage";
+import { RecoveryPage } from "./pages/RecoveryPage";
+import type { AccountLink } from "./auth/capability";
 import { ProfilePage } from "./pages/ProfilePage";
 
 function Navigation() {
@@ -54,12 +63,27 @@ function SessionGate({ children }: { children: ReactNode }) {
   return <Fragment key={auth.user?.id ?? "signed-out"}>{children}</Fragment>;
 }
 
-export function App({ invitationToken = "" }: { invitationToken?: string }) {
+export function App({
+  invitationToken = "",
+  accountLink,
+}: {
+  invitationToken?: string;
+  accountLink?: AccountLink;
+}) {
+  const [capability, setCapability] = useState(accountLink);
   const [invitation, setInvitation] = useState(invitationToken);
   const { pathname } = useLocation();
   const main = useRef<HTMLElement>(null);
+  const previousPath = useRef(pathname);
   useEffect(() => {
-    document.title = `${pathname === "/tasks" ? "Tasks" : pathname === "/register" ? "Create account" : pathname === "/profile" ? "Your space" : "Sign in"} · TaskFlow`;
+    if (previousPath.current !== pathname) {
+      previousPath.current = pathname;
+      // Discard in-memory capabilities when leaving their route, without storage.
+      setCapability(undefined);
+    }
+  }, [pathname]);
+  useEffect(() => {
+    document.title = `${pathname === "/forgot-password" ? "Recover account" : pathname === "/reset-password" ? "Reset password" : pathname === "/verify-email" ? "Verify email" : pathname === "/tasks" ? "Tasks" : pathname === "/register" ? "Create account" : pathname === "/profile" ? "Your space" : "Sign in"} · TaskFlow`;
     main.current?.focus();
   }, [pathname]);
   return (
@@ -78,8 +102,46 @@ export function App({ invitationToken = "" }: { invitationToken?: string }) {
           <Navigation />
         </header>
         <main id="main" className="main" ref={main} tabIndex={-1}>
-          <SessionGate>
-            <Routes>
+          <Routes>
+            <Route
+              path="/forgot-password"
+              element={
+                <RecoveryPage
+                  key="request"
+                  mode="request"
+                  consumed={() => {}}
+                />
+              }
+            />
+            <Route
+              path="/reset-password"
+              element={
+                <RecoveryPage
+                  key="reset"
+                  mode="reset"
+                  token={capability?.kind === "reset" ? capability.token : ""}
+                  consumed={() => setCapability(undefined)}
+                />
+              }
+            />
+            <Route
+              path="/verify-email"
+              element={
+                <RecoveryPage
+                  key="verify"
+                  mode="verify"
+                  token={capability?.kind === "verify" ? capability.token : ""}
+                  consumed={() => setCapability(undefined)}
+                />
+              }
+            />
+            <Route
+              element={
+                <SessionGate>
+                  <Outlet />
+                </SessionGate>
+              }
+            >
               <Route path="/" element={<Navigate to="/tasks" replace />} />
               <Route path="/login" element={<AuthPage key="login" />} />
               <Route
@@ -112,8 +174,8 @@ export function App({ invitationToken = "" }: { invitationToken?: string }) {
                   </section>
                 }
               />
-            </Routes>
-          </SessionGate>
+            </Route>
+          </Routes>
         </main>
         <footer className="footer">
           <span>TaskFlow · A little order. A gentler pace.</span>

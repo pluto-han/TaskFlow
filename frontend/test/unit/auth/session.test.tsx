@@ -1,3 +1,4 @@
+import { accountApi } from "../../../src/api/account";
 import { useEffect } from "react";
 import {
   act,
@@ -19,6 +20,14 @@ const session = (id = "a") => ({
   csrf_token: id.toUpperCase().repeat(43),
 });
 beforeEach(() => {
+  vi.spyOn(accountApi, "status").mockResolvedValue({
+    enabled: false,
+    verified_at: null,
+  });
+  vi.spyOn(accountApi, "sessions").mockResolvedValue({
+    items: [],
+    next_cursor: "",
+  });
   vi.spyOn(api, "session").mockRejectedValue(new ApiError("UNAUTHORIZED", 401));
   vi.spyOn(api, "login").mockResolvedValue(session());
   vi.spyOn(discordApi, "status").mockResolvedValue({

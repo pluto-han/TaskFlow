@@ -25,6 +25,7 @@ import (
 	"github.com/pluto-han/taskflow/internal/discord"
 	"github.com/pluto-han/taskflow/internal/httpapi"
 	"github.com/pluto-han/taskflow/internal/integration"
+	email "github.com/pluto-han/taskflow/internal/mail"
 	"github.com/pluto-han/taskflow/internal/notification"
 	"github.com/pluto-han/taskflow/internal/project"
 	"github.com/pluto-han/taskflow/internal/recurrence"
@@ -68,8 +69,13 @@ func TestBrowserDiscordFlow(t *testing.T) {
 	app := httptest.NewUnstartedServer(mux)
 	defer app.Listener.Close()
 	origin := "http://" + app.Listener.Addr().String()
+	inbox := &email.MemorySender{}
+	mailService, err := email.New(pool, inbox, origin)
+	if err != nil {
+		t.Fatal("mail fixture failed")
+	}
 	projects := project.NewPostgresRepository(pool)
-	router := server.NewRouter(server.Dependencies{Security: httpapi.SecurityOptions{PublicOrigin: origin}, Notifications: notification.NewService(pool, nil), Discord: discord.NewHandler(public, "777", bindings), Integrations: bindings, Recurrences: recurrence.NewServiceWithScheduler(recurrence.NewPostgresRepository(pool), true), Users: user.NewService(user.NewPostgresRepository(pool), auth.PasswordHasher{}), Sessions: sessionService, Tasks: task.NewService(task.NewPostgresRepository(pool), projects), Projects: project.NewService(projects), Ping: pool.Ping})
+	router := server.NewRouter(server.Dependencies{Mail: mailService, Security: httpapi.SecurityOptions{PublicOrigin: origin}, Notifications: notification.NewService(pool, nil), Discord: discord.NewHandler(public, "777", bindings), Integrations: bindings, Recurrences: recurrence.NewServiceWithScheduler(recurrence.NewPostgresRepository(pool), true), Users: user.NewService(user.NewPostgresRepository(pool), auth.PasswordHasher{}), Sessions: sessionService, Tasks: task.NewService(task.NewPostgresRepository(pool), projects), Projects: project.NewService(projects), Ping: pool.Ping})
 	var mu sync.Mutex
 	var messages []map[string]any
 	fakeDiscord := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -177,6 +183,20 @@ func TestBrowserDiscordFlow(t *testing.T) {
 		}
 		w.WriteHeader(204)
 	})
+	// Test-only, behind the verified disposable database lease. Never mount in production.
+	mux.HandleFunc("/__fixture/mail", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			http.Error(w, "method", 405)
+			return
+		}
+		if err := mailService.Poll(r.Context()); err != nil {
+			http.Error(w, "mail fixture failed", 500)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store")
+		_ = json.NewEncoder(w).Encode(inbox.Take())
+	})
 	mux.HandleFunc("/__fixture/pump", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" {
 			http.Error(w, "method", 405)
@@ -203,7 +223,7 @@ func TestBrowserDiscordFlow(t *testing.T) {
 	files := http.FileServer(http.Dir(dist))
 	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/", "/login", "/register", "/profile", "/tasks", "/invite":
+		case "/", "/login", "/register", "/profile", "/tasks", "/invite", "/forgot-password", "/reset-password", "/verify-email":
 			http.ServeFile(w, r, filepath.Join(dist, "index.html"))
 		default:
 			files.ServeHTTP(w, r)
@@ -211,7 +231,7 @@ func TestBrowserDiscordFlow(t *testing.T) {
 	}))
 	app.Start()
 	defer app.Close()
-	cmd := exec.CommandContext(ctx, "npx", "playwright", "test", "test/e2e/flow-live.spec.ts", "--config", "playwright.flow.config.ts")
+	cmd := exec.CommandContext(ctx, "npx", "playwright", "test", "test/e2e/flow-live.spec.ts", "test/e2e/account-live.spec.ts", "--config", "playwright.flow.config.ts")
 	cmd.Dir = filepath.Join(root, "frontend")
 	cmd.Env = append(os.Environ(), "TASKFLOW_FLOW_BASE_URL="+app.URL)
 	cmd.Stdout = os.Stdout

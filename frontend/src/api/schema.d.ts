@@ -674,13 +674,97 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/email/verification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read your email verification and delivery availability
+         * @description Authenticated read, available even when sending is disabled. Does not send mail or expose tokens. Only the current account is read.
+         */
+        get: operations["emailVerificationStatus"];
+        put?: never;
+        /**
+         * Queue verification of your registered email
+         * @description Identity comes only from the current session. No email or user ID accepted. Already verified accounts return the same 202 without sending. At most 3 requests per user per day, 60-second cooldown, 30 queued per minute globally, 1000 pending globally. All limits are transactionally checked across replicas. Email is off by default: both endpoints return 503 EMAIL_DISABLED before authentication/body parsing. Request and confirm share per-process limits of 60 globally and 10 per direct peer per minute. Bodies are limited to 4096 bytes. Delivery is asynchronous and at least once; acceptance does not imply inbox receipt.
+         */
+        post: operations["requestEmailVerification"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/email/verification/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm ownership of a registered email
+         * @description Explicit POST consumes a canonical 43-character capability once. GET and email scanners do not consume it. Token expires in 24 hours; successful verification invalidates sibling links. No login required. Email is off by default: both endpoints return 503 EMAIL_DISABLED before authentication/body parsing. Request and confirm share per-process limits of 60 globally and 10 per direct peer per minute. Bodies are limited to 4096 bytes. Delivery is asynchronous and at least once; acceptance does not imply inbox receipt.
+         */
+        post: operations["confirmEmailVerification"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/password/reset/request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * requestPasswordReset
+         * @description Accept a reset request without disclosing account existence. Missing accounts, target cooldowns, target daily quotas and full queues return the same empty 202. HTTP source/global throttles return 429 independently of account existence. Three requests per target per rolling day, sixty-second cooldown, thirty recorded requests globally per minute. Pending links are not replaced by later requests. Only the normalized registered email is used; Host and ambient session identity are ignored. Email is off by default (503 EMAIL_DISABLED). Shares email source/global attempt budgets of 10/60 per minute per process; JSON is at most 4096 bytes. Tokens and passwords must never enter ordinary logs. Delivery is asynchronous and at least once.
+         */
+        post: operations["requestPasswordReset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/password/reset/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * confirmPasswordReset
+         * @description Consume a 30-minute reset capability with a new 8–128 character password. Explicit POST only; GET never changes state. Atomic password update, credential-version increment, email verification, all-session revocation and sibling reset invalidation. No automatic login and no Set-Cookie. Both before and after hashing, validate token purpose, expiry, consumption and issuance credential version; hashing is outside the transaction. Email is off by default (503 EMAIL_DISABLED). Shares email source/global attempt budgets of 10/60 per minute per process; JSON is at most 4096 bytes. Tokens and passwords must never enter ordinary logs. Delivery is asynchronous and at least once.
+         */
+        post: operations["confirmPasswordReset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         ErrorDetail: {
             /** @enum {string} */
-            code: "AUTH_BUSY" | "EMAIL_ALREADY_EXISTS" | "FORBIDDEN" | "INTERNAL_ERROR" | "INVALID_INVITEE" | "INVALID_PROJECT" | "INVALID_QUERY" | "INVALID_REQUEST" | "INVALID_TASK" | "INVALID_USER" | "INVITATION_INVALID" | "LOGIN_RATE_LIMITED" | "METHOD_NOT_ALLOWED" | "NOT_READY" | "OWNER_REQUIRED" | "PROJECT_NOT_EMPTY" | "PROJECT_NOT_FOUND" | "REGISTRATION_BUSY" | "REQUEST_TIMEOUT" | "REQUEST_TOO_LARGE" | "ROUTE_NOT_FOUND" | "TASK_CONFLICT" | "TASK_NOT_FOUND" | "UNAUTHORIZED" | "HTTPS_REQUIRED" | "ORIGIN_NOT_ALLOWED" | "RATE_LIMITED" | "PLAN_DAY_CHANGED" | "INVALID_RECURRENCE" | "RECURRENCE_NOT_FOUND" | "RECURRENCE_CONFLICT" | "INVALID_DISCORD_BINDING" | "INVALID_DISCORD_INTERACTION" | "INVALID_DISCORD_SIGNATURE" | "DISCORD_BINDING_CONFLICT" | "DISCORD_CODE_RATE_LIMITED" | "DISCORD_DISABLED" | "AMBIGUOUS_CREDENTIALS" | "CSRF_INVALID" | "INVALID_PASSWORD_CHANGE" | "CURRENT_PASSWORD_INCORRECT" | "SESSION_NOT_FOUND" | "CREDENTIALS_CHANGED";
+            code: "AUTH_BUSY" | "EMAIL_ALREADY_EXISTS" | "FORBIDDEN" | "INTERNAL_ERROR" | "INVALID_INVITEE" | "INVALID_PROJECT" | "INVALID_QUERY" | "INVALID_REQUEST" | "INVALID_TASK" | "INVALID_USER" | "INVITATION_INVALID" | "LOGIN_RATE_LIMITED" | "METHOD_NOT_ALLOWED" | "NOT_READY" | "OWNER_REQUIRED" | "PROJECT_NOT_EMPTY" | "PROJECT_NOT_FOUND" | "REGISTRATION_BUSY" | "REQUEST_TIMEOUT" | "REQUEST_TOO_LARGE" | "ROUTE_NOT_FOUND" | "TASK_CONFLICT" | "TASK_NOT_FOUND" | "UNAUTHORIZED" | "HTTPS_REQUIRED" | "ORIGIN_NOT_ALLOWED" | "RATE_LIMITED" | "PLAN_DAY_CHANGED" | "INVALID_RECURRENCE" | "RECURRENCE_NOT_FOUND" | "RECURRENCE_CONFLICT" | "INVALID_DISCORD_BINDING" | "INVALID_DISCORD_INTERACTION" | "INVALID_DISCORD_SIGNATURE" | "DISCORD_BINDING_CONFLICT" | "DISCORD_CODE_RATE_LIMITED" | "DISCORD_DISABLED" | "AMBIGUOUS_CREDENTIALS" | "CSRF_INVALID" | "INVALID_PASSWORD_CHANGE" | "CURRENT_PASSWORD_INCORRECT" | "SESSION_NOT_FOUND" | "CREDENTIALS_CHANGED" | "EMAIL_DISABLED" | "EMAIL_RATE_LIMITED" | "EMAIL_TOKEN_INVALID" | "INVALID_RESET_EMAIL" | "INVALID_RESET_PASSWORD" | "RESET_TOKEN_INVALID";
             message: string;
         };
         Error: {
@@ -1016,6 +1100,27 @@ export interface components {
              * @description Same policy as registration: 8–128 Unicode characters, at most 512 UTF-8 bytes, not all whitespace; no trimming.
              */
             new_password: string;
+        };
+        EmailVerificationConfirm: {
+            /** @description One-time email verification capability; never log or store in web storage. */
+            token: string;
+        };
+        PasswordResetRequest: {
+            /**
+             * Format: email
+             * @description Normalized with the registration email policy.
+             */
+            email: string;
+        };
+        PasswordResetConfirm: {
+            token: string;
+            /** @description Valid UTF-8; at most 512 bytes; not all whitespace. */
+            new_password: string;
+        };
+        EmailVerificationStatus: {
+            enabled: boolean;
+            /** Format: date-time */
+            verified_at: string | null;
         };
     };
     responses: {
@@ -2639,6 +2744,362 @@ export interface operations {
             500: components["responses"]["Error500"];
             503: components["responses"]["Error503"];
             504: components["responses"]["Error504"];
+        };
+    };
+    emailVerificationStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current account status */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailVerificationStatus"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Origin or HTTPS rejected */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rate limited */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    requestEmailVerification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted for delivery */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid request or invalid/expired/consumed verification token */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Origin, HTTPS or CSRF rejected */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Body too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rate limited; retry later */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Email disabled */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Request timed out */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    confirmEmailVerification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmailVerificationConfirm"];
+            };
+        };
+        responses: {
+            /** @description Email verified */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid request or invalid/expired/consumed verification token */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Origin, HTTPS or CSRF rejected */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Body too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rate limited; retry later */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Email disabled */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Request timed out */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    requestPasswordReset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetRequest"];
+            };
+        };
+        responses: {
+            /** @description Accepted; check your inbox if the account exists */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid JSON/email/password or invalid, expired, consumed, wrong-purpose or stale reset capability */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Origin, HTTPS or CSRF rejected */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Body too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rate limited; retry later */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description EMAIL_DISABLED or AUTH_BUSY */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Request timed out */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    confirmPasswordReset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetConfirm"];
+            };
+        };
+        responses: {
+            /** @description Password reset; sign in again */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid JSON/email/password or invalid, expired, consumed, wrong-purpose or stale reset capability */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Origin, HTTPS or CSRF rejected */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Body too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rate limited; retry later */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description EMAIL_DISABLED or AUTH_BUSY */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Request timed out */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
 }

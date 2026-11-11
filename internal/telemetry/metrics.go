@@ -15,6 +15,7 @@ import (
 )
 
 type Metrics struct {
+	mailResults         *prometheus.CounterVec
 	cacheEnabled        prometheus.Gauge
 	cacheReads          *prometheus.CounterVec
 	cacheFills          *prometheus.CounterVec
@@ -41,6 +42,8 @@ func New(pool *pgxpool.Pool, ping func(context.Context) error) *Metrics {
 		requests: prometheus.NewCounterVec(prometheus.CounterOpts{Name: "taskflow_http_requests_total", Help: "Completed HTTP requests by bounded method, route template and status class."}, []string{"method", "route", "status_class"}),
 		duration: prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "taskflow_http_request_duration_seconds", Help: "HTTP request duration in seconds.", Buckets: []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}}, []string{"method", "route"}),
 	}
+	m.mailResults = prometheus.NewCounterVec(prometheus.CounterOpts{Name: "taskflow_email_send_total", Help: "Email attempts by bounded outcome; never contains recipient or message."}, []string{"outcome"})
+	m.registry.MustRegister(m.mailResults)
 	m.initCache()
 	m.scheduleScans = prometheus.NewCounterVec(prometheus.CounterOpts{Name: "taskflow_recurrence_scans_total", Help: "Background batch attempts by bounded outcome."}, []string{"outcome"})
 	m.scheduleGenerated = prometheus.NewCounter(prometheus.CounterOpts{Name: "taskflow_recurrence_generated_total", Help: "Tasks observed committed by the scheduler; not an accounting ledger."})
@@ -173,4 +176,14 @@ func (m *Metrics) ObserveSchedule(ok bool, processed, generated int, elapsed tim
 	}
 	m.scheduleScans.WithLabelValues(outcome).Inc()
 	m.scheduleDuration.Observe(elapsed.Seconds())
+}
+
+// MailResult deliberately admits only fixed labels, never provider messages.
+func (m *Metrics) MailResult(outcome string) {
+	switch outcome {
+	case "success", "retry", "failed", "error":
+	default:
+		outcome = "error"
+	}
+	m.mailResults.WithLabelValues(outcome).Inc()
 }

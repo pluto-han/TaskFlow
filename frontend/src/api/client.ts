@@ -69,7 +69,7 @@ export async function request<T>(
     );
   }
   onResponse?.(response);
-  if (response.status === 204) return undefined as T;
+  if (response.status === 204 || response.status === 202) return undefined as T;
   try {
     return (await response.json()) as T;
   } catch {
@@ -144,6 +144,24 @@ export function errorMessage(error: unknown): string {
       "This schedule is no longer available. Please refresh the list.",
     RECURRENCE_CONFLICT:
       "This schedule has changed. Refresh it before editing again.",
+    EMAIL_DISABLED:
+      "Email delivery is not available on this instance. You can still sign in with your password.",
+    EMAIL_RATE_LIMITED:
+      "Please wait before requesting another verification email.",
+    EMAIL_TOKEN_INVALID:
+      "This verification link has expired or has already been used. Request a new email from your profile.",
+    RESET_TOKEN_INVALID:
+      "This reset link has expired or is no longer valid. Request a new link to continue.",
+    INVALID_RESET_EMAIL: "Enter a valid email address.",
+    INVALID_RESET_PASSWORD: "Use 8–128 characters for your new password.",
+    CURRENT_PASSWORD_INCORRECT:
+      "Your current password is incorrect. Please check it and try again.",
+    INVALID_PASSWORD_CHANGE:
+      "Check your current password and use 8–128 characters for the new one.",
+    CREDENTIALS_CHANGED:
+      "Your password has changed. Please sign in again before continuing.",
+    SESSION_NOT_FOUND:
+      "This session has already ended. Refresh the list to continue.",
     DISCORD_DISABLED: "Discord is not set up yet. Please try again later.",
     INVALID_DISCORD_BINDING:
       "This connection request is not valid. Refresh the status and try again.",

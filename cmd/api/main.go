@@ -19,6 +19,7 @@ import (
 	"github.com/pluto-han/taskflow/internal/config"
 	"github.com/pluto-han/taskflow/internal/discord"
 	"github.com/pluto-han/taskflow/internal/integration"
+	"github.com/pluto-han/taskflow/internal/mail"
 	"github.com/pluto-han/taskflow/internal/notification"
 	"github.com/pluto-han/taskflow/internal/project"
 	"github.com/pluto-han/taskflow/internal/recurrence"
@@ -57,6 +58,11 @@ func main() {
 		log.Fatal(err)
 	}
 	security, err := cfg.Security()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	mailSender, err := cfg.Mail()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -117,8 +123,14 @@ func main() {
 	metrics.SetCacheEnabled(cacheClient != nil)
 	service.WithTodayCacheObserver(metrics)
 	metrics.SetWorkers(schedulerEnabled, senderEnabled)
+	mailService, err := mail.New(pool, mailSender, security.PublicOrigin)
+	if err != nil {
+		log.Fatal(err)
+	}
+	mailService.WithObserver(metrics)
 	bindings := integration.NewService(pool, len(discordKey) > 0)
 	router := server.NewRouter(server.Dependencies{
+		Mail:          mailService,
 		Notifications: notification.NewService(pool, nil),
 		Discord:       discord.NewHandler(discordKey, discordApp, bindings),
 		Integrations:  bindings,
@@ -166,6 +178,15 @@ func main() {
 			}
 		}()
 	}
+
+	mailDone := make(chan struct{})
+	if mailService.Enabled() {
+		go func() { defer close(mailDone); mailService.Run(shutdownCtx) }()
+	} else {
+		close(mailDone)
+	}
+	// Stop and join mail before its shared pool closes, including early returns.
+	defer func() { stop(); <-mailDone }()
 
 	workerDone := make(chan struct{})
 	if schedulerEnabled {

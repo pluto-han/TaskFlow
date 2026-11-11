@@ -19,6 +19,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/pluto-han/taskflow/internal/httpapi"
 	"github.com/pluto-han/taskflow/internal/integration"
+	email "github.com/pluto-han/taskflow/internal/mail"
 	"github.com/pluto-han/taskflow/internal/notification"
 	"github.com/pluto-han/taskflow/internal/project"
 	"github.com/pluto-han/taskflow/internal/recurrence"
@@ -111,7 +112,7 @@ func TestContractRoutesAndReferences(t *testing.T) {
 					t.Error("missing required path parameter")
 				}
 			}
-			public := strings.HasPrefix(path, "/health") || path == "/auth/register" || path == "/auth/login" || path == "/auth/browser/login" || path == "/discord/interactions"
+			public := strings.HasPrefix(path, "/health") || path == "/auth/register" || path == "/auth/login" || path == "/auth/browser/login" || path == "/auth/email/verification/confirm" || strings.HasPrefix(path, "/auth/password/reset/") || path == "/discord/interactions"
 			want := []map[string][]string(nil) // GET business routes inherit both mechanisms.
 			if public {
 				want = []map[string][]string{}
@@ -170,7 +171,7 @@ func TestContractDTOFields(t *testing.T) {
 	if !reflect.DeepEqual(d.Security, []map[string][]string{{"bearerSession": {}}, {"browserSession": {}}}) {
 		t.Fatal("global authentication must allow either mechanism, never require both")
 	}
-	for name, value := range map[string]any{"SessionInfo": session.SessionInfo{}, "SessionPage": session.SessionPage{}, "PasswordChangeRequest": session.PasswordChangeRequest{}, "BrowserSession": session.BrowserResponse{}, "NotificationEvent": notification.Event{}, "DiscordBinding": integration.Binding{}, "DiscordBindingCode": integration.Code{}, "UnbindDiscord": integration.UnbindRequest{}, "Recurrence": recurrence.Rule{}, "CreateRecurrence": recurrence.CreateRequest{}, "UpdateRecurrence": recurrence.UpdateRequest{}, "DeleteRecurrence": recurrence.DeleteRequest{}, "PreviewRecurrenceRequest": recurrence.PreviewRequest{}, "RecurrencePreview": recurrence.Preview{}, "RecurrencePage": recurrence.Page{}, "RegisterRequest": user.RegisterRequest{}, "LoginRequest": session.LoginRequest{}, "LoginResponse": session.LoginResponse{}, "User": user.UserResponse{}, "Task": task.Task{}, "CreateTask": task.CreateTaskRequest{}, "CreateTodayTask": task.CreateTodayTaskRequest{}, "TodayPage": task.TodayPage{}, "UpdateTask": task.UpdateTaskRequest{}, "Member": project.Member{}, "Invitation": project.Invitation{}, "InviteRequest": project.InviteRequest{}, "AcceptRequest": project.AcceptRequest{}, "Project": project.Project{}, "CreateProject": project.CreateRequest{}, "UpdateProject": project.UpdateRequest{}, "Error": httpapi.ErrorResponse{}, "ErrorDetail": httpapi.ErrorDetail{}} {
+	for name, value := range map[string]any{"EmailVerificationStatus": email.Status{}, "PasswordResetRequest": email.ResetRequest{}, "PasswordResetConfirm": email.ResetConfirmRequest{}, "SessionInfo": session.SessionInfo{}, "SessionPage": session.SessionPage{}, "PasswordChangeRequest": session.PasswordChangeRequest{}, "BrowserSession": session.BrowserResponse{}, "NotificationEvent": notification.Event{}, "DiscordBinding": integration.Binding{}, "DiscordBindingCode": integration.Code{}, "UnbindDiscord": integration.UnbindRequest{}, "Recurrence": recurrence.Rule{}, "CreateRecurrence": recurrence.CreateRequest{}, "UpdateRecurrence": recurrence.UpdateRequest{}, "DeleteRecurrence": recurrence.DeleteRequest{}, "PreviewRecurrenceRequest": recurrence.PreviewRequest{}, "RecurrencePreview": recurrence.Preview{}, "RecurrencePage": recurrence.Page{}, "RegisterRequest": user.RegisterRequest{}, "LoginRequest": session.LoginRequest{}, "LoginResponse": session.LoginResponse{}, "User": user.UserResponse{}, "Task": task.Task{}, "CreateTask": task.CreateTaskRequest{}, "CreateTodayTask": task.CreateTodayTaskRequest{}, "TodayPage": task.TodayPage{}, "UpdateTask": task.UpdateTaskRequest{}, "Member": project.Member{}, "Invitation": project.Invitation{}, "InviteRequest": project.InviteRequest{}, "AcceptRequest": project.AcceptRequest{}, "Project": project.Project{}, "CreateProject": project.CreateRequest{}, "UpdateProject": project.UpdateRequest{}, "Error": httpapi.ErrorResponse{}, "ErrorDetail": httpapi.ErrorDetail{}} {
 		t.Run(name, func(t *testing.T) {
 			fields := map[string]bool{}
 			typ := reflect.TypeOf(value)
@@ -290,7 +291,7 @@ func TestRouterErrorAndHealthContracts(t *testing.T) {
 			rec := httptest.NewRecorder()
 			r.ServeHTTP(rec, req)
 			expected := 401
-			if path == "/discord/interactions" {
+			if path == "/discord/interactions" || (method != "get" && strings.HasPrefix(path, "/auth/email/verification")) || strings.HasPrefix(path, "/auth/password/reset/") {
 				expected = 503
 			}
 			if strings.HasPrefix(path, "/health") {

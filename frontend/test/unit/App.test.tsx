@@ -1,3 +1,4 @@
+import { accountApi } from "../../src/api/account";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
@@ -35,6 +36,14 @@ async function fillLogin() {
   return user;
 }
 beforeEach(() => {
+  vi.spyOn(accountApi, "status").mockResolvedValue({
+    enabled: false,
+    verified_at: null,
+  });
+  vi.spyOn(accountApi, "sessions").mockResolvedValue({
+    items: [],
+    next_cursor: "",
+  });
   vi.spyOn(discordApi, "notifications").mockResolvedValue([]);
   vi.spyOn(discordApi, "status").mockResolvedValue({
     enabled: false,

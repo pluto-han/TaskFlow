@@ -83,6 +83,7 @@ func Security(options SecurityOptions) gin.HandlerFunc {
 	general := newWindowLimiter(1200, 300)
 	registration := newWindowLimiter(30, 10)
 	login := newWindowLimiter(60, 20)
+	email := newWindowLimiter(60, 10)
 	passwordChange := newWindowLimiter(30, 5)
 	return func(c *gin.Context) {
 		c.Header("Cache-Control", "no-store")
@@ -120,6 +121,9 @@ func Security(options SecurityOptions) gin.HandlerFunc {
 			if path == "/auth/password/change" {
 				allowed = allowed && passwordChange.allow(peer)
 			}
+			if c.Request.Method == http.MethodPost && (path == "/auth/email/verification" || path == "/auth/email/verification/confirm" || path == "/auth/password/reset/request" || path == "/auth/password/reset/confirm") {
+				allowed = allowed && email.allow(peer)
+			}
 			if !allowed {
 				c.Header("Retry-After", "60")
 				WriteError(c, 429, "RATE_LIMITED", "Please retry later")
@@ -132,7 +136,7 @@ func Security(options SecurityOptions) gin.HandlerFunc {
 		c.Request = c.Request.WithContext(ctx)
 		// Bound decoded bodies, including unknown-length/chunked input.
 		limit := int64(64 * 1024)
-		if path == "/auth/login" || path == "/auth/browser/login" || path == "/auth/register" || path == "/auth/password/change" {
+		if path == "/auth/login" || path == "/auth/browser/login" || path == "/auth/register" || path == "/auth/password/change" || path == "/auth/email/verification" || path == "/auth/email/verification/confirm" || path == "/auth/password/reset/request" || path == "/auth/password/reset/confirm" {
 			limit = 4096
 		}
 		if c.Request.Body != nil {

@@ -20,7 +20,7 @@ func TestAuthRateLimitsCannotBeBypassedByForwardedIP(t *testing.T) {
 		path          string
 		limit         int
 		initialStatus int
-	}{{"/auth/register", 10, 400}, {"/auth/login", 20, 400}, {"/auth/password/change", 5, 401}} {
+	}{{"/auth/register", 10, 400}, {"/auth/login", 20, 400}, {"/auth/password/change", 5, 401}, {"/auth/email/verification", 10, 503}, {"/auth/email/verification/confirm", 10, 503}, {"/auth/password/reset/request", 10, 503}, {"/auth/password/reset/confirm", 10, 503}} {
 		t.Run(tc.path, func(t *testing.T) {
 			r := server.NewRouter(server.Dependencies{Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
 			for n := 0; n <= tc.limit; n++ {
@@ -68,7 +68,7 @@ func TestBrowserAndBearerLoginSharePeerBudget(t *testing.T) {
 }
 
 func TestBrowserLoginBodyLimitMatchesLegacy(t *testing.T) {
-	for _, path := range []string{"/auth/login", "/auth/browser/login", "/auth/password/change"} {
+	for _, path := range []string{"/auth/login", "/auth/browser/login", "/auth/password/change", "/auth/email/verification", "/auth/email/verification/confirm", "/auth/password/reset/request", "/auth/password/reset/confirm"} {
 		r := server.NewRouter(server.Dependencies{Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
 		req := httptest.NewRequest("POST", path, strings.NewReader(strings.Repeat("x", 4097)))
 		req.Header.Set("Origin", "http://127.0.0.1:5173")
