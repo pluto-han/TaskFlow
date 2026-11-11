@@ -8,6 +8,8 @@ import (
 type Config struct {
 	MailEnabled          string
 	MailDriver           string
+	MailFrom             string
+	MailSecretFile       string
 	CacheEnabled         string
 	RedisAddr            string
 	RedisUsername        string
@@ -41,6 +43,8 @@ func Load() Config {
 	return Config{
 		MailEnabled:          os.Getenv("TASKFLOW_MAIL_ENABLED"),
 		MailDriver:           os.Getenv("TASKFLOW_MAIL_DRIVER"),
+		MailFrom:             os.Getenv("TASKFLOW_MAIL_FROM"),
+		MailSecretFile:       os.Getenv("TASKFLOW_MAIL_SECRET_FILE"),
 		CacheEnabled:         os.Getenv("TASKFLOW_CACHE_ENABLED"),
 		RedisAddr:            os.Getenv("REDIS_ADDR"),
 		RedisUsername:        os.Getenv("REDIS_USERNAME"),
