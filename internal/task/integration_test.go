@@ -14,11 +14,13 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/pluto-han/taskflow/internal/testdb"
 
-	"github.com/pluto-han/taskflow/internal/auth"
+	applicationaccount "github.com/pluto-han/taskflow/internal/application/account"
+	infrapassword "github.com/pluto-han/taskflow/internal/infra/password"
+	infraaccount "github.com/pluto-han/taskflow/internal/infra/persistence/account"
+	interfaceshttpaccount "github.com/pluto-han/taskflow/internal/interfaces/http/account"
 	"github.com/pluto-han/taskflow/internal/session"
-	"github.com/pluto-han/taskflow/internal/user"
+	"github.com/pluto-han/taskflow/internal/testdb"
 )
 
 func TestTaskOwnershipIntegration(t *testing.T) {
@@ -43,8 +45,8 @@ func TestTaskOwnershipIntegration(t *testing.T) {
 	if err := pool.QueryRow(ctx, "SELECT version,dirty FROM schema_migrations").Scan(&version, &dirty); err != nil || version != 17 || dirty {
 		t.Fatal("unexpected migration state")
 	}
-	users := user.NewPostgresRepository(pool)
-	ss, err := session.NewService(ctx, users, session.NewPostgresRepository(pool), auth.PasswordHasher{})
+	users := infraaccount.New(pool)
+	ss, err := session.NewService(ctx, users, session.NewPostgresRepository(pool), infrapassword.PasswordHasher{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +54,7 @@ func TestTaskOwnershipIntegration(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	session.Mount(router, ss)
-	router.POST("/auth/register", user.NewHandler(user.NewService(users, auth.PasswordHasher{})).Register)
+	router.POST("/auth/register", interfaceshttpaccount.New(applicationaccount.New(users, infrapassword.PasswordHasher{})).Register)
 	Mount(router, NewService(repo, nil), session.NewHandler(ss).RequireSession)
 	var ids []session.UserID
 	var tokens []string
@@ -60,7 +62,7 @@ func TestTaskOwnershipIntegration(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		body := fmt.Sprintf(`{"email":"task-%d-%d@example.com","password":"task ownership test passphrase"}`, time.Now().UnixNano(), i)
 		rec := taskRequest(router, "POST", "/auth/register", body, "")
-		var account user.UserResponse
+		var account interfaceshttpaccount.UserResponse
 		if rec.Code != 201 || json.Unmarshal(rec.Body.Bytes(), &account) != nil {
 			t.Fatalf("register: %s", rec.Body.String())
 		}

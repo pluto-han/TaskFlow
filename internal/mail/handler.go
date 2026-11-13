@@ -11,8 +11,9 @@ import (
 	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
-	"github.com/pluto-han/taskflow/internal/auth"
+
 	"github.com/pluto-han/taskflow/internal/httpapi"
+	infrapassword "github.com/pluto-han/taskflow/internal/infra/password"
 	"github.com/pluto-han/taskflow/internal/session"
 )
 
@@ -107,7 +108,7 @@ func writeError(c *gin.Context, err error) {
 		httpapi.WriteError(c, 400, "INVALID_RESET_PASSWORD", "Use 8–128 characters for the new password")
 	case errors.Is(err, ErrResetToken):
 		httpapi.WriteError(c, 400, "RESET_TOKEN_INVALID", "Reset link is invalid or expired")
-	case errors.Is(err, auth.ErrBusy):
+	case errors.Is(err, infrapassword.ErrBusy):
 		c.Header("Retry-After", "1")
 		httpapi.WriteError(c, 503, "AUTH_BUSY", "Please retry later")
 	case errors.Is(err, context.Canceled):

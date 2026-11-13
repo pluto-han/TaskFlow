@@ -12,9 +12,10 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/pluto-han/taskflow/internal/auth"
+
+	applicationaccount "github.com/pluto-han/taskflow/internal/application/account"
+	infrapassword "github.com/pluto-han/taskflow/internal/infra/password"
 	"github.com/pluto-han/taskflow/internal/session"
-	"github.com/pluto-han/taskflow/internal/user"
 )
 
 var (
@@ -35,7 +36,7 @@ type Service struct {
 	sender    Sender
 	origin    string
 	observer  Observer
-	passwords user.PasswordHasher
+	passwords applicationaccount.PasswordHasher
 }
 
 // A nil sender disables both endpoints without querying the database.
@@ -46,7 +47,7 @@ func New(pool *pgxpool.Pool, sender Sender, origin string) (*Service, error) {
 			return nil, errors.New("mail requires a fixed HTTPS or loopback origin")
 		}
 	}
-	return &Service{pool: pool, sender: sender, origin: origin, passwords: auth.PasswordHasher{}}, nil
+	return &Service{pool: pool, sender: sender, origin: origin, passwords: infrapassword.PasswordHasher{}}, nil
 }
 func (s *Service) Enabled() bool                    { return s != nil && s.sender != nil }
 func (s *Service) WithObserver(o Observer) *Service { s.observer = o; return s }

@@ -14,7 +14,10 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/pluto-han/taskflow/internal/auth"
+
+	applicationaccount "github.com/pluto-han/taskflow/internal/application/account"
+	infrapassword "github.com/pluto-han/taskflow/internal/infra/password"
+	infraaccount "github.com/pluto-han/taskflow/internal/infra/persistence/account"
 	"github.com/pluto-han/taskflow/internal/integration"
 	"github.com/pluto-han/taskflow/internal/notification"
 	"github.com/pluto-han/taskflow/internal/project"
@@ -23,7 +26,6 @@ import (
 	"github.com/pluto-han/taskflow/internal/session"
 	"github.com/pluto-han/taskflow/internal/task"
 	"github.com/pluto-han/taskflow/internal/testdb"
-	"github.com/pluto-han/taskflow/internal/user"
 )
 
 // This is a response shape check for the subset used here, not a replacement for
@@ -119,14 +121,14 @@ func TestAPIExamplesIntegration(t *testing.T) {
 	if err := pool.QueryRow(ctx, "SELECT version,dirty FROM schema_migrations").Scan(&version, &dirty); err != nil || version != 17 || dirty {
 		t.Fatal("requires clean migration 15")
 	}
-	users := user.NewPostgresRepository(pool)
+	users := infraaccount.New(pool)
 	projects := project.NewPostgresRepository(pool)
-	sessions, err := session.NewService(ctx, users, session.NewPostgresRepository(pool), auth.PasswordHasher{})
+	sessions, err := session.NewService(ctx, users, session.NewPostgresRepository(pool), infrapassword.PasswordHasher{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	var logs bytes.Buffer
-	r := server.NewRouter(server.Dependencies{Notifications: notification.NewService(pool, nil), Integrations: integration.NewService(pool, true), Recurrences: recurrence.NewServiceWithClock(recurrence.NewPostgresRepository(pool), func() time.Time { return time.Date(2026, 11, 5, 12, 0, 0, 0, time.UTC) }), Users: user.NewService(users, auth.PasswordHasher{}), Sessions: sessions, Tasks: task.NewService(task.NewPostgresRepository(pool), projects), Projects: project.NewService(projects), Ping: pool.Ping, Logger: slog.New(slog.NewJSONHandler(&logs, nil))})
+	r := server.NewRouter(server.Dependencies{Notifications: notification.NewService(pool, nil), Integrations: integration.NewService(pool, true), Recurrences: recurrence.NewServiceWithClock(recurrence.NewPostgresRepository(pool), func() time.Time { return time.Date(2026, 11, 5, 12, 0, 0, 0, time.UTC) }), Users: applicationaccount.New(users, infrapassword.PasswordHasher{}), Sessions: sessions, Tasks: task.NewService(task.NewPostgresRepository(pool), projects), Projects: project.NewService(projects), Ping: pool.Ping, Logger: slog.New(slog.NewJSONHandler(&logs, nil))})
 	d, tree := readContract(t)
 	paths := tree["paths"].(map[string]any)
 	sample := func(path, method string) string {

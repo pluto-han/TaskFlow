@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pluto-han/taskflow/internal/auth"
+	infrapassword "github.com/pluto-han/taskflow/internal/infra/password"
 )
 
 type managementSessions struct {
@@ -47,8 +47,8 @@ func TestPasswordChangeService(t *testing.T) {
 	}{
 		{"success", nil, nil},
 		{"wrong current", func(_ *fakeUsers, p *fakePasswords, _ *managementSessions) { p.ok = false }, ErrCurrentPassword},
-		{"verify busy", func(_ *fakeUsers, p *fakePasswords, _ *managementSessions) { p.err = auth.ErrBusy }, auth.ErrBusy},
-		{"hash busy", func(_ *fakeUsers, p *fakePasswords, _ *managementSessions) { p.hashErr = auth.ErrBusy }, auth.ErrBusy},
+		{"verify busy", func(_ *fakeUsers, p *fakePasswords, _ *managementSessions) { p.err = infrapassword.ErrBusy }, infrapassword.ErrBusy},
+		{"hash busy", func(_ *fakeUsers, p *fakePasswords, _ *managementSessions) { p.hashErr = infrapassword.ErrBusy }, infrapassword.ErrBusy},
 		{"changed concurrently", func(_ *fakeUsers, _ *fakePasswords, r *managementSessions) { r.err = ErrCredentialsChanged }, ErrCredentialsChanged},
 		{"session revoked", func(_ *fakeUsers, _ *fakePasswords, r *managementSessions) { r.err = ErrUnauthorized }, ErrUnauthorized},
 	} {

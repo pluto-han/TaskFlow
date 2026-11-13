@@ -18,19 +18,22 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/pluto-han/taskflow/internal/auth"
+
+	applicationaccount "github.com/pluto-han/taskflow/internal/application/account"
 	"github.com/pluto-han/taskflow/internal/config"
+	domainaccount "github.com/pluto-han/taskflow/internal/domain/account"
 	"github.com/pluto-han/taskflow/internal/httpapi"
+	infrapassword "github.com/pluto-han/taskflow/internal/infra/password"
+	infraaccount "github.com/pluto-han/taskflow/internal/infra/persistence/account"
 	"github.com/pluto-han/taskflow/internal/server"
 	"github.com/pluto-han/taskflow/internal/session"
 	"github.com/pluto-han/taskflow/internal/testdb"
-	"github.com/pluto-han/taskflow/internal/user"
 )
 
 type accountFixture struct {
 	ctx         context.Context
 	admin, pool *pgxpool.Pool
-	users       *user.PostgresRepository
+	users       *infraaccount.Repository
 	repo        *session.PostgresRepository
 	svc         *session.Service
 }
@@ -88,9 +91,9 @@ func accountDatabase(t *testing.T) *accountFixture {
 	if _, err := pool.Exec(ctx, "UPDATE users SET email='forbidden' WHERE false"); err == nil {
 		t.Fatal("runtime can change account identity")
 	}
-	users := user.NewPostgresRepository(pool)
+	users := infraaccount.New(pool)
 	repo := session.NewPostgresRepository(pool)
-	svc, err := session.NewService(ctx, users, repo, auth.PasswordHasher{})
+	svc, err := session.NewService(ctx, users, repo, infrapassword.PasswordHasher{})
 	if err != nil {
 		t.Fatal("session setup failed")
 	}
@@ -99,9 +102,9 @@ func accountDatabase(t *testing.T) *accountFixture {
 
 const accountPassword = "original account passphrase"
 
-func (f *accountFixture) account(t *testing.T) (*user.User, session.LoginResponse, session.Principal) {
+func (f *accountFixture) account(t *testing.T) (*domainaccount.User, session.LoginResponse, session.Principal) {
 	t.Helper()
-	u, err := user.NewService(f.users, auth.PasswordHasher{}).Register(f.ctx, user.RegisterRequest{Email: strings.ToLower(rand.Text()) + "@example.com", Password: accountPassword})
+	u, err := applicationaccount.New(f.users, infrapassword.PasswordHasher{}).Register(f.ctx, applicationaccount.CreateInput{Email: strings.ToLower(rand.Text()) + "@example.com", Password: accountPassword})
 	if err != nil {
 		t.Fatal("account creation failed")
 	}
@@ -113,7 +116,11 @@ func (f *accountFixture) account(t *testing.T) (*user.User, session.LoginRespons
 	if err != nil {
 		t.Fatal("account authentication failed")
 	}
-	return u, login, p
+	stored, err := f.users.GetByID(f.ctx, u.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return stored, login, p
 }
 
 func TestAccountManagementHTTPIntegration(t *testing.T) {
@@ -227,7 +234,7 @@ func base64Cursor(t *testing.T, owner session.UserID, item session.SessionInfo) 
 }
 
 type barrierPasswords struct {
-	auth.PasswordHasher
+	infrapassword.PasswordHasher
 	arrived chan struct{}
 	release <-chan struct{}
 }
@@ -354,7 +361,7 @@ func TestConcurrentPasswordChanges(t *testing.T) {
 	if err != nil || success != 1 || conflict != 1 || stored.CredentialsVersion != 1 {
 		t.Fatal("concurrent changes did not serialize")
 	}
-	if ok, err := (auth.PasswordHasher{}).VerifyPassword(f.ctx, winner, stored.PasswordHash); err != nil || !ok {
+	if ok, err := (infrapassword.PasswordHasher{}).VerifyPassword(f.ctx, winner, stored.PasswordHash); err != nil || !ok {
 		t.Fatal("winning hash was not stored")
 	}
 }

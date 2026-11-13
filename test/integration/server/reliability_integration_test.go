@@ -15,14 +15,16 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/pluto-han/taskflow/internal/auth"
+
+	applicationaccount "github.com/pluto-han/taskflow/internal/application/account"
 	"github.com/pluto-han/taskflow/internal/config"
+	infrapassword "github.com/pluto-han/taskflow/internal/infra/password"
+	infraaccount "github.com/pluto-han/taskflow/internal/infra/persistence/account"
 	"github.com/pluto-han/taskflow/internal/project"
 	"github.com/pluto-han/taskflow/internal/server"
 	"github.com/pluto-han/taskflow/internal/session"
 	"github.com/pluto-han/taskflow/internal/task"
 	"github.com/pluto-han/taskflow/internal/testdb"
-	"github.com/pluto-han/taskflow/internal/user"
 )
 
 // Real TCP HTTP + production router + real hashing/session/sqlc/PostgreSQL.
@@ -77,7 +79,7 @@ func TestReliabilityHTTPIntegration(t *testing.T) {
 				t.Fatalf("unexpected privilege: %s", query)
 			}
 		}
-		u, err := user.NewService(user.NewPostgresRepository(limited), auth.PasswordHasher{}).Register(ctx, user.RegisterRequest{Email: "limited-role@example.com", Password: "limited runtime passphrase"})
+		u, err := applicationaccount.New(infraaccount.New(limited), infrapassword.PasswordHasher{}).Register(ctx, applicationaccount.CreateInput{Email: "limited-role@example.com", Password: "limited runtime passphrase"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -96,13 +98,13 @@ func TestReliabilityHTTPIntegration(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
-	users := user.NewPostgresRepository(pool)
+	users := infraaccount.New(pool)
 	projects := project.NewPostgresRepository(pool)
-	sessions, err := session.NewService(ctx, users, session.NewPostgresRepository(pool), auth.PasswordHasher{})
+	sessions, err := session.NewService(ctx, users, session.NewPostgresRepository(pool), infrapassword.PasswordHasher{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv := httptest.NewServer(server.NewRouter(server.Dependencies{Users: user.NewService(users, auth.PasswordHasher{}), Sessions: sessions, Projects: project.NewService(projects), Tasks: task.NewService(task.NewPostgresRepository(pool), projects), Ping: pool.Ping, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))}))
+	srv := httptest.NewServer(server.NewRouter(server.Dependencies{Users: applicationaccount.New(users, infrapassword.PasswordHasher{}), Sessions: sessions, Projects: project.NewService(projects), Tasks: task.NewService(task.NewPostgresRepository(pool), projects), Ping: pool.Ping, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))}))
 	defer srv.Close()
 	client := srv.Client()
 	client.Timeout = 5 * time.Second

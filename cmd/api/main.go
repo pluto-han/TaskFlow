@@ -14,10 +14,12 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/pluto-han/taskflow/internal/auth"
+	applicationaccount "github.com/pluto-han/taskflow/internal/application/account"
 	"github.com/pluto-han/taskflow/internal/cache"
 	"github.com/pluto-han/taskflow/internal/config"
 	"github.com/pluto-han/taskflow/internal/discord"
+	infrapassword "github.com/pluto-han/taskflow/internal/infra/password"
+	infraaccount "github.com/pluto-han/taskflow/internal/infra/persistence/account"
 	"github.com/pluto-han/taskflow/internal/integration"
 	"github.com/pluto-han/taskflow/internal/mail"
 	"github.com/pluto-han/taskflow/internal/notification"
@@ -27,7 +29,6 @@ import (
 	"github.com/pluto-han/taskflow/internal/session"
 	"github.com/pluto-han/taskflow/internal/task"
 	"github.com/pluto-han/taskflow/internal/telemetry"
-	"github.com/pluto-han/taskflow/internal/user"
 )
 
 func main() {
@@ -102,8 +103,8 @@ func main() {
 	projectRepo := project.NewPostgresRepository(pool)
 	service := task.NewService(repo, projectRepo)
 
-	userRepo := user.NewPostgresRepository(pool)
-	sessionService, err := session.NewService(context.Background(), userRepo, session.NewPostgresRepository(pool), auth.PasswordHasher{})
+	userRepo := infraaccount.New(pool)
+	sessionService, err := session.NewService(context.Background(), userRepo, session.NewPostgresRepository(pool), infrapassword.PasswordHasher{})
 	if err != nil {
 		log.Fatal("Could not initialize password verification")
 	}
@@ -137,7 +138,7 @@ func main() {
 		Recurrences:   recurrence.NewServiceWithScheduler(recurrence.NewPostgresRepository(pool), schedulerEnabled),
 		Security:      security,
 		Metrics:       metrics,
-		Users:         user.NewService(userRepo, auth.PasswordHasher{}),
+		Users:         applicationaccount.New(userRepo, infrapassword.PasswordHasher{}),
 		Sessions:      sessionService,
 		Tasks:         service,
 		Projects:      project.NewService(projectRepo),

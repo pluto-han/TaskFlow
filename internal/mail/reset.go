@@ -8,7 +8,9 @@ import (
 	"errors"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/pluto-han/taskflow/internal/user"
+
+	applicationaccount "github.com/pluto-han/taskflow/internal/application/account"
+	domainaccount "github.com/pluto-han/taskflow/internal/domain/account"
 )
 
 var (
@@ -27,7 +29,10 @@ type ResetConfirmRequest struct {
 
 // WithPasswords supplies the same bounded hashing primitive used by registration.
 // Set dependencies during construction, never while serving requests.
-func (s *Service) WithPasswords(p user.PasswordHasher) *Service { s.passwords = p; return s }
+func (s *Service) WithPasswords(p applicationaccount.PasswordHasher) *Service {
+	s.passwords = p
+	return s
+}
 
 // RequestReset returns the same successful result for missing, throttled and
 // accepted targets. Source/global HTTP throttles remain visible and account-independent.
@@ -35,7 +40,7 @@ func (s *Service) RequestReset(ctx context.Context, input ResetRequest) error {
 	if !s.Enabled() {
 		return ErrDisabled
 	}
-	address, valid := user.NormalizeEmail(input.Email)
+	address, valid := domainaccount.NormalizeEmail(input.Email)
 	if !valid {
 		return ErrResetEmail
 	}
@@ -96,7 +101,7 @@ func (s *Service) ConfirmReset(ctx context.Context, input ResetConfirmRequest) e
 	if err != nil {
 		return ErrResetToken
 	}
-	if !user.ValidPassword(input.NewPassword) {
+	if !domainaccount.ValidPassword(input.NewPassword) {
 		return ErrResetPassword
 	}
 	var owner string

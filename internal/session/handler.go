@@ -11,8 +11,9 @@ import (
 	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
-	"github.com/pluto-han/taskflow/internal/auth"
+
 	"github.com/pluto-han/taskflow/internal/httpapi"
+	infrapassword "github.com/pluto-han/taskflow/internal/infra/password"
 )
 
 type Handler struct {
@@ -49,7 +50,7 @@ func writeError(c *gin.Context, err error) {
 	case errors.Is(err, ErrUnauthorized):
 		c.Header("WWW-Authenticate", "Bearer")
 		httpapi.WriteError(c, 401, "UNAUTHORIZED", "Invalid credentials or session")
-	case errors.Is(err, auth.ErrBusy):
+	case errors.Is(err, infrapassword.ErrBusy):
 		c.Header("Retry-After", "1")
 		httpapi.WriteError(c, 503, "AUTH_BUSY", "Please retry later")
 	case errors.Is(err, context.Canceled):

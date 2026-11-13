@@ -14,9 +14,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/pluto-han/taskflow/internal/auth"
+
+	applicationaccount "github.com/pluto-han/taskflow/internal/application/account"
+	infrapassword "github.com/pluto-han/taskflow/internal/infra/password"
+	infraaccount "github.com/pluto-han/taskflow/internal/infra/persistence/account"
+	interfaceshttpaccount "github.com/pluto-han/taskflow/internal/interfaces/http/account"
 	"github.com/pluto-han/taskflow/internal/testdb"
-	"github.com/pluto-han/taskflow/internal/user"
 )
 
 func TestSessionIntegration(t *testing.T) {
@@ -41,26 +44,26 @@ func TestSessionIntegration(t *testing.T) {
 	if err := pool.QueryRow(ctx, "SELECT version,dirty FROM schema_migrations").Scan(&version, &dirty); err != nil || version != 17 || dirty {
 		t.Fatal("unexpected migration state")
 	}
-	users := user.NewPostgresRepository(pool)
+	users := infraaccount.New(pool)
 	sessions := NewPostgresRepository(pool)
-	service, err := NewService(ctx, users, sessions, auth.PasswordHasher{})
+	service, err := NewService(ctx, users, sessions, infrapassword.PasswordHasher{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	Mount(router, service)
-	router.POST("/auth/register", user.NewHandler(user.NewService(users, auth.PasswordHasher{})).Register)
+	router.POST("/auth/register", interfaceshttpaccount.New(applicationaccount.New(users, infrapassword.PasswordHasher{})).Register)
 	emails := []string{fmt.Sprintf("session-a-%d@example.com", time.Now().UnixNano()), fmt.Sprintf("session-b-%d@example.com", time.Now().UnixNano())}
 	password := "session integration passphrase"
-	var accounts []user.UserResponse
+	var accounts []interfaceshttpaccount.UserResponse
 	for _, email := range emails {
-		raw, _ := json.Marshal(user.RegisterRequest{Email: email, Password: password})
+		raw, _ := json.Marshal(interfaceshttpaccount.RegisterRequest{Email: email, Password: password})
 		rec := request(router, "POST", "/auth/register", string(raw), "")
 		if rec.Code != 201 {
 			t.Fatalf("register: %d %s", rec.Code, rec.Body.String())
 		}
-		var account user.UserResponse
+		var account interfaceshttpaccount.UserResponse
 		if err := json.Unmarshal(rec.Body.Bytes(), &account); err != nil {
 			t.Fatal(err)
 		}
@@ -105,7 +108,7 @@ func TestSessionIntegration(t *testing.T) {
 	}
 	for _, tc := range []struct{ token, id string }{{a1.AccessToken, accounts[0].ID}, {a2.AccessToken, accounts[0].ID}, {b.AccessToken, accounts[1].ID}} {
 		rec := request(router, "GET", "/auth/me?user_id=forged", "", "Bearer "+tc.token)
-		var me user.UserResponse
+		var me interfaceshttpaccount.UserResponse
 		if rec.Code != 200 || json.Unmarshal(rec.Body.Bytes(), &me) != nil || me.ID != tc.id || strings.Contains(rec.Body.String(), "password") {
 			t.Fatal("identity isolation failed")
 		}

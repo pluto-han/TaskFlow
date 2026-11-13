@@ -13,7 +13,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/pluto-han/taskflow/internal/user"
+
+	domainaccount "github.com/pluto-han/taskflow/internal/domain/account"
 )
 
 var (
@@ -134,11 +135,11 @@ func (s *Service) ChangePassword(ctx context.Context, p Principal, input Passwor
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if !user.ValidPassword(input.NewPassword) || input.CurrentPassword == "" || len(input.CurrentPassword) > 512 || !utf8.ValidString(input.CurrentPassword) {
+	if !domainaccount.ValidPassword(input.NewPassword) || input.CurrentPassword == "" || len(input.CurrentPassword) > 512 || !utf8.ValidString(input.CurrentPassword) {
 		return ErrInvalidPasswordChange
 	}
 	u, err := s.users.GetByID(ctx, string(p.UserID))
-	if errors.Is(err, user.ErrUserNotFound) {
+	if errors.Is(err, domainaccount.ErrUserNotFound) {
 		return ErrUnauthorized
 	}
 	if err != nil {

@@ -17,22 +17,26 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/pluto-han/taskflow/internal/auth"
-	"github.com/pluto-han/taskflow/internal/user"
+
+	domainaccount "github.com/pluto-han/taskflow/internal/domain/account"
+	infrapassword "github.com/pluto-han/taskflow/internal/infra/password"
+	interfaceshttpaccount "github.com/pluto-han/taskflow/internal/interfaces/http/account"
 )
 
 type fakeUsers struct {
-	user.Repository
-	u     *user.User
+	domainaccount.Repository
+	u     *domainaccount.User
 	err   error
 	email string
 }
 
-func (f *fakeUsers) GetByEmail(ctx context.Context, email string) (*user.User, error) {
+func (f *fakeUsers) GetByEmail(ctx context.Context, email string) (*domainaccount.User, error) {
 	f.email = email
 	return f.u, f.err
 }
-func (f *fakeUsers) GetByID(ctx context.Context, id string) (*user.User, error) { return f.u, f.err }
+func (f *fakeUsers) GetByID(ctx context.Context, id string) (*domainaccount.User, error) {
+	return f.u, f.err
+}
 
 type fakePasswords struct {
 	ok      bool
@@ -76,7 +80,7 @@ func (f *fakeSessions) Revoke(_ context.Context, p Principal) error {
 }
 func fixture(t *testing.T) (*Service, *fakeUsers, *fakeSessions, *fakePasswords) {
 	t.Helper()
-	u := &fakeUsers{u: &user.User{ID: "00000000-0000-4000-8000-000000000001", Email: "a@example.com", PasswordHash: "real-hash", CreatedAt: time.Now().UTC()}}
+	u := &fakeUsers{u: &domainaccount.User{ID: "00000000-0000-4000-8000-000000000001", Email: "a@example.com", PasswordHash: "real-hash", CreatedAt: time.Now().UTC()}}
 	r := &fakeSessions{p: Principal{SessionID: "00000000-0000-4000-8000-000000000002", UserID: UserID(u.u.ID), ExpiresAt: time.Now().Add(time.Hour)}}
 	p := &fakePasswords{ok: true}
 	s, err := NewService(context.Background(), u, r, p)
@@ -111,7 +115,7 @@ func TestLoginService(t *testing.T) {
 	if _, err := s.Login(context.Background(), input); !errors.Is(err, ErrUnauthorized) {
 		t.Fatal(err)
 	}
-	u.err = user.ErrUserNotFound
+	u.err = domainaccount.ErrUserNotFound
 	p.ok = true
 	if _, err := s.Login(context.Background(), input); !errors.Is(err, ErrUnauthorized) || p.seen != "dummy" {
 		t.Fatal("missing user must verify dummy and still fail")
@@ -232,8 +236,8 @@ func TestLoginHTTPFailures(t *testing.T) {
 		{"exact size", good + strings.Repeat(" ", 4096-len(good)), 200, "", nil},
 		{"null", "null", 401, "UNAUTHORIZED", nil},
 		{"wrong password", good, 401, "UNAUTHORIZED", func(_ *fakeUsers, p *fakePasswords) { p.ok = false }},
-		{"missing user", good, 401, "UNAUTHORIZED", func(u *fakeUsers, _ *fakePasswords) { u.err = user.ErrUserNotFound }},
-		{"busy", good, 503, "AUTH_BUSY", func(_ *fakeUsers, p *fakePasswords) { p.err = auth.ErrBusy }},
+		{"missing user", good, 401, "UNAUTHORIZED", func(u *fakeUsers, _ *fakePasswords) { u.err = domainaccount.ErrUserNotFound }},
+		{"busy", good, 503, "AUTH_BUSY", func(_ *fakeUsers, p *fakePasswords) { p.err = infrapassword.ErrBusy }},
 		{"deadline", good, 504, "REQUEST_TIMEOUT", func(u *fakeUsers, _ *fakePasswords) { u.err = context.DeadlineExceeded }},
 		{"db error", good, 500, "INTERNAL_ERROR", func(u *fakeUsers, _ *fakePasswords) { u.err = errors.New("SQL secret") }},
 	} {
@@ -304,11 +308,11 @@ func TestPrincipalContextAndRepositoryMapping(t *testing.T) {
 		t.Fatal("invalid mapping accepted")
 	}
 	s, u, _, _ := fixture(t)
-	u.err = user.ErrUserNotFound
+	u.err = domainaccount.ErrUserNotFound
 	if _, err := s.Me(context.Background(), Principal{}); !errors.Is(err, ErrUnauthorized) {
 		t.Fatal(err)
 	}
-	raw, _ := json.Marshal(user.UserResponse{})
+	raw, _ := json.Marshal(interfaceshttpaccount.UserResponse{})
 	if strings.Contains(string(raw), "password") {
 		t.Fatal("DTO contains password")
 	}

@@ -1,4 +1,4 @@
-package user
+package domainaccount
 
 import "context"
 

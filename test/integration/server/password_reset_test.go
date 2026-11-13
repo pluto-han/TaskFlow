@@ -11,8 +11,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/pluto-han/taskflow/internal/auth"
 	"github.com/pluto-han/taskflow/internal/httpapi"
+	infrapassword "github.com/pluto-han/taskflow/internal/infra/password"
 	email "github.com/pluto-han/taskflow/internal/mail"
 	"github.com/pluto-han/taskflow/internal/server"
 	"github.com/pluto-han/taskflow/internal/session"
@@ -131,7 +131,7 @@ func TestPasswordResetConcurrentConsumption(t *testing.T) {
 	inbox := &email.MemorySender{}
 	s := mailService(t, f, inbox)
 	token := resetLink(t, f, s, inbox, u.Email)
-	hash, err := (auth.PasswordHasher{}).HashPassword(f.ctx, "concurrent reset password")
+	hash, err := (infrapassword.PasswordHasher{}).HashPassword(f.ctx, "concurrent reset password")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -415,14 +415,14 @@ func TestPasswordResetHashBusyLeavesCapabilityUsable(t *testing.T) {
 	arrived := make(chan struct{}, 1)
 	release := make(chan struct{})
 	close(release)
-	s.WithPasswords(resetHashGate{arrived: arrived, release: release, err: auth.ErrBusy})
-	if !errors.Is(s.ConfirmReset(f.ctx, email.ResetConfirmRequest{Token: token, NewPassword: "a valid new password"}), auth.ErrBusy) {
+	s.WithPasswords(resetHashGate{arrived: arrived, release: release, err: infrapassword.ErrBusy})
+	if !errors.Is(s.ConfirmReset(f.ctx, email.ResetConfirmRequest{Token: token, NewPassword: "a valid new password"}), infrapassword.ErrBusy) {
 		t.Fatal("busy hash not reported")
 	}
 	if _, err := f.svc.Authenticate(f.ctx, login.AccessToken); err != nil {
 		t.Fatal("busy hash revoked session")
 	}
-	s.WithPasswords(auth.PasswordHasher{})
+	s.WithPasswords(infrapassword.PasswordHasher{})
 	if err := s.ConfirmReset(f.ctx, email.ResetConfirmRequest{Token: token, NewPassword: "a valid new password"}); err != nil {
 		t.Fatal("busy hash consumed capability")
 	}

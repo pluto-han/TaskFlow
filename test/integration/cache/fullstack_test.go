@@ -18,15 +18,17 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/pluto-han/taskflow/internal/auth"
+
+	applicationaccount "github.com/pluto-han/taskflow/internal/application/account"
 	"github.com/pluto-han/taskflow/internal/cache"
+	infrapassword "github.com/pluto-han/taskflow/internal/infra/password"
+	infraaccount "github.com/pluto-han/taskflow/internal/infra/persistence/account"
 	"github.com/pluto-han/taskflow/internal/project"
 	"github.com/pluto-han/taskflow/internal/server"
 	"github.com/pluto-han/taskflow/internal/session"
 	"github.com/pluto-han/taskflow/internal/task"
 	"github.com/pluto-han/taskflow/internal/telemetry"
 	"github.com/pluto-han/taskflow/internal/testdb"
-	"github.com/pluto-han/taskflow/internal/user"
 )
 
 type observedStore struct {
@@ -125,14 +127,14 @@ func newCacheHTTPFixture(t *testing.T, mode string) *cacheHTTPFixture {
 	metrics := telemetry.New(nil, nil)
 	metrics.SetCacheEnabled(true)
 	tasks := task.NewServiceWithClock(repo, projects, clock).WithTodayCache(store).WithTodayCacheObserver(metrics)
-	users := user.NewPostgresRepository(pool)
+	users := infraaccount.New(pool)
 	sessions := &observedSessions{Repository: session.NewPostgresRepository(pool)}
-	sessionService, err := session.NewService(context.Background(), users, sessions, auth.PasswordHasher{})
+	sessionService, err := session.NewService(context.Background(), users, sessions, infrapassword.PasswordHasher{})
 	if err != nil {
 		t.Fatal("cannot prepare sessions")
 	}
 	router := server.NewRouter(server.Dependencies{Tasks: tasks, Projects: project.NewService(projects),
-		Users: user.NewService(users, auth.PasswordHasher{}), Sessions: sessionService, Ping: pool.Ping,
+		Users: applicationaccount.New(users, infrapassword.PasswordHasher{}), Sessions: sessionService, Ping: pool.Ping,
 		Metrics: metrics, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
 	httpServer := httptest.NewServer(router)
 	t.Cleanup(httpServer.Close)

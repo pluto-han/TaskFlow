@@ -17,8 +17,11 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+
+	applicationaccount "github.com/pluto-han/taskflow/internal/application/account"
 	"github.com/pluto-han/taskflow/internal/httpapi"
 	"github.com/pluto-han/taskflow/internal/integration"
+	interfaceshttpaccount "github.com/pluto-han/taskflow/internal/interfaces/http/account"
 	email "github.com/pluto-han/taskflow/internal/mail"
 	"github.com/pluto-han/taskflow/internal/notification"
 	"github.com/pluto-han/taskflow/internal/project"
@@ -26,7 +29,6 @@ import (
 	"github.com/pluto-han/taskflow/internal/server"
 	"github.com/pluto-han/taskflow/internal/session"
 	"github.com/pluto-han/taskflow/internal/task"
-	"github.com/pluto-han/taskflow/internal/user"
 )
 
 type schema struct {
@@ -72,7 +74,7 @@ func readContract(t *testing.T) (document, map[string]any) {
 	return d, tree
 }
 func testRouter() *gin.Engine {
-	return server.NewRouter(server.Dependencies{Users: user.NewService(nil, nil), Ping: func(context.Context) error { return nil }, Logger: slog.New(slog.NewJSONHandler(io.Discard, nil))})
+	return server.NewRouter(server.Dependencies{Users: applicationaccount.New(nil, nil), Ping: func(context.Context) error { return nil }, Logger: slog.New(slog.NewJSONHandler(io.Discard, nil))})
 }
 
 func TestContractRoutesAndReferences(t *testing.T) {
@@ -171,7 +173,7 @@ func TestContractDTOFields(t *testing.T) {
 	if !reflect.DeepEqual(d.Security, []map[string][]string{{"bearerSession": {}}, {"browserSession": {}}}) {
 		t.Fatal("global authentication must allow either mechanism, never require both")
 	}
-	for name, value := range map[string]any{"EmailVerificationStatus": email.Status{}, "PasswordResetRequest": email.ResetRequest{}, "PasswordResetConfirm": email.ResetConfirmRequest{}, "SessionInfo": session.SessionInfo{}, "SessionPage": session.SessionPage{}, "PasswordChangeRequest": session.PasswordChangeRequest{}, "BrowserSession": session.BrowserResponse{}, "NotificationEvent": notification.Event{}, "DiscordBinding": integration.Binding{}, "DiscordBindingCode": integration.Code{}, "UnbindDiscord": integration.UnbindRequest{}, "Recurrence": recurrence.Rule{}, "CreateRecurrence": recurrence.CreateRequest{}, "UpdateRecurrence": recurrence.UpdateRequest{}, "DeleteRecurrence": recurrence.DeleteRequest{}, "PreviewRecurrenceRequest": recurrence.PreviewRequest{}, "RecurrencePreview": recurrence.Preview{}, "RecurrencePage": recurrence.Page{}, "RegisterRequest": user.RegisterRequest{}, "LoginRequest": session.LoginRequest{}, "LoginResponse": session.LoginResponse{}, "User": user.UserResponse{}, "Task": task.Task{}, "CreateTask": task.CreateTaskRequest{}, "CreateTodayTask": task.CreateTodayTaskRequest{}, "TodayPage": task.TodayPage{}, "UpdateTask": task.UpdateTaskRequest{}, "Member": project.Member{}, "Invitation": project.Invitation{}, "InviteRequest": project.InviteRequest{}, "AcceptRequest": project.AcceptRequest{}, "Project": project.Project{}, "CreateProject": project.CreateRequest{}, "UpdateProject": project.UpdateRequest{}, "Error": httpapi.ErrorResponse{}, "ErrorDetail": httpapi.ErrorDetail{}} {
+	for name, value := range map[string]any{"EmailVerificationStatus": email.Status{}, "PasswordResetRequest": email.ResetRequest{}, "PasswordResetConfirm": email.ResetConfirmRequest{}, "SessionInfo": session.SessionInfo{}, "SessionPage": session.SessionPage{}, "PasswordChangeRequest": session.PasswordChangeRequest{}, "BrowserSession": session.BrowserResponse{}, "NotificationEvent": notification.Event{}, "DiscordBinding": integration.Binding{}, "DiscordBindingCode": integration.Code{}, "UnbindDiscord": integration.UnbindRequest{}, "Recurrence": recurrence.Rule{}, "CreateRecurrence": recurrence.CreateRequest{}, "UpdateRecurrence": recurrence.UpdateRequest{}, "DeleteRecurrence": recurrence.DeleteRequest{}, "PreviewRecurrenceRequest": recurrence.PreviewRequest{}, "RecurrencePreview": recurrence.Preview{}, "RecurrencePage": recurrence.Page{}, "RegisterRequest": interfaceshttpaccount.RegisterRequest{}, "LoginRequest": session.LoginRequest{}, "LoginResponse": session.LoginResponse{}, "User": interfaceshttpaccount.UserResponse{}, "Task": task.Task{}, "CreateTask": task.CreateTaskRequest{}, "CreateTodayTask": task.CreateTodayTaskRequest{}, "TodayPage": task.TodayPage{}, "UpdateTask": task.UpdateTaskRequest{}, "Member": project.Member{}, "Invitation": project.Invitation{}, "InviteRequest": project.InviteRequest{}, "AcceptRequest": project.AcceptRequest{}, "Project": project.Project{}, "CreateProject": project.CreateRequest{}, "UpdateProject": project.UpdateRequest{}, "Error": httpapi.ErrorResponse{}, "ErrorDetail": httpapi.ErrorDetail{}} {
 		t.Run(name, func(t *testing.T) {
 			fields := map[string]bool{}
 			typ := reflect.TypeOf(value)

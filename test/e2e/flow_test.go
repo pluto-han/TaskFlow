@@ -21,9 +21,12 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/pluto-han/taskflow/internal/auth"
+
+	applicationaccount "github.com/pluto-han/taskflow/internal/application/account"
 	"github.com/pluto-han/taskflow/internal/discord"
 	"github.com/pluto-han/taskflow/internal/httpapi"
+	infrapassword "github.com/pluto-han/taskflow/internal/infra/password"
+	infraaccount "github.com/pluto-han/taskflow/internal/infra/persistence/account"
 	"github.com/pluto-han/taskflow/internal/integration"
 	email "github.com/pluto-han/taskflow/internal/mail"
 	"github.com/pluto-han/taskflow/internal/notification"
@@ -33,7 +36,6 @@ import (
 	"github.com/pluto-han/taskflow/internal/session"
 	"github.com/pluto-han/taskflow/internal/task"
 	"github.com/pluto-han/taskflow/internal/testdb"
-	"github.com/pluto-han/taskflow/internal/user"
 )
 
 type transport func(*http.Request) (*http.Response, error)
@@ -61,7 +63,7 @@ func TestBrowserDiscordFlow(t *testing.T) {
 		t.Fatal(err)
 	}
 	bindings := integration.NewService(pool, true)
-	sessionService, err := session.NewService(ctx, user.NewPostgresRepository(pool), session.NewPostgresRepository(pool), auth.PasswordHasher{})
+	sessionService, err := session.NewService(ctx, infraaccount.New(pool), session.NewPostgresRepository(pool), infrapassword.PasswordHasher{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +77,7 @@ func TestBrowserDiscordFlow(t *testing.T) {
 		t.Fatal("mail fixture failed")
 	}
 	projects := project.NewPostgresRepository(pool)
-	router := server.NewRouter(server.Dependencies{Mail: mailService, Security: httpapi.SecurityOptions{PublicOrigin: origin}, Notifications: notification.NewService(pool, nil), Discord: discord.NewHandler(public, "777", bindings), Integrations: bindings, Recurrences: recurrence.NewServiceWithScheduler(recurrence.NewPostgresRepository(pool), true), Users: user.NewService(user.NewPostgresRepository(pool), auth.PasswordHasher{}), Sessions: sessionService, Tasks: task.NewService(task.NewPostgresRepository(pool), projects), Projects: project.NewService(projects), Ping: pool.Ping})
+	router := server.NewRouter(server.Dependencies{Mail: mailService, Security: httpapi.SecurityOptions{PublicOrigin: origin}, Notifications: notification.NewService(pool, nil), Discord: discord.NewHandler(public, "777", bindings), Integrations: bindings, Recurrences: recurrence.NewServiceWithScheduler(recurrence.NewPostgresRepository(pool), true), Users: applicationaccount.New(infraaccount.New(pool), infrapassword.PasswordHasher{}), Sessions: sessionService, Tasks: task.NewService(task.NewPostgresRepository(pool), projects), Projects: project.NewService(projects), Ping: pool.Ping})
 	var mu sync.Mutex
 	var messages []map[string]any
 	fakeDiscord := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -11,12 +11,12 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/pluto-han/taskflow/internal/user"
+	domainaccount "github.com/pluto-han/taskflow/internal/domain/account"
 )
 
-var ErrUnauthorized = errors.New("unauthorized")
+var ErrUnauthorized = domainaccount.ErrUnauthorized
 
-type UserID string
+type UserID = domainaccount.UserID
 
 type Principal struct {
 	SessionID string
@@ -46,13 +46,13 @@ type Passwords interface {
 }
 
 type Service struct {
-	users     user.Repository
+	users     domainaccount.Repository
 	sessions  Repository
 	passwords Passwords
 	dummyHash string
 }
 
-func NewService(ctx context.Context, users user.Repository, sessions Repository, passwords Passwords) (*Service, error) {
+func NewService(ctx context.Context, users domainaccount.Repository, sessions Repository, passwords Passwords) (*Service, error) {
 	// Never authorize against this hash. Missing users still pay one Argon2 cost.
 	dummy, err := passwords.HashPassword(ctx, "dummy password for missing accounts")
 	if err != nil {
@@ -78,9 +78,9 @@ func (s *Service) Login(ctx context.Context, input LoginRequest) (LoginResponse,
 }
 
 type BrowserResponse struct {
-	User      user.UserResponse `json:"user"`
-	ExpiresAt time.Time         `json:"expires_at"`
-	CSRFToken string            `json:"csrf_token"`
+	User      UserResponse `json:"user"`
+	ExpiresAt time.Time    `json:"expires_at"`
+	CSRFToken string       `json:"csrf_token"`
 }
 
 // The credential is returned separately so it cannot be serialized in the DTO.
@@ -97,18 +97,18 @@ func (s *Service) LoginBrowser(ctx context.Context, input LoginRequest) (Browser
 		CSRFToken: base64.RawURLEncoding.EncodeToString(csrf[:])}, result.AccessToken, nil
 }
 
-func (s *Service) login(ctx context.Context, input LoginRequest, csrf *[32]byte) (LoginResponse, user.UserResponse, error) {
+func (s *Service) login(ctx context.Context, input LoginRequest, csrf *[32]byte) (LoginResponse, UserResponse, error) {
 	if err := ctx.Err(); err != nil {
-		return LoginResponse{}, user.UserResponse{}, err
+		return LoginResponse{}, UserResponse{}, err
 	}
-	email, valid := user.NormalizeEmail(input.Email)
+	email, valid := domainaccount.NormalizeEmail(input.Email)
 	if !valid || len(input.Password) == 0 || len(input.Password) > 512 || !utf8.ValidString(input.Password) {
-		return LoginResponse{}, user.UserResponse{}, ErrUnauthorized
+		return LoginResponse{}, UserResponse{}, ErrUnauthorized
 	}
 	u, err := s.users.GetByEmail(ctx, email)
-	missing := errors.Is(err, user.ErrUserNotFound)
+	missing := errors.Is(err, domainaccount.ErrUserNotFound)
 	if err != nil && !missing {
-		return LoginResponse{}, user.UserResponse{}, err
+		return LoginResponse{}, UserResponse{}, err
 	}
 	hash := s.dummyHash
 	if !missing {
@@ -116,24 +116,24 @@ func (s *Service) login(ctx context.Context, input LoginRequest, csrf *[32]byte)
 	}
 	ok, err := s.passwords.VerifyPassword(ctx, input.Password, hash)
 	if err != nil {
-		return LoginResponse{}, user.UserResponse{}, err
+		return LoginResponse{}, UserResponse{}, err
 	}
 	if !ok || missing {
-		return LoginResponse{}, user.UserResponse{}, ErrUnauthorized
+		return LoginResponse{}, UserResponse{}, ErrUnauthorized
 	}
 	if err := ctx.Err(); err != nil {
-		return LoginResponse{}, user.UserResponse{}, err
+		return LoginResponse{}, UserResponse{}, err
 	}
 	var token [32]byte
 	if _, err := rand.Read(token[:]); err != nil {
-		return LoginResponse{}, user.UserResponse{}, err
+		return LoginResponse{}, UserResponse{}, err
 	}
 	encoded := base64.RawURLEncoding.EncodeToString(token[:])
 	// Hash the canonical token bytes sent in Authorization, not a low-entropy password.
 	digest := sha256.Sum256([]byte(encoded))
 	var id [16]byte
 	if _, err := rand.Read(id[:]); err != nil {
-		return LoginResponse{}, user.UserResponse{}, err
+		return LoginResponse{}, UserResponse{}, err
 	}
 	id[6] = (id[6] & 0x0f) | 0x40
 	id[8] = (id[8] & 0x3f) | 0x80
@@ -145,10 +145,10 @@ func (s *Service) login(ctx context.Context, input LoginRequest, csrf *[32]byte)
 		principal, err = s.sessions.CreateBrowser(ctx, uuid, UserID(u.ID), digest, *csrf, u.CredentialsVersion)
 	}
 	if err != nil {
-		return LoginResponse{}, user.UserResponse{}, err
+		return LoginResponse{}, UserResponse{}, err
 	}
 	return LoginResponse{AccessToken: encoded, TokenType: "Bearer", ExpiresAt: principal.ExpiresAt},
-		user.UserResponse{ID: u.ID, Email: u.Email, CreatedAt: u.CreatedAt}, nil
+		UserResponse{ID: u.ID, Email: u.Email, CreatedAt: u.CreatedAt}, nil
 }
 
 func tokenDigest(token string) ([32]byte, error) {
@@ -184,15 +184,15 @@ func (s *Service) AuthenticateBrowser(ctx context.Context, token string) (Browse
 	return s.sessions.FindBrowser(ctx, digest)
 }
 
-func (s *Service) Me(ctx context.Context, p Principal) (user.UserResponse, error) {
+func (s *Service) Me(ctx context.Context, p Principal) (UserResponse, error) {
 	u, err := s.users.GetByID(ctx, string(p.UserID))
-	if errors.Is(err, user.ErrUserNotFound) {
-		return user.UserResponse{}, ErrUnauthorized
+	if errors.Is(err, domainaccount.ErrUserNotFound) {
+		return UserResponse{}, ErrUnauthorized
 	}
 	if err != nil {
-		return user.UserResponse{}, err
+		return UserResponse{}, err
 	}
-	return user.UserResponse{ID: u.ID, Email: u.Email, CreatedAt: u.CreatedAt}, nil
+	return UserResponse{ID: u.ID, Email: u.Email, CreatedAt: u.CreatedAt}, nil
 }
 
 func (s *Service) Logout(ctx context.Context, p Principal) error { return s.sessions.Revoke(ctx, p) }
