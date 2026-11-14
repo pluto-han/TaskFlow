@@ -48,6 +48,8 @@ def main(*, performance=False):
         digest = hashlib.sha256(redis_password.encode()).hexdigest()
         with (directory / "secrets/users.acl").open("a") as acl:
             acl.write(f"user taskflow_readonly reset on #{digest} ~taskflow:cache:* -@all +hello +ping +get\n")
+            # Test-only observation cannot read keys or change production-user permissions.
+            acl.write(f"user taskflow_pool_observer reset on #{digest} -@all +hello +client|list\n")
         pg_password = secrets.token_hex(32)
         password_file = directory / "postgres_password"
         password_file.write_text(pg_password + "\n")

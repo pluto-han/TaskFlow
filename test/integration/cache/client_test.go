@@ -7,6 +7,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -53,6 +54,9 @@ func TestRedisClientIntegration(t *testing.T) {
 	if err := client.Ping(ctx); err != nil {
 		t.Fatal("authenticated handshake/PING failed")
 	}
+	t.Run("healthy connection pool bound", func(t *testing.T) {
+		assertRedisPoolBound(t, client, options)
+	})
 	if _, err := client.Get(ctx, key); !errors.Is(err, applicationtask.ErrMiss) {
 		t.Fatal("missing key was not a cache miss")
 	}
@@ -99,7 +103,7 @@ func TestRedisClientIntegration(t *testing.T) {
 	for _, command := range [][]any{
 		{"GET", "another-project:key"}, {"SET", "another-project:key", "value"},
 		{"CONFIG", "GET", "maxmemory"}, {"FLUSHALL"}, {"KEYS", "*"},
-		{"CLIENT", "SETNAME", "unexpected"},
+		{"CLIENT", "SETNAME", "unexpected"}, {"CLIENT", "LIST"},
 	} {
 		if err := raw.Do(ctx, command...).Err(); err == nil || !strings.Contains(err.Error(), "NOPERM") {
 			t.Fatal("Redis ACL did not reject an unrelated key or management command")
@@ -125,5 +129,66 @@ func TestRedisRestartEmpty(t *testing.T) {
 	client, _, marker := redisFixture(t)
 	if _, err := client.Get(context.Background(), applicationtask.KeyPrefix+"restart:"+marker); !errors.Is(err, applicationtask.ErrMiss) {
 		t.Fatal("restart restored cache data despite persistence being disabled")
+	}
+}
+
+// Observe a healthy pool after concurrent commands have completed. Failed TCP
+// connections awaiting server-side EOF processing are not client pool leases.
+func assertRedisPoolBound(t *testing.T, client *infracache.Client, options infracache.Options) {
+	t.Helper()
+	observer := redis.NewClient(&redis.Options{
+		Addr: options.Addr, Username: "taskflow_pool_observer", Password: options.Password,
+		Protocol: 2, DisableIdentity: true, MaxRetries: -1, DialerRetries: 1,
+		DialTimeout: time.Second, ReadTimeout: time.Second, WriteTimeout: time.Second,
+		MaintNotificationsConfig: &maintnotifications.Config{Mode: maintnotifications.ModeDisabled},
+	})
+	t.Cleanup(func() { _ = observer.Close() })
+	count := func() int {
+		t.Helper()
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		listing, err := observer.ClientList(ctx).Result()
+		if err != nil {
+			t.Fatal("cannot observe isolated Redis client connections")
+		}
+		clients := 0
+		for _, line := range strings.Split(listing, "\n") {
+			for _, field := range strings.Fields(line) {
+				if field == "user=taskflow_cache" {
+					clients++
+					break
+				}
+			}
+		}
+		return clients
+	}
+	// The fixture owns this client and checks the run marker before observation.
+	// Other tests run sequentially and close their clients during cleanup.
+	if clients := count(); clients < 1 || clients > 4 {
+		t.Fatalf("initial Redis connection count: %d", clients)
+	}
+	for range 5 {
+		var wg sync.WaitGroup
+		results := make(chan error, 32)
+		start := make(chan struct{})
+		for range 32 {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				<-start
+				results <- client.Ping(context.Background())
+			}()
+		}
+		close(start)
+		wg.Wait()
+		close(results)
+		for err := range results {
+			if err != nil {
+				t.Fatal("healthy Redis command failed during pool check")
+			}
+		}
+		if clients := count(); clients < 1 || clients > 4 {
+			t.Fatalf("healthy Redis connection pool exceeded bound: %d", clients)
+		}
 	}
 }
