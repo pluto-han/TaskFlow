@@ -7,10 +7,12 @@ import { Modal } from "../components/Modal";
 type Binding = components["schemas"]["DiscordBinding"];
 type Code = components["schemas"]["DiscordBindingCode"];
 type Notification = components["schemas"]["NotificationEvent"];
-export function DiscordSettings() {
+export function IntegrationsSettings() {
   const { authorize } = useAuth();
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [notificationsError, setNotificationsError] = useState("");
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [binding, setBinding] = useState<Binding | null>(null);
   const [code, setCode] = useState<Code | null>(null);
   const [busy, setBusy] = useState(false);
@@ -19,6 +21,7 @@ export function DiscordSettings() {
   const [copy, setCopy] = useState("");
   const request = useRef<AbortController | null>(null);
   const active = useRef(true);
+  const historyRequest = useRef<AbortController | null>(null);
   const load = useCallback(async () => {
     request.current?.abort();
     const controller = new AbortController();
@@ -43,27 +46,36 @@ export function DiscordSettings() {
     return () => {
       active.current = false;
       request.current?.abort();
+      historyRequest.current?.abort();
     };
   }, [load]);
   const loadNotifications = useCallback(async () => {
+    historyRequest.current?.abort();
+    const controller = new AbortController();
+    historyRequest.current = controller;
+    setNotificationsLoading(true);
     try {
       const data = await authorize((credentials) =>
-        discordApi.notifications(credentials),
+        discordApi.notifications(credentials, controller.signal),
       );
-      if (active.current) {
+      if (active.current && !controller.signal.aborted) {
         setNotifications(data);
         setNotificationsError("");
       }
     } catch {
-      if (active.current)
+      if (active.current && !controller.signal.aborted)
         setNotificationsError("We could not load your reminders just now.");
+    } finally {
+      if (active.current && !controller.signal.aborted)
+        setNotificationsLoading(false);
     }
   }, [authorize]);
   useEffect(() => {
     // Load the signed-in user's notification history.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    void loadNotifications();
-  }, [loadNotifications]);
+    if (historyOpen) void loadNotifications();
+    return () => historyRequest.current?.abort();
+  }, [loadNotifications, historyOpen]);
   useEffect(() => {
     if (!code) return;
     const timer = setTimeout(
@@ -109,21 +121,13 @@ export function DiscordSettings() {
   }
   return (
     <section
-      className="profile-card discord-settings"
+      className="settings-content discord-settings"
       aria-labelledby="discord-heading"
       aria-busy={busy}
     >
-      <h2 id="discord-heading">Discord channel</h2>
-      <p className="hint">
-        Recurring task reminders will appear in this channel, where anyone with
-        access can see them. Only connect a channel you have permission to
-        manage.
-      </p>
-      <p className="hint">
-        When reminders and delivery are enabled, messages will mention the
-        Discord account that connected this channel. If someone connected it for
-        you, reconnect it yourself to receive the mentions.
-      </p>
+      <h1 id="discord-heading">Integrations</h1>
+      <h2 className="section-title">Discord</h2>
+
       {error && (
         <div className="notice error" role="alert">
           {error}
@@ -157,40 +161,24 @@ export function DiscordSettings() {
           )}
         </dl>
       )}
-      {binding && !binding.enabled && (
-        <p className="hint">
-          Ask the server administrator to configure the Discord Application ID
-          and Public Key, then restart the service. Setup instructions are in{" "}
-          <code>docs/lesson-33-discord-setup.md</code>.
-        </p>
-      )}
       {code && (
         <div
           className="notice"
           role="region"
           aria-label="One-time connection code"
         >
-          <p>
-            Run this command in a regular text channel on your chosen server:
-          </p>
           <code className="binding-command">
             /taskflow bind code:{code.code}
           </code>
           <p className="hint">
-            Valid for 10 minutes and one use only. Keep it private: do not share
-            it, take screenshots, or post it as a regular chat message. A new
-            code replaces the old one.
+            Expires {new Date(code.expires_at).toLocaleTimeString()}
           </p>
           <button
             className="text-button"
             onClick={() =>
               void navigator.clipboard
                 .writeText(`/taskflow bind code:${code.code}`)
-                .then(() =>
-                  setCopy(
-                    "Command copied. Paste it into Discord’s slash command field.",
-                  ),
-                )
+                .then(() => setCopy("Command copied"))
                 .catch(() => setCopy("Please copy the command manually."))
             }
           >
@@ -228,65 +216,77 @@ export function DiscordSettings() {
           </button>
         )}
       </div>
-      <div className="notification-history">
-        <h3>Recent reminders</h3>
-        <button
-          className="text-button"
-          onClick={() => void loadNotifications()}
-        >
-          Refresh reminders
-        </button>
-        {notificationsError && <p role="status">{notificationsError}</p>}
-        {!notificationsError && notifications.length === 0 && (
-          <p className="hint">No reminders yet.</p>
-        )}
-        <ul className="task-list">
-          {notifications.map((item) => (
-            <li key={item.id} className="task-row">
-              <div className="task-content">
-                <h4>{item.title}</h4>
-                <div className="task-meta">
-                  <span>{item.scheduled_date}</span>
-                  <span>
-                    {
-                      (
-                        {
-                          pending: "Waiting to send",
-                          retrying: "Waiting to retry",
-                          leased: "Sending",
-                          sent: "Sent",
-                          failed: "Delivery failed",
-                          expired: "Expired",
-                          canceled: "Canceled",
-                        } as const
-                      )[item.status]
-                    }
-                  </span>
-                </div>
-                {item.last_error && (
-                  <p className="hint">
-                    {(
+      <button
+        className="button secondary"
+        aria-expanded={historyOpen}
+        onClick={() => setHistoryOpen(!historyOpen)}
+      >
+        Recent reminders
+      </button>
+      {historyOpen && (
+        <div className="notification-history">
+          <button
+            className="text-button"
+            disabled={notificationsLoading}
+            onClick={() => void loadNotifications()}
+          >
+            Refresh reminders
+          </button>
+          {notificationsLoading && <p role="status">Loading reminders…</p>}
+          {notificationsError && <p role="alert">{notificationsError}</p>}
+          {!notificationsLoading &&
+            !notificationsError &&
+            notifications.length === 0 && (
+              <p className="hint">No reminders yet.</p>
+            )}
+          <ul className="task-list">
+            {notifications.map((item) => (
+              <li key={item.id} className="task-row">
+                <div className="task-content">
+                  <h4>{item.title}</h4>
+                  <div className="task-meta">
+                    <span>{item.scheduled_date}</span>
+                    <span>
                       {
-                        network: "Network error",
-                        rate_limited: "Discord is limiting requests",
-                        discord_unavailable:
-                          "Discord is temporarily unavailable",
-                        discord_token_invalid:
-                          "The bot credentials is invalid. Please check the configuration.",
-                        discord_permission:
-                          "The bot does not have access to this channel",
-                        discord_channel_missing: "Channel unavailable",
-                        discord_rejected: "Discord declined the request",
-                        attempts_exhausted: "No retry attempts left",
-                      } as Record<string, string>
-                    )[item.last_error] || "Delivery did not complete"}
-                  </p>
-                )}
-              </div>
-            </li>
-          ))}
-        </ul>
-      </div>
+                        (
+                          {
+                            pending: "Waiting to send",
+                            retrying: "Waiting to retry",
+                            leased: "Sending",
+                            sent: "Sent",
+                            failed: "Delivery failed",
+                            expired: "Expired",
+                            canceled: "Canceled",
+                          } as const
+                        )[item.status]
+                      }
+                    </span>
+                  </div>
+                  {item.last_error && (
+                    <p className="hint">
+                      {(
+                        {
+                          network: "Network error",
+                          rate_limited: "Discord is limiting requests",
+                          discord_unavailable:
+                            "Discord is temporarily unavailable",
+                          discord_token_invalid:
+                            "The bot credentials is invalid. Please check the configuration.",
+                          discord_permission:
+                            "The bot does not have access to this channel",
+                          discord_channel_missing: "Channel unavailable",
+                          discord_rejected: "Discord declined the request",
+                          attempts_exhausted: "No retry attempts left",
+                        } as Record<string, string>
+                      )[item.last_error] || "Delivery did not complete"}
+                    </p>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {confirm && (
         <Modal
           title="Disconnect Discord"

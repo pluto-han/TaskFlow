@@ -1,26 +1,49 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { useAuth } from "../auth/AuthProvider";
 import { workspaceApi, type Filters } from "../api/workspace";
 import { errorMessage, ApiError } from "../api/client";
 import type { Task, Project, TodayPage } from "../api/types";
+import { Icon } from "../components/Icon";
+import { TaskDetails } from "./TaskDetails";
 import { TaskEditor } from "./TaskEditor";
 import { DeleteDialog } from "./DeleteDialog";
-import { displayDate } from "./dates";
 
 export function TaskBoard({
   today = false,
   filters,
   projects,
   title,
-  setMutating,
+  toolbar,
+  onAccessLost,
+  selectedId,
+  selectTask,
 }: {
+  toolbar?: ReactNode;
+  onAccessLost?(): void;
+  selectedId?: string;
+  selectTask?(id: string): void;
   today?: boolean;
   filters: Filters;
   projects: Project[];
   title: string;
-  setMutating(busy: boolean): void;
 }) {
   const { authorize } = useAuth();
+  const [localSelection, setLocalSelection] = useState("");
+  const taskId = selectedId ?? localSelection;
+  const choose = selectTask ?? setLocalSelection;
+  const [revision, setRevision] = useState(0);
+  const lostRef = useRef(onAccessLost);
+  const chooseRef = useRef(choose);
+  useEffect(() => {
+    chooseRef.current = choose;
+    lostRef.current = onAccessLost;
+  }, [choose, onAccessLost]);
   const [day, setDay] = useState<TodayPage | null>(null);
   const dayRef = useRef("");
   const midnightTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
@@ -80,6 +103,8 @@ export function TaskBoard({
           }
           if (after && dayRef.current !== response.plan_date)
             return await fetchPage();
+          if (dayRef.current && dayRef.current !== response.plan_date)
+            chooseRef.current("");
           dayRef.current = response.plan_date;
           setDay(response);
           midnightTimer.current = setTimeout(
@@ -98,12 +123,24 @@ export function TaskBoard({
               ]
             : result.items,
         );
+        setRevision((value) => value + 1);
         setNow(Date.now());
         setCursor(result.next);
         setConflict(false);
         return "plan_date" in response ? response.plan_date : null;
       } catch (err) {
         if (!request.signal.aborted) {
+          if (
+            filters.project &&
+            filters.project !== "none" &&
+            err instanceof ApiError &&
+            [403, 404].includes(err.status ?? 0)
+          ) {
+            setItems([]);
+            chooseRef.current("");
+            lostRef.current?.();
+            return null;
+          }
           if (
             today &&
             after &&
@@ -148,7 +185,6 @@ export function TaskBoard({
     if (locked.current || loading) return;
     locked.current = true;
     setPending(item.id);
-    setMutating(true);
     setError("");
     setItems((previous) =>
       previous.map((row) =>
@@ -180,22 +216,16 @@ export function TaskBoard({
     } finally {
       locked.current = false;
       setPending("");
-      setMutating(false);
     }
   }
   return (
     <section className="task-board" aria-labelledby="tasks-heading">
       <header className="board-heading">
         <div>
-          <span className="eyebrow">MAKE ROOM FOR WHAT MATTERS</span>
           <h1 id="tasks-heading">{title}</h1>
-          <p className="subtitle">
-            One thing at a time. A little further each day.
-          </p>
           {today && (
             <p className="plan-day" role="status">
-              Amsterdam time / Europe/Amsterdam ·{" "}
-              {day?.plan_date || "Checking the date…"}
+              Europe/Amsterdam · {day?.plan_date || "Checking the date…"}
             </p>
           )}
         </div>
@@ -204,9 +234,10 @@ export function TaskBoard({
           onClick={() => setEditor("new")}
           disabled={!!pending || (today && (loading || !!error || !day))}
         >
-          ＋ New task
+          <Icon name="plus" /> New task
         </button>
       </header>
+      {toolbar}
       {error && (
         <div className="notice error" role="alert">
           {error}
@@ -225,10 +256,125 @@ export function TaskBoard({
           </button>
         </div>
       )}
+      {loading && (
+        <p role="status" className="loading">
+          Loading tasks…
+        </p>
+      )}
+      <div className={`task-grid ${taskId ? "has-detail" : ""}`}>
+        <div className="task-table-wrap">
+          <table className="task-table" aria-label="Tasks" aria-busy={loading}>
+            <thead>
+              <tr>
+                <th className="check-col">
+                  <span className="sr-only">Complete</span>
+                </th>
+                <th scope="col">Task / Project</th>
+                <th scope="col" className="priority-col">
+                  Priority
+                </th>
+                <th scope="col" className="due-col">
+                  Due
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => (
+                <tr
+                  key={item.id}
+                  className={`${item.completed ? "is-complete" : ""} ${taskId === item.id ? "selected" : ""}`}
+                >
+                  <td>
+                    <label className="completion">
+                      <input
+                        type="checkbox"
+                        checked={item.completed}
+                        aria-label={`${item.completed ? "Mark incomplete" : "Complete task"}: ${item.title}`}
+                        disabled={loading || !!pending || conflict}
+                        onChange={() => void toggle(item)}
+                      />
+                    </label>
+                  </td>
+                  <th scope="row">
+                    <button
+                      id={`task-${item.id}`}
+                      className="task-title"
+                      onClick={() => choose(item.id)}
+                    >
+                      {item.title}
+                    </button>
+                    <span className="task-project">
+                      {projects.find((p) => p.id === item.project_id)?.name ||
+                        (item.plan_date
+                          ? "Personal plan"
+                          : item.project_id
+                            ? "Project unavailable"
+                            : "Unassigned")}
+                      {item.plan_date && (
+                        <time dateTime={item.plan_date}>
+                          {" "}
+                          · Planned {item.plan_date}
+                        </time>
+                      )}
+                    </span>
+                    {pending === item.id && <span role="status">Syncing…</span>}
+                  </th>
+                  <td className="priority-col">
+                    <span className={`priority priority-${item.priority}`}>
+                      {["", "Low", "Medium", "High"][item.priority]}
+                    </span>
+                  </td>
+                  <td className="due-col">
+                    {item.due_date ? (
+                      <time
+                        dateTime={item.due_date}
+                        className={
+                          !item.completed && Date.parse(item.due_date) < now
+                            ? "overdue"
+                            : ""
+                        }
+                      >
+                        {new Intl.DateTimeFormat("en-GB", {
+                          day: "numeric",
+                          month: "short",
+                        }).format(new Date(item.due_date))}
+                      </time>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {!loading && !error && !items.length && (
+                <tr>
+                  <td colSpan={4} className="empty-state">
+                    No tasks
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        {taskId && (
+          <TaskDetails
+            key={taskId}
+            id={taskId}
+            task={items.find((item) => item.id === taskId)}
+            revision={revision}
+            busy={!!pending}
+            projects={projects}
+            edit={setEditor}
+            remove={setDeleting}
+            close={() => {
+              choose("");
+              document.getElementById(`task-${taskId}`)?.focus();
+            }}
+          />
+        )}
+      </div>
       <div className="list-summary">
         <span>
-          {items.length} {items.length === 1 ? "task" : "tasks"} loaded
-          {cursor ? " · More to explore" : ""}
+          {items.length} {items.length === 1 ? "task" : "tasks"}
         </span>
         <button
           className="text-button"
@@ -238,94 +384,6 @@ export function TaskBoard({
           Refresh
         </button>
       </div>
-      {loading && (
-        <p role="status" className="loading">
-          Loading tasks…
-        </p>
-      )}
-      {!loading && !error && items.length === 0 && (
-        <div className="empty-state">
-          <span aria-hidden="true">○</span>
-          <h2>No tasks here yet</h2>
-          <p>Start with one small task, or try a different filter.</p>
-        </div>
-      )}
-      <ul className="task-list" aria-busy={loading}>
-        {items.map((item) => (
-          <li
-            key={item.id}
-            className={`task-row ${item.completed ? "is-complete" : ""}`}
-          >
-            <input
-              className="task-check"
-              type="checkbox"
-              checked={item.completed}
-              aria-label={`${item.completed ? "Mark incomplete" : "Complete task"}: ${item.title}`}
-              disabled={loading || !!pending || conflict}
-              onChange={() => void toggle(item)}
-            />
-            <div className="task-content">
-              <h2>{item.title}</h2>
-              {item.description && (
-                <p className="task-description">{item.description}</p>
-              )}
-              <div className="task-meta">
-                <span className={`priority priority-${item.priority}`}>
-                  {
-                    ["", "Low priority", "Medium priority", "High priority"][
-                      item.priority
-                    ]
-                  }
-                </span>
-                <span>
-                  {projects.find((p) => p.id === item.project_id)?.name ||
-                    (item.plan_date
-                      ? "Personal plan"
-                      : item.project_id
-                        ? "Project unavailable"
-                        : "Unassigned")}
-                </span>
-                {item.plan_date && (
-                  <time dateTime={item.plan_date}>
-                    Planned for: {item.plan_date} (Amsterdam)
-                  </time>
-                )}
-                {item.due_date && (
-                  <time
-                    className={
-                      !item.completed && Date.parse(item.due_date) < now
-                        ? "overdue"
-                        : ""
-                    }
-                    dateTime={item.due_date}
-                  >
-                    {displayDate(item.due_date)}
-                  </time>
-                )}
-                {pending === item.id && <span role="status">Syncing…</span>}
-              </div>
-            </div>
-            <div className="row-actions">
-              <button
-                className="text-button"
-                disabled={loading || !!pending}
-                aria-label={`Edit task: ${item.title}`}
-                onClick={() => setEditor(item)}
-              >
-                Edit
-              </button>
-              <button
-                className="text-button danger-text"
-                disabled={loading || !!pending}
-                aria-label={`Delete task: ${item.title}`}
-                onClick={() => setDeleting(item)}
-              >
-                Delete
-              </button>
-            </div>
-          </li>
-        ))}
-      </ul>
       {cursor && (
         <div className="load-more">
           <button
@@ -345,8 +403,23 @@ export function TaskBoard({
           todayDate={today ? day?.plan_date : undefined}
           refreshToday={today ? () => load() : undefined}
           close={() => setEditor(null)}
-          saved={() => {
+          saved={(saved) => {
             setEditor(null);
+            setRevision((value) => value + 1);
+            const matches =
+              (!filters.completed ||
+                String(saved.completed) === filters.completed) &&
+              (!filters.priority ||
+                String(saved.priority) === filters.priority) &&
+              (!filters.project ||
+                (filters.project === "none"
+                  ? !saved.project_id
+                  : saved.project_id === filters.project)) &&
+              (!filters.planDate || saved.plan_date === filters.planDate);
+            if (saved.id === taskId && !matches) choose("");
+            setItems((previous) =>
+              previous.map((item) => (item.id === saved.id ? saved : item)),
+            );
             void load();
           }}
         />
@@ -360,6 +433,7 @@ export function TaskBoard({
             await authorize((credentials) =>
               workspaceApi.deleteTask(credentials, deleting.id),
             );
+            if (taskId === deleting.id) choose("");
             await load();
           }}
         />

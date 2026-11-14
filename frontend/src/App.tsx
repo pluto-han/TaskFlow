@@ -13,52 +13,63 @@ import { WorkspacePage } from "./pages/WorkspacePage";
 import { InvitePage } from "./pages/InvitePage";
 import { RecoveryPage } from "./pages/RecoveryPage";
 import type { AccountLink } from "./auth/capability";
-import { ProfilePage } from "./pages/ProfilePage";
+import { AccountSettings } from "./settings/AccountSettings";
+import { SecuritySettings } from "./settings/SecuritySettings";
+import { IntegrationsSettings } from "./settings/IntegrationsSettings";
+import { ProjectSettingsPage } from "./pages/ProjectSettingsPage";
+import { SettingsPage } from "./pages/SettingsPage";
+import { PublicLayout } from "./layouts/PublicLayout";
+import { WorkspaceLayout } from "./layouts/WorkspaceLayout";
 
-function Navigation() {
-  const { user } = useAuth();
-  return user ? (
-    <nav className="app-nav" aria-label="Main navigation">
-      <Link to="/tasks">Tasks</Link>
-      <Link to="/profile">Profile</Link>
-    </nav>
-  ) : (
-    <span className="nav-label">Make room for what matters</span>
-  );
-}
+const pageTitles: Record<string, string> = {
+  "/login": "Sign in",
+  "/register": "Create account",
+  "/forgot-password": "Recover account",
+  "/reset-password": "Reset password",
+  "/verify-email": "Verify email",
+  "/invite": "Project invitation",
+  "/tasks": "Tasks",
+  "/tasks/today": "Today",
+  "/tasks/unassigned": "Unassigned",
+  "/tasks/recurring": "Recurring tasks",
+  "/settings/account": "Account",
+  "/settings/security": "Security",
+  "/settings/integrations": "Integrations",
+};
 
 function SessionGate({ children }: { children: ReactNode }) {
   const auth = useAuth();
   if (auth.startup !== "ready")
     return (
-      <section
-        className="profile"
-        aria-labelledby="session-heading"
-        aria-busy={auth.startup === "loading"}
-      >
-        <span className="eyebrow">YOUR ACCOUNT</span>
-        <h1 id="session-heading">
-          {auth.startup === "loading"
-            ? "Checking your session…"
-            : "Unable to restore your session"}
-        </h1>
-        {auth.startup === "loading" ? (
-          <p role="status">Please wait while we check your sign-in.</p>
-        ) : (
-          <>
-            <p className="notice error" role="alert">
-              {auth.error}
-            </p>
-            <button
-              type="button"
-              className="button primary"
-              onClick={() => void auth.retry()}
-            >
-              Try again
-            </button>
-          </>
-        )}
-      </section>
+      <PublicLayout>
+        <section
+          className="profile"
+          aria-labelledby="session-heading"
+          aria-busy={auth.startup === "loading"}
+        >
+          <h1 id="session-heading">
+            {auth.startup === "loading"
+              ? "Checking your session…"
+              : "Unable to restore your session"}
+          </h1>
+          {auth.startup === "loading" ? (
+            <p role="status">Loading…</p>
+          ) : (
+            <>
+              <p className="notice error" role="alert">
+                {auth.error}
+              </p>
+              <button
+                type="button"
+                className="button primary"
+                onClick={() => void auth.retry()}
+              >
+                Try again
+              </button>
+            </>
+          )}
+        </section>
+      </PublicLayout>
     );
   return <Fragment key={auth.user?.id ?? "signed-out"}>{children}</Fragment>;
 }
@@ -72,8 +83,7 @@ export function App({
 }) {
   const [capability, setCapability] = useState(accountLink);
   const [invitation, setInvitation] = useState(invitationToken);
-  const { pathname } = useLocation();
-  const main = useRef<HTMLElement>(null);
+  const { pathname, state } = useLocation();
   const previousPath = useRef(pathname);
   useEffect(() => {
     if (previousPath.current !== pathname) {
@@ -83,105 +93,117 @@ export function App({
     }
   }, [pathname]);
   useEffect(() => {
-    document.title = `${pathname === "/forgot-password" ? "Recover account" : pathname === "/reset-password" ? "Reset password" : pathname === "/verify-email" ? "Verify email" : pathname === "/tasks" ? "Tasks" : pathname === "/register" ? "Create account" : pathname === "/profile" ? "Your space" : "Sign in"} · TaskFlow`;
-    main.current?.focus();
+    const title =
+      pageTitles[pathname] ??
+      (pathname.startsWith("/projects/")
+        ? pathname.endsWith("/settings")
+          ? "Project settings"
+          : "Tasks"
+        : "Page not found");
+    document.title = `${title} · TaskFlow`;
   }, [pathname]);
   return (
     <AuthProvider>
-      <a className="skip-link" href="#main">
-        Skip to main content
-      </a>
-      <div className="shell">
-        <header className="topbar">
-          <Link className="brand" to="/" aria-label="TaskFlow home">
-            <span className="brand-mark" aria-hidden="true">
-              ↗
-            </span>
-            TaskFlow
-          </Link>
-          <Navigation />
-        </header>
-        <main id="main" className="main" ref={main} tabIndex={-1}>
-          <Routes>
+      <Routes>
+        <Route element={<PublicLayout />}>
+          <Route
+            path="/forgot-password"
+            element={
+              <RecoveryPage key="request" mode="request" consumed={() => {}} />
+            }
+          />
+          <Route
+            path="/reset-password"
+            element={
+              <RecoveryPage
+                key="reset"
+                mode="reset"
+                token={capability?.kind === "reset" ? capability.token : ""}
+                consumed={() => setCapability(undefined)}
+              />
+            }
+          />
+          <Route
+            path="/verify-email"
+            element={
+              <RecoveryPage
+                key="verify"
+                mode="verify"
+                token={capability?.kind === "verify" ? capability.token : ""}
+                consumed={() => setCapability(undefined)}
+              />
+            }
+          />
+        </Route>
+        <Route
+          element={
+            <SessionGate>
+              <Outlet />
+            </SessionGate>
+          }
+        >
+          <Route element={<PublicLayout />}>
+            <Route path="/" element={<Navigate to="/tasks" replace />} />
+            <Route path="/login" element={<AuthPage key="login" />} />
             <Route
-              path="/forgot-password"
+              path="/register"
+              element={<AuthPage key="register" register />}
+            />
+            <Route
+              path="/invite"
               element={
-                <RecoveryPage
-                  key="request"
-                  mode="request"
-                  consumed={() => {}}
+                <InvitePage
+                  token={invitation}
+                  consumed={() => setInvitation("")}
                 />
               }
             />
+          </Route>
+          <Route element={<WorkspaceLayout />}>
+            <Route path="/tasks" element={<WorkspacePage />} />
+            <Route path="/tasks/today" element={<WorkspacePage />} />
+            <Route path="/tasks/unassigned" element={<WorkspacePage />} />
+            <Route path="/tasks/recurring" element={<WorkspacePage />} />
             <Route
-              path="/reset-password"
-              element={
-                <RecoveryPage
-                  key="reset"
-                  mode="reset"
-                  token={capability?.kind === "reset" ? capability.token : ""}
-                  consumed={() => setCapability(undefined)}
-                />
-              }
+              path="/projects/:projectId/tasks"
+              element={<WorkspacePage />}
             />
             <Route
-              path="/verify-email"
-              element={
-                <RecoveryPage
-                  key="verify"
-                  mode="verify"
-                  token={capability?.kind === "verify" ? capability.token : ""}
-                  consumed={() => setCapability(undefined)}
-                />
-              }
+              path="/projects/:projectId/settings"
+              element={<ProjectSettingsPage key={pathname} />}
             />
             <Route
+              path="/profile"
               element={
-                <SessionGate>
-                  <Outlet />
-                </SessionGate>
+                <Navigate to="/settings/account" replace state={state} />
               }
-            >
-              <Route path="/" element={<Navigate to="/tasks" replace />} />
-              <Route path="/login" element={<AuthPage key="login" />} />
+            />
+            <Route path="/settings" element={<SettingsPage />}>
               <Route
-                path="/register"
-                element={<AuthPage key="register" register />}
+                index
+                element={<Navigate to="account" replace state={state} />}
               />
-              <Route
-                path="/invite"
-                element={
-                  <InvitePage
-                    token={invitation}
-                    consumed={() => setInvitation("")}
-                  />
-                }
-              />
-              <Route path="/tasks" element={<WorkspacePage />} />
-              <Route path="/profile" element={<ProfilePage />} />
-              <Route
-                path="*"
-                element={
-                  <section className="center">
-                    <h1>Nothing here just yet</h1>
-                    <p>
-                      This page could not be found. Find your way back to your
-                      space.
-                    </p>
-                    <Link className="button primary" to="/">
-                      Back to home
-                    </Link>
-                  </section>
-                }
-              />
+              <Route path="account" element={<AccountSettings />} />
+              <Route path="security" element={<SecuritySettings />} />
+              <Route path="integrations" element={<IntegrationsSettings />} />
             </Route>
-          </Routes>
-        </main>
-        <footer className="footer">
-          <span>TaskFlow · A little order. A gentler pace.</span>
-          <span>A little focus. A little further.</span>
-        </footer>
-      </div>
+          </Route>
+          <Route element={<PublicLayout />}>
+            <Route
+              path="*"
+              element={
+                <section className="center">
+                  <h1>Page not found</h1>
+
+                  <Link className="button primary" to="/">
+                    Back to home
+                  </Link>
+                </section>
+              }
+            />
+          </Route>
+        </Route>
+      </Routes>
     </AuthProvider>
   );
 }

@@ -111,7 +111,7 @@ export function errorMessage(error: unknown): string {
     return "We could not complete that just now. Please try again.";
   const messages: Record<string, string> = {
     CSRF_INVALID:
-      "Your session has changed. Refresh your profile before trying again.",
+      "Your session has changed. Refresh your account settings before trying again.",
     AMBIGUOUS_CREDENTIALS:
       "Conflicting sign-in information was sent. Clear this site's cookies and sign in again.",
     RATE_LIMITED: "Too many requests. Please try again in a minute.",
@@ -149,7 +149,7 @@ export function errorMessage(error: unknown): string {
     EMAIL_RATE_LIMITED:
       "Please wait before requesting another verification email.",
     EMAIL_TOKEN_INVALID:
-      "This verification link has expired or has already been used. Request a new email from your profile.",
+      "This verification link has expired or has already been used. Request a new email from Account settings.",
     RESET_TOKEN_INVALID:
       "This reset link has expired or is no longer valid. Request a new link to continue.",
     INVALID_RESET_EMAIL: "Enter a valid email address.",

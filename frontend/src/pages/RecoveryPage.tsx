@@ -103,51 +103,26 @@ export function RecoveryPage({
           : "Verify your email";
   return (
     <div className="auth-layout recovery-layout">
-      <aside className="story recovery-story" aria-label="Account recovery">
-        <span className="eyebrow">YOUR ACCOUNT</span>
-        <h2>
-          A secure way
-          <br />
-          back to your tasks.
-        </h2>
-        <p>
-          Keep your account details up to date, so your work is always within
-          reach.
-        </p>
-        <div className="art" aria-hidden="true">
-          <span />
-          <span />
-          <span />
-        </div>
-        <p className="story-bottom">
-          Your tasks stay right where you left them.
-        </p>
-      </aside>
       <section className="auth-card" aria-labelledby="recovery-heading">
         <Link to="/login" className="recovery-back">
           ← Back to sign in
         </Link>
-        <span className="eyebrow">
-          {mode === "verify" ? "EMAIL VERIFICATION" : "ACCOUNT RECOVERY"}
-        </span>
+
         <h1 id="recovery-heading">{title}</h1>
         {done ? (
           <div ref={result} tabIndex={-1} className="recovery-result">
-            <span className="recovery-check" aria-hidden="true">
-              ✓
-            </span>
             <p role="status">
               {mode === "request"
-                ? "If this address belongs to an account, a reset link may arrive shortly. Check your inbox and spam folder. Links are valid for 30 minutes."
+                ? "If an account exists, a reset link may arrive."
                 : mode === "reset"
                   ? "Your password has been updated and previous sessions have ended. Sign in with your new password to continue."
-                  : "Your email address is verified. You can return to your account."}
+                  : "Email verified."}
             </p>
             <Link
               className="button primary wide"
-              to={mode === "verify" ? "/profile" : "/login"}
+              to={mode === "verify" ? "/settings/account" : "/login"}
             >
-              {mode === "verify" ? "Go to profile" : "Continue to sign in"}
+              {mode === "verify" ? "Go to account" : "Continue to sign in"}
             </Link>
             {mode === "request" && (
               <Link
@@ -164,27 +139,15 @@ export function RecoveryPage({
           </div>
         ) : missing || invalid ? (
           <div ref={result} tabIndex={-1} className="recovery-result">
-            <p className="subtitle">
-              {mode === "reset"
-                ? "It may have expired or already been used. Request a new link to set your password."
-                : "Open the original email again, or request a new verification link from your profile."}
-            </p>
             <Link
               className="button primary wide"
-              to={mode === "reset" ? "/forgot-password" : "/profile"}
+              to={mode === "reset" ? "/forgot-password" : "/settings/account"}
             >
-              {mode === "reset" ? "Request a new link" : "Go to profile"}
+              {mode === "reset" ? "Request a new link" : "Go to account"}
             </Link>
           </div>
         ) : (
           <>
-            <p className="subtitle">
-              {mode === "request"
-                ? "Enter the email address you used to create your account."
-                : mode === "reset"
-                  ? "Set a new password for your account. You will need to sign in again on all devices."
-                  : "Confirm this email address for the account that requested this link. No password is required."}
-            </p>
             {error && (
               <div className="notice error" role="alert">
                 {error}
@@ -248,11 +211,6 @@ export function RecoveryPage({
                       : "Verify email address"}
               </button>
             </form>
-            <p className="footnote">
-              {mode === "request"
-                ? "For your privacy, the response is the same whether an account exists or not."
-                : "Opening this page does not change your account. Confirmation happens only when you submit."}
-            </p>
           </>
         )}
       </section>

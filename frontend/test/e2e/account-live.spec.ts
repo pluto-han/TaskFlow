@@ -20,8 +20,9 @@ test("account UI to PostgreSQL and fake mail: verify, revoke, change and recover
     await page.getByLabel("Email address").fill(email);
     await page.getByLabel("Password", { exact: true }).fill(password);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await page.getByRole("link", { name: "Settings", exact: true }).click();
     await expect(
-      page.getByRole("heading", { name: "Sign-in & security" }),
+      page.getByRole("heading", { name: "Account", exact: true }),
     ).toBeVisible();
   }
   await signIn();
@@ -42,7 +43,7 @@ test("account UI to PostgreSQL and fake mail: verify, revoke, change and recover
   await expect(
     page.getByRole("heading", { name: "Email verified", exact: true }),
   ).toBeVisible();
-  await page.getByRole("link", { name: "Go to profile" }).click();
+  await page.getByRole("link", { name: "Go to account" }).click();
   await expect(page.getByText("Verified", { exact: true })).toBeVisible();
   await page.reload();
   await expect(page.getByText("Verified", { exact: true })).toBeVisible();
@@ -53,16 +54,18 @@ test("account UI to PostgreSQL and fake mail: verify, revoke, change and recover
   await peerPage.getByLabel("Email address").fill(email);
   await peerPage.getByLabel("Password", { exact: true }).fill(password);
   await peerPage.getByRole("button", { name: "Sign in", exact: true }).click();
+  await peerPage.getByRole("link", { name: "Settings", exact: true }).click();
   await expect(
-    peerPage.getByRole("heading", { name: "Sign-in & security" }),
+    peerPage.getByRole("heading", { name: "Account", exact: true }),
   ).toBeVisible();
+  await page.getByRole("link", { name: "Security", exact: true }).click();
   await page.getByRole("button", { name: "Refresh sessions" }).click();
   await page.getByRole("button", { name: /End session signed in/ }).click();
   await page.getByRole("button", { name: "Confirm sign out" }).click();
   await expect(page.getByText("Session signed out.")).toBeVisible();
   await peerPage.reload();
   await expect(
-    peerPage.getByRole("heading", { name: "Welcome back." }),
+    peerPage.getByRole("heading", { name: "Sign in" }),
   ).toBeVisible();
   await peer.close();
   await page.getByText("Change password", { exact: true }).click();
@@ -71,9 +74,7 @@ test("account UI to PostgreSQL and fake mail: verify, revoke, change and recover
   await page.getByLabel("New password", { exact: true }).fill(password);
   await page.getByLabel("Confirm new password").fill(password);
   await page.getByRole("button", { name: "Update password" }).click();
-  await expect(
-    page.getByRole("heading", { name: "Welcome back." }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
   await signIn();
   const recoveryPeer = await browser.newContext();
   const recoveryPage = await recoveryPeer.newPage();
@@ -83,8 +84,11 @@ test("account UI to PostgreSQL and fake mail: verify, revoke, change and recover
   await recoveryPage
     .getByRole("button", { name: "Sign in", exact: true })
     .click();
+  await recoveryPage
+    .getByRole("link", { name: "Settings", exact: true })
+    .click();
   await expect(
-    recoveryPage.getByRole("heading", { name: "Sign-in & security" }),
+    recoveryPage.getByRole("heading", { name: "Account", exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await page.getByRole("link", { name: "Forgot your password?" }).click();
@@ -118,7 +122,7 @@ test("account UI to PostgreSQL and fake mail: verify, revoke, change and recover
   await signIn();
   await recoveryPage.reload();
   await expect(
-    recoveryPage.getByRole("heading", { name: "Welcome back." }),
+    recoveryPage.getByRole("heading", { name: "Sign in" }),
   ).toBeVisible();
   await recoveryPeer.close();
   await page.goto(resetLink);

@@ -58,19 +58,19 @@ test("workspace pagination, filtering and mobile layout", async ({ page }) => {
     .fill("a long test passphrase");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await page.getByRole("link", { name: "Tasks", exact: true }).click();
-  await expect(page.getByRole("heading", { name: task.title })).toBeVisible();
+  await expect(page.getByRole("button", { name: task.title })).toBeVisible();
   await page.getByRole("button", { name: "Load more" }).click();
   await expect(
-    page.getByRole("heading", { name: "Finish a book" }),
+    page.getByRole("button", { name: "Finish a book", exact: true }),
   ).toBeVisible();
   await page.screenshot({
     path: "test-results/tasks-desktop.png",
     fullPage: true,
   });
-  await page.getByRole("button", { name: "Room to grow", exact: true }).click();
-  await expect(page.getByText("No tasks here yet")).toBeVisible();
-  await page.getByRole("button", { name: "All tasks", exact: false }).click();
-  await expect(page.getByRole("heading", { name: task.title })).toBeVisible();
+  await page.getByRole("link", { name: "Room to grow", exact: true }).click();
+  await expect(page.getByText("No tasks")).toBeVisible();
+  await page.getByRole("link", { name: "All tasks", exact: true }).click();
+  await expect(page.getByRole("button", { name: task.title })).toBeVisible();
   await page.setViewportSize({ width: 375, height: 812 });
   expect(
     await page.evaluate(
@@ -81,6 +81,7 @@ test("workspace pagination, filtering and mobile layout", async ({ page }) => {
     path: "test-results/tasks-mobile.png",
     fullPage: true,
   });
+  await page.getByRole("button", { name: task.title, exact: true }).click();
   await page.getByRole("button", { name: "Edit task: " + task.title }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await expect(page.getByLabel("Due date (local time)")).toHaveValue(
@@ -122,14 +123,13 @@ test("actual project/task CRUD, ownership filtering, null deadline and deletion 
     .fill("a long live task passphrase");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await page.getByRole("link", { name: "Tasks", exact: true }).click();
-  await expect(page.getByText("No tasks here yet")).toBeVisible();
+  await expect(page.getByText("No tasks")).toBeVisible();
   await page.getByRole("button", { name: "New project", exact: true }).click();
   await page.getByLabel("Project name").fill("Learning plan");
   await page.getByLabel("Project description").fill("Browser acceptance test");
   await page.getByRole("button", { name: "Save project" }).click();
-  await page
-    .getByRole("button", { name: "Learning plan", exact: true })
-    .click();
+  await page.getByRole("link", { name: "Learning plan", exact: true }).click();
+  await page.getByRole("link", { name: "Project settings" }).click();
   await page.getByRole("button", { name: "Edit project", exact: true }).click();
   await page
     .getByLabel("Project description")
@@ -138,6 +138,7 @@ test("actual project/task CRUD, ownership filtering, null deadline and deletion 
   await expect(
     page.getByText("Updated project description", { exact: true }),
   ).toBeVisible();
+  await page.getByRole("link", { name: "Back to tasks", exact: true }).click();
   await page.getByRole("button", { name: "New task", exact: false }).click();
   await page.getByLabel("Task title").fill("Finish Lesson 19");
   await page
@@ -155,8 +156,9 @@ test("actual project/task CRUD, ownership filtering, null deadline and deletion 
   expect(created.due_date).toBe("2026-12-15T09:30:00Z");
   expect(created.project_id).not.toBeNull();
   await expect(
-    page.getByRole("heading", { name: "Finish Lesson 19" }),
+    page.getByRole("button", { name: "Finish Lesson 19", exact: true }),
   ).toBeVisible();
+  await page.getByRole("link", { name: "Project settings" }).click();
   await page
     .getByRole("button", { name: "Delete project", exact: true })
     .click();
@@ -165,11 +167,15 @@ test("actual project/task CRUD, ownership filtering, null deadline and deletion 
     "This project still has tasks",
   );
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.getByRole("link", { name: "Back to tasks", exact: true }).click();
   await page
     .getByRole("checkbox", { name: "Complete task: Finish Lesson 19" })
     .check();
   await expect(page.getByRole("checkbox")).toBeEnabled();
   await expect(page.getByRole("checkbox")).toBeChecked();
+  await page
+    .getByRole("button", { name: "Finish Lesson 19", exact: true })
+    .click();
   await page
     .getByRole("button", { name: "Edit task: Finish Lesson 19" })
     .click();
@@ -185,23 +191,27 @@ test("actual project/task CRUD, ownership filtering, null deadline and deletion 
     due_date: null,
     project_id: null,
   });
-  await expect(page.getByText("No tasks here yet")).toBeVisible();
+  await expect(page.getByText("No tasks")).toBeVisible();
+  await page.getByRole("link", { name: "Project settings" }).click();
   await page
     .getByRole("button", { name: "Delete project", exact: true })
     .click();
   await page.getByRole("button", { name: "Confirm delete" }).click();
   await expect(page.getByRole("dialog")).not.toBeVisible();
-  await page.getByRole("button", { name: "Unassigned", exact: true }).click();
+  await page.getByRole("link", { name: "Unassigned", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Finish Lesson 19", exact: true })
+    .click();
   await page
     .getByRole("button", { name: "Delete task: Finish Lesson 19" })
     .click();
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "Finish Lesson 19" }),
+    page.getByRole("button", { name: "Finish Lesson 19", exact: true }),
   ).toBeVisible();
   await page
     .getByRole("button", { name: "Delete task: Finish Lesson 19" })
     .click();
   await page.getByRole("button", { name: "Confirm delete" }).click();
-  await expect(page.getByText("No tasks here yet")).toBeVisible();
+  await expect(page.getByText("No tasks")).toBeVisible();
 });

@@ -6,12 +6,7 @@ import {
   type FormEvent,
 } from "react";
 import { Link } from "react-router";
-import {
-  accountApi,
-  type EmailStatus,
-  type SessionPage,
-  type SessionInfo,
-} from "../api/account";
+import { accountApi, type SessionPage, type SessionInfo } from "../api/account";
 import { ApiError, errorMessage } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
 import { validate, type FieldErrors } from "../auth/validation";
@@ -23,40 +18,7 @@ const date = (value: string) =>
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
-function SecurityIcon({ kind }: { kind: "mail" | "lock" | "sessions" }) {
-  return (
-    <span className="security-icon" aria-hidden="true">
-      <svg
-        width="20"
-        height="20"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        {kind === "mail" ? (
-          <>
-            <rect x="3" y="5" width="18" height="14" rx="3" />
-            <path d="m4 7 8 6 8-6" />
-          </>
-        ) : kind === "lock" ? (
-          <>
-            <rect x="5" y="10" width="14" height="11" rx="3" />
-            <path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3" />
-          </>
-        ) : (
-          <>
-            <rect x="3" y="4" width="18" height="13" rx="2" />
-            <path d="M8 21h8m-4-4v4" />
-          </>
-        )}
-      </svg>
-    </span>
-  );
-}
-function PasswordChange() {
+function PasswordChange({ close }: { close(): void }) {
   const auth = useAuth();
   const [current, setCurrent] = useState("");
   const [password, setPassword] = useState("");
@@ -119,8 +81,7 @@ function PasswordChange() {
     }
   }
   return (
-    <details className="password-disclosure">
-      <summary>Change password</summary>
+    <Modal title="Change password" busy={busy} close={close}>
       <form
         ref={form}
         onSubmit={(event) => void submit(event)}
@@ -168,54 +129,26 @@ function PasswordChange() {
         <div className="security-form-actions">
           <Link to="/forgot-password">Forgot your password?</Link>
           <button className="button primary" type="submit" disabled={busy}>
-            {busy ? (
-              <>
-                <span className="spinner" aria-hidden="true" />
-                Updating…
-              </>
-            ) : (
-              "Update password"
-            )}
+            {busy ? <>Updating…</> : "Update password"}
           </button>
         </div>
       </form>
-    </details>
+    </Modal>
   );
 }
-export function AccountSettings() {
+export function SecuritySettings() {
   const auth = useAuth();
   const { authorize } = auth;
-  const [status, setStatus] = useState<EmailStatus | null>(null);
-  const [emailError, setEmailError] = useState("");
-  const [sent, setSent] = useState<number | null>(null);
-  const [cooling, setCooling] = useState(false);
-  const [sending, setSending] = useState(false);
+  const [passwordOpen, setPasswordOpen] = useState(false);
   const [page, setPage] = useState<SessionPage>({ items: [], next_cursor: "" });
   const [loading, setLoading] = useState(true);
   const [sessionsError, setSessionsError] = useState("");
   const [notice, setNotice] = useState("");
   const [selected, setSelected] = useState<SessionInfo | null>(null);
   const [revoking, setRevoking] = useState(false);
-  const emailRequest = useRef<AbortController | null>(null);
   const listRequest = useRef<AbortController | null>(null);
   const actionRequest = useRef<AbortController | null>(null);
   const locked = useRef(false);
-  const loadEmail = useCallback(async () => {
-    emailRequest.current?.abort();
-    const controller = new AbortController();
-    emailRequest.current = controller;
-    try {
-      const value = await authorize((credentials) =>
-        accountApi.status(credentials, controller.signal),
-      );
-      if (!controller.signal.aborted) {
-        setStatus(value);
-        setEmailError("");
-      }
-    } catch (err) {
-      if (!controller.signal.aborted) setEmailError(errorMessage(err));
-    }
-  }, [authorize]);
   const loadSessions = useCallback(
     async (cursor = "") => {
       listRequest.current?.abort();
@@ -247,49 +180,12 @@ export function AccountSettings() {
   useEffect(() => {
     // Synchronize private panels with the server on mount.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    void Promise.all([loadEmail(), loadSessions()]);
+    void loadSessions();
     return () => {
-      emailRequest.current?.abort();
       listRequest.current?.abort();
       actionRequest.current?.abort();
     };
-  }, [loadEmail, loadSessions]);
-  useEffect(() => {
-    if (sent === null) return;
-    const timer = window.setTimeout(
-      () => setCooling(false),
-      Math.max(0, 60_000 - (Date.now() - sent)),
-    );
-    return () => window.clearTimeout(timer);
-  }, [sent]);
-  async function send() {
-    if (locked.current) return;
-    locked.current = true;
-    setSending(true);
-    setEmailError("");
-    const controller = new AbortController();
-    actionRequest.current = controller;
-    try {
-      await authorize((credentials) =>
-        accountApi.verify(credentials, controller.signal),
-      );
-      if (!controller.signal.aborted) {
-        setSent(Date.now());
-        setCooling(true);
-      }
-    } catch (err) {
-      if (!controller.signal.aborted) {
-        setEmailError(errorMessage(err));
-        if (err instanceof ApiError && err.code === "EMAIL_DISABLED")
-          setStatus((old) => (old ? { ...old, enabled: false } : old));
-      }
-    } finally {
-      if (!controller.signal.aborted) {
-        setSending(false);
-        locked.current = false;
-      }
-    }
-  }
+  }, [loadSessions]);
   async function revoke() {
     if (!selected || locked.current) return;
     locked.current = true;
@@ -319,119 +215,31 @@ export function AccountSettings() {
     }
   }
   return (
-    <section
-      className="account-security profile-card"
-      aria-labelledby="security-heading"
-    >
-      <header className="security-heading">
-        <div>
-          <span className="eyebrow">ACCOUNT SETTINGS</span>
-          <h2 id="security-heading">Sign-in & security</h2>
-          <p>Keep your account protected and your access up to date.</p>
-        </div>
-      </header>
-      <section
-        className="security-section"
-        aria-labelledby="email-security-heading"
-      >
-        <div className="security-section-heading">
-          <SecurityIcon kind="mail" />
-          <div>
-            <h3 id="email-security-heading">Email address</h3>
-            <p>{auth.user?.email}</p>
-          </div>
-          <span
-            className={`security-badge ${status?.verified_at ? "verified" : ""}`}
-          >
-            {status
-              ? status.verified_at
-                ? "Verified"
-                : "Not verified"
-              : "Checking…"}
-          </span>
-        </div>
-        {emailError && (
-          <div className="notice error" role="alert">
-            {emailError}
-            {!status && (
-              <button className="text-button" onClick={() => void loadEmail()}>
-                Try again
-              </button>
-            )}
-          </div>
-        )}
-        {status?.verified_at ? (
-          <p className="security-description">
-            Verified on {date(status.verified_at)}.{" "}
-            {status.enabled
-              ? "Your email address is confirmed."
-              : "Email delivery is currently unavailable."}
-          </p>
-        ) : status ? (
-          <div className="security-row">
-            <p className="security-description">
-              {!status.enabled
-                ? "Email delivery is not available on this instance. Your existing sign-in still works."
-                : sent !== null
-                  ? "Verification requested. Check your inbox and spam folder; the link is valid for 24 hours."
-                  : "Confirm that this email address belongs to you."}
-            </p>
-            {status.enabled && (
-              <button
-                className="button secondary"
-                disabled={sending || cooling || revoking}
-                onClick={() => void send()}
-              >
-                {sending ? (
-                  <>
-                    <span className="spinner" aria-hidden="true" />
-                    Requesting…
-                  </>
-                ) : cooling ? (
-                  "Email requested"
-                ) : sent !== null ? (
-                  "Resend verification email"
-                ) : (
-                  "Send verification email"
-                )}
-              </button>
-            )}
-          </div>
-        ) : (
-          !emailError && (
-            <p className="security-description" role="status">
-              Checking email verification…
-            </p>
-          )
-        )}
-        {status && (
-          <button
-            className="text-button security-refresh"
-            onClick={() => void loadEmail()}
-          >
-            Refresh email status
-          </button>
-        )}
-      </section>
+    <section className="settings-content" aria-labelledby="security-heading">
+      <h1 id="security-heading">Security</h1>
       <section
         className="security-section"
         aria-labelledby="password-security-heading"
       >
         <div className="security-section-heading">
-          <SecurityIcon kind="lock" />
           <div>
             <h3 id="password-security-heading">Password</h3>
-            <p>Use a unique password for your account.</p>
           </div>
         </div>
-        <PasswordChange />
+        <button
+          className="button secondary"
+          onClick={() => setPasswordOpen(true)}
+        >
+          Change password
+        </button>
+        {passwordOpen && (
+          <PasswordChange close={() => setPasswordOpen(false)} />
+        )}
       </section>
       <section className="security-section" aria-labelledby="sessions-heading">
         <div className="security-section-heading">
-          <SecurityIcon kind="sessions" />
           <div>
             <h3 id="sessions-heading">Active sessions</h3>
-            <p>Review where your account is signed in.</p>
           </div>
           <button
             className="text-button"
@@ -441,10 +249,6 @@ export function AccountSettings() {
             Refresh sessions
           </button>
         </div>
-        <p className="security-description">
-          Each sign-in creates a session. Tabs in the same browser share one.
-          Device and location details are not collected.
-        </p>
         {notice && (
           <p className="notice" role="status">
             {notice}
@@ -481,7 +285,7 @@ export function AccountSettings() {
               </div>
               <button
                 className="button secondary session-revoke"
-                disabled={revoking || sending}
+                disabled={revoking}
                 onClick={() => {
                   setSelected(item);
                   setSessionsError("");
@@ -498,9 +302,7 @@ export function AccountSettings() {
           ))}
         </ul>
         {!loading && !sessionsError && page.items.length === 0 && (
-          <p className="security-description">
-            No active sessions found. Refresh to check again.
-          </p>
+          <p className="security-description">No active sessions</p>
         )}
         {page.next_cursor && (
           <button

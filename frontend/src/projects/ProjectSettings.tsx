@@ -1,13 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Modal } from "../components/Modal";
 import { useAuth } from "../auth/AuthProvider";
 import { sharingApi } from "../api/sharing";
-import { errorMessage } from "../api/client";
+import { ApiError, errorMessage } from "../api/client";
 import type { Project, Member, Invitation } from "../api/types";
-import { displayDate } from "./dates";
+import { displayDate } from "../tasks/dates";
 
-type Action = { label: string; description: string; run(): Promise<void> };
-export function SharingPanel({
+type Action = {
+  label: string;
+  description: string;
+  exit?: boolean;
+  run(): Promise<void>;
+};
+export function ProjectSettings({
   project,
   close,
   changed,
@@ -45,11 +49,16 @@ export function SharingPanel({
         if (!controller.signal.aborted) setInvitations(invites);
       }
     } catch (err) {
-      if (!controller.signal.aborted) setError(errorMessage(err));
+      if (!controller.signal.aborted) {
+        if (err instanceof ApiError && [403, 404].includes(err.status ?? 0)) {
+          changed();
+          close();
+        } else setError(errorMessage(err));
+      }
     } finally {
       if (!controller.signal.aborted) setLoading(false);
     }
-  }, [authorize, owner, project.id]);
+  }, [authorize, owner, project.id, changed, close]);
   useEffect(() => {
     // Fetch current membership; roles are never taken from the session credentials.
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -83,7 +92,8 @@ export function SharingPanel({
       setLink("");
       setAction(null);
       changed();
-      close();
+      if (action.exit) close();
+      else await load();
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -91,15 +101,20 @@ export function SharingPanel({
     }
   }
   return (
-    <Modal title="Members & invitations" busy={busy} close={close}>
-      <p className="hint">
-        {project.name} · {owner ? "You own this project" : "You are a member"}.
-        Members can edit and delete any task in the project. Only a task’s
-        creator can move it out.
-      </p>
+    <section className="project-members" aria-labelledby="members-heading">
+      <h2 id="members-heading">Members & invitations</h2>
       {error && (
         <div className="notice error" role="alert">
           {error}
+          {!action && (
+            <button
+              className="text-button"
+              disabled={busy}
+              onClick={() => void load()}
+            >
+              Retry
+            </button>
+          )}
         </div>
       )}
       {action ? (
@@ -147,6 +162,7 @@ export function SharingPanel({
                       onClick={() =>
                         setAction({
                           label: "Transfer ownership",
+                          exit: true,
                           description: `Transfer ownership to ${member.user_id}? You will become a member, and all unused invitations will expire.`,
                           run: () =>
                             authorize((credentials) =>
@@ -194,6 +210,7 @@ export function SharingPanel({
               onClick={() =>
                 setAction({
                   label: "Leave project",
+                  exit: true,
                   description:
                     "You will lose access to this project, including tasks you created. Your tasks will stay in the project.",
                   run: () =>
@@ -209,12 +226,7 @@ export function SharingPanel({
           {owner && (
             <>
               <hr />
-              <h3>Make room for a friend</h3>
-              <p className="hint">
-                Ask your friend to copy their account ID from their profile.
-                This invitation is only for that account and lasts 24 hours.
-                Sending another invitation replaces any unused link for them.
-              </p>
+              <h3>Invite member</h3>
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -237,9 +249,7 @@ export function SharingPanel({
               </form>
               {link && (
                 <div className="notice invitation-link">
-                  <label htmlFor="invite-link">
-                    Shown once. Share this link privately with the recipient.
-                  </label>
+                  <label htmlFor="invite-link">Invitation link</label>
                   <input
                     id="invite-link"
                     value={link}
@@ -311,6 +321,6 @@ export function SharingPanel({
           )}
         </>
       )}
-    </Modal>
+    </section>
   );
 }

@@ -6,7 +6,8 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import { MemoryRouter } from "react-router";
+import { WorkspaceLayout } from "../../../src/layouts/WorkspaceLayout";
+import { MemoryRouter, Routes, Route } from "react-router";
 import { TaskBoard } from "../../../src/tasks/TaskBoard";
 import { TaskEditor } from "../../../src/tasks/TaskEditor";
 import { WorkspacePage } from "../../../src/pages/WorkspacePage";
@@ -44,13 +45,7 @@ const page = (overrides: Partial<TodayPage> = {}): TodayPage => ({
   ...overrides,
 });
 const board = () => (
-  <TaskBoard
-    today
-    filters={filters}
-    projects={[]}
-    title="Today"
-    setMutating={vi.fn()}
-  />
+  <TaskBoard today filters={filters} projects={[]} title="Today" />
 );
 afterEach(() => {
   vi.useRealTimers();
@@ -62,7 +57,7 @@ it("uses server day, excludes project inputs and preserves a draft across midnig
     .mockResolvedValue(page({ plan_date: "2026-11-06", items: [] }));
   render(board());
   await screen.findByText(item.title);
-  fireEvent.click(screen.getByRole("button", { name: "＋ New task" }));
+  fireEvent.click(screen.getByRole("button", { name: "New task" }));
   fireEvent.change(screen.getByLabelText("Task title"), {
     target: { value: "Keep this draft" },
   });
@@ -143,7 +138,7 @@ it("restarts pagination when yesterday's cursor is rejected", async () => {
     .mockResolvedValue(page({ plan_date: "2026-11-06", items: [] }));
   render(board());
   fireEvent.click(await screen.findByRole("button", { name: "Load more" }));
-  await screen.findByText("No tasks here yet");
+  await screen.findByText("No tasks");
   expect(today.mock.calls.map((c) => c[2])).toEqual(["", "yesterday", ""]);
   expect(screen.queryByText(item.title)).not.toBeInTheDocument();
 });
@@ -162,7 +157,7 @@ it("aborts late pages when the tab becomes visible or reconnects", async () => {
   render(board());
   fireEvent.click(await screen.findByRole("button", { name: "Load more" }));
   fireEvent(window, new Event("online"));
-  await screen.findByText("No tasks here yet");
+  await screen.findByText("No tasks");
   await act(async () =>
     resolve(
       page({
@@ -225,11 +220,11 @@ it("discards a response whose server midnight elapsed in transit", async () => {
     resolve(page({ server_time: "2026-11-05T22:59:59Z" }));
   });
   expect(screen.queryByText(item.title)).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "＋ New task" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "New task" })).toBeDisabled();
   await act(async () => {
     await vi.advanceTimersByTimeAsync(1000);
   });
-  expect(screen.getByText("No tasks here yet")).toBeVisible();
+  expect(screen.getByText("No tasks")).toBeVisible();
   view.unmount();
 });
 
@@ -239,12 +234,12 @@ it("shows recovery for an unauthorized/failed today request without allowing a n
     .mockResolvedValue(page());
   render(board());
   await screen.findByRole("alert");
-  expect(screen.getByRole("button", { name: "＋ New task" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "New task" })).toBeDisabled();
   fireEvent.click(screen.getByRole("button", { name: "Refresh list" }));
   await screen.findByText(item.title);
 });
 
-it("switches navigation, hides project creation in today and filters history only in all tasks", async () => {
+it("switches URL views, keeps project creation available and filters history only in all tasks", async () => {
   vi.spyOn(workspaceApi, "projects").mockResolvedValue([]);
   const tasks = vi
     .spyOn(workspaceApi, "tasks")
@@ -252,7 +247,11 @@ it("switches navigation, hides project creation in today and filters history onl
   vi.spyOn(workspaceApi, "today").mockResolvedValue(page());
   render(
     <MemoryRouter>
-      <WorkspacePage />
+      <Routes>
+        <Route element={<WorkspaceLayout />}>
+          <Route path="*" element={<WorkspacePage />} />
+        </Route>
+      </Routes>
     </MemoryRouter>,
   );
   await screen.findByText(item.title);
@@ -267,15 +266,13 @@ it("switches navigation, hides project creation in today and filters history onl
       expect.any(AbortSignal),
     ),
   );
-  fireEvent.click(screen.getByRole("button", { name: "Today" }));
+  fireEvent.click(screen.getByRole("link", { name: "Today" }));
   await screen.findByText(item.title);
-  expect(
-    screen.queryByRole("button", { name: "New project" }),
-  ).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "New project" })).toBeVisible();
   expect(
     screen.queryByLabelText("Filter by planned date"),
   ).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: /All tasks/ }));
+  fireEvent.click(screen.getByRole("link", { name: /All tasks/ }));
   expect(screen.getByRole("button", { name: "New project" })).toBeVisible();
   expect(screen.getByLabelText("Filter by planned date")).toHaveValue("");
 });
@@ -329,9 +326,7 @@ it("hides project movement for historical plans without claiming the owner is so
   expect(
     screen.queryByText(/Only the person who created this task/),
   ).not.toBeInTheDocument();
-  expect(
-    screen.getByText(/Personal plans stay outside projects/),
-  ).toBeVisible();
+  expect(screen.getByText(/Planned for: 2026-11-05/)).toBeVisible();
 });
 
 it("does not restart polling when an in-flight mutation finishes after leaving the view", async () => {

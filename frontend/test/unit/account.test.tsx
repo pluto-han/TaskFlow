@@ -38,7 +38,7 @@ const other = {
   current: false,
   created_at: "2026-11-09T10:00:00Z",
 };
-function mount(path = "/profile", accountLink?: AccountLink) {
+function mount(path = "/settings/account", accountLink?: AccountLink) {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <App accountLink={accountLink} />
@@ -80,12 +80,11 @@ it("shows disabled email honestly without blocking password or sessions", async 
     verified_at: null,
   });
   mount();
-  expect(
-    await screen.findByText(/Email delivery is not available/),
-  ).toBeVisible();
+  expect(await screen.findByText(/Email delivery unavailable/)).toBeVisible();
   expect(
     screen.queryByRole("button", { name: "Send verification email" }),
   ).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("link", { name: "Security" }));
   expect(await screen.findByText("Current session")).toBeVisible();
   expect(screen.getByText("Change password")).toBeVisible();
 });
@@ -114,7 +113,7 @@ it("requests verification once and refreshes verification state", async () => {
 });
 it("requires confirmation before revoking another session", async () => {
   const user = userEvent.setup();
-  mount();
+  mount("/settings/security");
   await user.click(
     await screen.findByRole("button", { name: /End session signed in/ }),
   );
@@ -141,21 +140,19 @@ it("ends the local session after current-session revocation", async () => {
     .mockResolvedValueOnce(session)
     .mockRejectedValue(new ApiError("UNAUTHORIZED", 401));
   const user = userEvent.setup();
-  mount();
+  mount("/settings/security");
   await user.click(
     await screen.findByRole("button", { name: "End current session" }),
   );
   await user.click(screen.getByRole("button", { name: "Confirm sign out" }));
-  expect(
-    await screen.findByRole("heading", { name: "Welcome back." }),
-  ).toBeVisible();
+  expect(await screen.findByRole("heading", { name: "Sign in" })).toBeVisible();
   expect(
     screen.getByText("This session has ended. Sign in again to continue."),
   ).toBeVisible();
 });
 it("validates passwords, preserves fields on failure and clears sign-in on success", async () => {
   const user = userEvent.setup();
-  mount();
+  mount("/settings/security");
   await user.click(await screen.findByText("Change password"));
   await user.click(screen.getByRole("button", { name: "Update password" }));
   expect(screen.getByLabelText("Current password")).toHaveFocus();
@@ -182,9 +179,7 @@ it("validates passwords, preserves fields on failure and clears sign-in on succe
     "a new password",
   );
   await user.click(screen.getByRole("button", { name: "Update password" }));
-  expect(
-    await screen.findByRole("heading", { name: "Welcome back." }),
-  ).toBeVisible();
+  expect(await screen.findByRole("heading", { name: "Sign in" })).toBeVisible();
   expect(screen.getByText(/Your password has been changed/)).toBeVisible();
 });
 it("keeps recovery available during an unresolved session bootstrap", async () => {
@@ -205,9 +200,7 @@ it("shows neutral acceptance and handles disabled mail with a way back", async (
   expect(
     await screen.findByRole("heading", { name: "Check your email" }),
   ).toBeVisible();
-  expect(screen.getByRole("status")).toHaveTextContent(
-    "If this address belongs to an account",
-  );
+  expect(screen.getByRole("status")).toHaveTextContent("If an account exists");
   await user.click(
     screen.getByRole("link", { name: "Try another email address" }),
   );
@@ -301,7 +294,7 @@ it("keeps existing sessions visible when loading the next page fails", async () 
   vi.mocked(accountApi.sessions)
     .mockResolvedValueOnce({ items: [current], next_cursor: "next-page" })
     .mockRejectedValueOnce(new ApiError("NETWORK_ERROR"));
-  mount();
+  mount("/settings/security");
   await user.click(
     await screen.findByRole("button", { name: "Load more sessions" }),
   );
@@ -322,7 +315,7 @@ it("does not automatically retry verification after CSRF rejection", async () =>
   await user.click(
     await screen.findByRole("button", { name: "Send verification email" }),
   );
-  await screen.findByRole("heading", { name: "Sign-in & security" });
+  await screen.findByRole("heading", { name: "Account" });
   expect(accountApi.verify).toHaveBeenCalledTimes(1);
 });
 it("does not sign in or sign out an unrelated current account after resetting a capability", async () => {
@@ -367,4 +360,23 @@ it("enables an explicit resend after the cooldown without sending automatically"
     vi.useRealTimers();
     view.unmount();
   }
+});
+
+it("loads each settings service only when its route opens", async () => {
+  const user = userEvent.setup();
+  mount();
+  await screen.findByRole("button", { name: "Send verification email" });
+  expect(accountApi.sessions).not.toHaveBeenCalled();
+  expect(discordApi.status).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("link", { name: "Security" }));
+  await screen.findByText("Current session");
+  expect(accountApi.status).toHaveBeenCalledTimes(1);
+  expect(discordApi.status).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("link", { name: "Integrations" }));
+  await waitFor(() => expect(discordApi.status).toHaveBeenCalledTimes(1));
+  expect(discordApi.notifications).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("button", { name: "Recent reminders" }));
+  await waitFor(() =>
+    expect(discordApi.notifications).toHaveBeenCalledTimes(1),
+  );
 });

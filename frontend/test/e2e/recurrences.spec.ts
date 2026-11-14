@@ -74,7 +74,7 @@ test("recurrence management keeps existing styling and works on mobile", async (
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await page.getByRole("link", { name: "Tasks", exact: true }).click();
   await page
-    .getByRole("button", { name: "Recurring tasks", exact: true })
+    .getByRole("link", { name: "Recurring tasks", exact: true })
     .click();
   await page.getByRole("button", { name: "New recurring task" }).click();
   await page
@@ -110,6 +110,6 @@ test("recurrence management keeps existing styling and works on mobile", async (
   ).toBeVisible();
   await page.getByRole("button", { name: "Confirm delete" }).click();
   await expect(
-    page.getByRole("heading", { name: "Room for a new rhythm" }),
+    page.getByText("No recurring tasks", { exact: true }),
   ).toBeVisible();
 });

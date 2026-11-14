@@ -233,17 +233,22 @@ func TestBrowserDiscordFlow(t *testing.T) {
 	files := http.FileServer(http.Dir(dist))
 	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/", "/login", "/register", "/profile", "/tasks", "/invite", "/forgot-password", "/reset-password", "/verify-email":
+		case "/", "/login", "/register", "/profile", "/tasks", "/invite", "/forgot-password", "/reset-password", "/verify-email",
+			"/tasks/today", "/tasks/unassigned", "/tasks/recurring", "/settings", "/settings/account", "/settings/security", "/settings/integrations":
 			http.ServeFile(w, r, filepath.Join(dist, "index.html"))
 		default:
+			if strings.HasPrefix(r.URL.Path, "/projects/") && (strings.HasSuffix(r.URL.Path, "/tasks") || strings.HasSuffix(r.URL.Path, "/settings")) {
+				http.ServeFile(w, r, filepath.Join(dist, "index.html"))
+				return
+			}
 			files.ServeHTTP(w, r)
 		}
 	}))
 	app.Start()
 	defer app.Close()
-	cmd := exec.CommandContext(ctx, "npx", "playwright", "test", "test/e2e/flow-live.spec.ts", "test/e2e/account-live.spec.ts", "--config", "playwright.flow.config.ts")
+	cmd := exec.CommandContext(ctx, "npx", "playwright", "test", "test/e2e/flow-live.spec.ts", "test/e2e/account-live.spec.ts", "test/e2e/auth.spec.ts", "test/e2e/tasks.spec.ts", "test/e2e/sharing.spec.ts", "--grep", "browser to API|account UI to PostgreSQL|actual API|actual project|two accounts share tasks", "--config", "playwright.flow.config.ts")
 	cmd.Dir = filepath.Join(root, "frontend")
-	cmd.Env = append(os.Environ(), "TASKFLOW_FLOW_BASE_URL="+app.URL)
+	cmd.Env = append(os.Environ(), "TASKFLOW_FLOW_BASE_URL="+app.URL, "TASKFLOW_LIVE_E2E=1")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {

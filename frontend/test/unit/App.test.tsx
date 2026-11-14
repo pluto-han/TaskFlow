@@ -61,13 +61,9 @@ beforeEach(() => {
 });
 it("restores a valid session on remount without persisting credentials", async () => {
   const view = mount("/profile");
-  expect(
-    await screen.findByRole("heading", { name: "Welcome back." }),
-  ).toBeVisible();
+  expect(await screen.findByRole("heading", { name: "Sign in" })).toBeVisible();
   await fillLogin();
-  expect(
-    await screen.findByRole("heading", { name: "A space of your own" }),
-  ).toBeVisible();
+  expect(await screen.findByRole("heading", { name: "Account" })).toBeVisible();
   expect(api.login).toHaveBeenCalledWith(
     { email: account.email, password: "a long test passphrase" },
     expect.any(AbortSignal),
@@ -77,9 +73,7 @@ it("restores a valid session on remount without persisting credentials", async (
   view.unmount();
   vi.mocked(api.session).mockResolvedValue(session());
   mount("/profile");
-  expect(
-    await screen.findByRole("heading", { name: "A space of your own" }),
-  ).toBeVisible();
+  expect(await screen.findByRole("heading", { name: "Account" })).toBeVisible();
 });
 it("shows incorrect credentials without rendering a profile", async () => {
   vi.mocked(api.login).mockRejectedValue(new ApiError("UNAUTHORIZED", 401));
@@ -115,41 +109,37 @@ it("validates register, prevents duplicates while loading and does not auto-logi
   await user.dblClick(screen.getByRole("button", { name: /Create account/ }));
   expect(api.register).toHaveBeenCalledTimes(1);
   expect(
-    screen.getByRole("button", { name: /Creating your space/ }),
+    screen.getByRole("button", { name: /Creating account/ }),
   ).toBeDisabled();
   await act(async () => finish(account));
   expect(await screen.findByRole("status")).toHaveTextContent(
-    "Your space is ready",
+    "Account created",
   );
   expect(api.login).not.toHaveBeenCalled();
   await user.click(screen.getByRole("link", { name: "Continue to sign in" }));
   expect(screen.getByLabelText("Password", { exact: true })).toHaveValue("");
 });
 it("clears the session after a protected endpoint returns 401", async () => {
-  mount();
+  mount("/settings/account");
   const user = await fillLogin();
-  await screen.findByRole("heading", { name: "A space of your own" });
+  await screen.findByRole("heading", { name: "Account" });
   vi.mocked(api.session).mockRejectedValue(new ApiError("UNAUTHORIZED", 401));
   await user.click(screen.getByRole("button", { name: "Refresh profile" }));
-  expect(
-    await screen.findByRole("heading", { name: "Welcome back." }),
-  ).toBeVisible();
+  expect(await screen.findByRole("heading", { name: "Sign in" })).toBeVisible();
   expect(screen.getByRole("status")).toHaveTextContent(
     "Your session has ended",
   );
 });
 it("retains a retry path when logout fails, then clears on successful revocation", async () => {
-  mount();
+  mount("/settings/account");
   const user = await fillLogin();
-  await screen.findByRole("heading", { name: "A space of your own" });
+  await screen.findByRole("heading", { name: "Account" });
   vi.mocked(api.logout).mockRejectedValueOnce(new ApiError("NETWORK_ERROR"));
   await user.click(screen.getByRole("button", { name: "Sign out" }));
   expect(await screen.findByRole("alert")).toHaveTextContent(
     "We could not sign you out",
   );
-  expect(
-    screen.getByRole("heading", { name: "A space of your own" }),
-  ).toBeVisible();
+  expect(screen.getByRole("heading", { name: "Account" })).toBeVisible();
   await user.click(screen.getByRole("button", { name: "Sign out" }));
   expect(await screen.findByRole("status")).toHaveTextContent(
     "You have signed out safely",
@@ -166,9 +156,7 @@ it("does not restore a session from a late login response after navigation", asy
   const user = await fillLogin();
   await user.click(screen.getByRole("link", { name: "Create account" }));
   await act(async () => finish(session()));
-  expect(
-    screen.getByRole("heading", { name: "Make yourself a little space" }),
-  ).toBeVisible();
+  expect(screen.getByRole("heading", { name: "Create account" })).toBeVisible();
   expect(api.logout).not.toHaveBeenCalled();
 });
 it("shows a duplicate-email error on register", async () => {
@@ -201,7 +189,7 @@ it("expires the session locally without waiting for another API call", async () 
       ...session(),
       expires_at: new Date(Date.now() + 10_000).toISOString(),
     });
-    mount();
+    mount("/settings/account");
     await act(async () => {});
     fireEvent.change(screen.getByLabelText("Email address"), {
       target: { value: account.email },
@@ -212,9 +200,7 @@ it("expires the session locally without waiting for another API call", async () 
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: /Sign in/ }));
     });
-    expect(
-      screen.getByRole("heading", { name: "A space of your own" }),
-    ).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Account" })).toBeVisible();
     await act(async () => {
       vi.advanceTimersByTime(10_001);
     });
@@ -232,13 +218,11 @@ it("clears authentication when a task request returns 401", async () => {
   vi.spyOn(workspaceApi, "tasks").mockRejectedValue(
     new ApiError("UNAUTHORIZED", 401),
   );
-  mount();
+  mount("/settings/account");
   const user = await fillLogin();
-  await screen.findByRole("heading", { name: "A space of your own" });
+  await screen.findByRole("heading", { name: "Account" });
   await user.click(screen.getByRole("link", { name: /^Tasks$/ }));
-  expect(
-    await screen.findByRole("heading", { name: "Welcome back." }),
-  ).toBeVisible();
+  expect(await screen.findByRole("heading", { name: "Sign in" })).toBeVisible();
   expect(screen.getByRole("status")).toHaveTextContent(
     "Your session has ended",
   );

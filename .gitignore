@@ -31,3 +31,5 @@ skills-lock.json
 docs/*.md
 README_dev.md
 /devdoc
+.github/skills
+.github/agents

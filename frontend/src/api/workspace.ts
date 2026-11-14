@@ -63,12 +63,13 @@ export const workspaceApi = {
     );
     return { items, next };
   },
-  task: (credentials: BrowserAuth, id: string) =>
+  task: (credentials: BrowserAuth, id: string, signal?: AbortSignal) =>
     request<Task>(
       `/tasks/${encodeURIComponent(id)}`,
       "GET",
       undefined,
       credentials,
+      signal,
     ),
   createTask: (credentials: BrowserAuth, body: CreateTask) =>
     request<Task>("/tasks", "POST", body, credentials),

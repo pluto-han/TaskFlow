@@ -13,13 +13,15 @@ export function InvitePage({
   const { user, authorize } = useAuth();
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
-    [joined, setJoined] = useState(false);
+    [joined, setJoined] = useState("");
   async function accept() {
     setBusy(true);
     setError("");
     try {
-      await authorize((session) => sharingApi.accept(session, token));
-      setJoined(true);
+      const result = await authorize((session) =>
+        sharingApi.accept(session, token),
+      );
+      setJoined(result.project_id);
       consumed();
     } catch (err) {
       setError(errorMessage(err));
@@ -29,16 +31,15 @@ export function InvitePage({
   }
   return (
     <section className="profile">
-      <span className="eyebrow">WORK TOGETHER</span>
       <h1>Project invitation</h1>
       {joined ? (
         <>
-          <p role="status">
-            You are part of the project now. You can view, edit, and delete its
-            tasks.
-          </p>
-          <Link className="button primary" to="/tasks">
-            Open workspace
+          <p role="status">Invitation accepted.</p>
+          <Link
+            className="button primary"
+            to={`/projects/${encodeURIComponent(joined)}/tasks`}
+          >
+            Open project
           </Link>
         </>
       ) : !token ? (
@@ -48,10 +49,6 @@ export function InvitePage({
         </p>
       ) : !user ? (
         <>
-          <p>
-            Sign in with the account this invitation was sent to. It cannot be
-            passed to another account.
-          </p>
           <Link className="button primary" to="/login?next=invite">
             Sign in to accept
           </Link>
@@ -59,10 +56,7 @@ export function InvitePage({
       ) : (
         <>
           <p>Signed in as: {user.email}</p>
-          <p>
-            Joining gives you access to view, edit, and delete tasks in this
-            project.
-          </p>
+
           {error && (
             <div className="notice error" role="alert">
               {error}

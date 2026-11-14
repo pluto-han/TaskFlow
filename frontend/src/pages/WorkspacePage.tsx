@@ -1,343 +1,195 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Navigate } from "react-router";
-import { useAuth } from "../auth/AuthProvider";
-import { workspaceApi } from "../api/workspace";
-import { errorMessage } from "../api/client";
-import type { Project } from "../api/types";
-import { SharingPanel } from "../tasks/SharingPanel";
+import { useMemo } from "react";
+import {
+  Link,
+  Navigate,
+  useLocation,
+  useNavigate,
+  useOutletContext,
+  useParams,
+  useSearchParams,
+} from "react-router";
+import type { WorkspaceContext } from "../layouts/WorkspaceLayout";
 import { TaskBoard } from "../tasks/TaskBoard";
-import { ProjectEditor } from "../tasks/ProjectEditor";
-import { DeleteDialog } from "../tasks/DeleteDialog";
-
-import { RecurrenceBoard } from "../tasks/RecurrenceBoard";
+import { RecurrenceBoard } from "../recurrences/RecurrenceBoard";
 
 export function WorkspacePage() {
-  const { user } = useAuth();
-  return user ? <Workspace key={user.id} /> : <Navigate to="/login" replace />;
-}
-function Workspace() {
-  const { authorize } = useAuth();
-  const [recurrences, setRecurrences] = useState(false);
-  const [today, setToday] = useState(false);
-  const [planDate, setPlanDate] = useState("");
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [boardFilters, setBoardFilters] = useState({
-    project: "",
-    completed: "",
-    priority: "",
-  });
-  const { project, completed, priority } = boardFilters;
+  const { pathname, search } = useLocation();
+  const { projectId } = useParams();
+  const [params, setParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { projects, loading, projectError, refreshProjects } =
+    useOutletContext<WorkspaceContext>();
+  const today = pathname === "/tasks/today";
+  const recurring = pathname === "/tasks/recurring";
+  const project = projectId ?? (pathname === "/tasks/unassigned" ? "none" : "");
+  const { canonical, filters } = useMemo(() => {
+    const canonical = new URLSearchParams(params);
+    for (const key of [...canonical.keys()])
+      if (!["completed", "priority", "plan_date", "task"].includes(key))
+        canonical.delete(key);
+    for (const key of ["completed", "priority", "plan_date"]) {
+      const values = canonical.getAll(key),
+        value = values[0] ?? "";
+      const valid =
+        key === "completed"
+          ? ["true", "false"].includes(value)
+          : key === "priority"
+            ? ["1", "2", "3"].includes(value)
+            : !recurring && !today && !project && validPlanDate(value);
+      if (values.length !== 1 || !valid || recurring) canonical.delete(key);
+    }
+    if (
+      recurring ||
+      canonical.getAll("task").length !== 1 ||
+      !canonical.get("task")
+    )
+      canonical.delete("task");
+    return {
+      canonical,
+      filters: {
+        project,
+        completed: canonical.get("completed") ?? "",
+        priority: canonical.get("priority") ?? "",
+        planDate: canonical.get("plan_date") ?? "",
+      },
+    };
+  }, [params, project, recurring, today]);
+  // Keep list data stable when only its selected detail changes.
   const taskFilters = useMemo(
     () => ({
-      ...boardFilters,
-      planDate: !recurrences && !today && !project ? planDate : "",
+      project: filters.project,
+      completed: filters.completed,
+      priority: filters.priority,
+      planDate: filters.planDate,
     }),
-    [boardFilters, recurrences, today, project, planDate],
+    [filters.project, filters.completed, filters.priority, filters.planDate],
   );
-  const [projectError, setProjectError] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [mutating, setMutating] = useState(false);
-  const [editor, setEditor] = useState<Project | "new" | null>(null);
-  const [sharing, setSharing] = useState<Project | null>(null);
-  const [deleting, setDeleting] = useState<Project | null>(null);
-  const projectRequest = useRef<AbortController | null>(null);
-  const loadProjects = useCallback(async () => {
-    projectRequest.current?.abort();
-    const controller = new AbortController();
-    projectRequest.current = controller;
-    const signal = controller.signal;
-    try {
-      const result = await authorize((credentials) =>
-        workspaceApi.projects(credentials, signal),
-      );
-      if (!signal?.aborted) {
-        setProjects(result);
-        setProjectError("");
-        setBoardFilters((current) =>
-          current.project &&
-          current.project !== "none" &&
-          !result.some((p) => p.id === current.project)
-            ? { ...current, project: "" }
-            : current,
-        );
-      }
-    } catch (err) {
-      if (!signal?.aborted) setProjectError(errorMessage(err));
-    } finally {
-      if (!signal?.aborted) setLoading(false);
-    }
-  }, [authorize]);
-  useEffect(() => {
-    // This effect synchronizes the project collection with the server.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void loadProjects();
-    return () => projectRequest.current?.abort();
-  }, [loadProjects]);
-  const selected = today ? undefined : projects.find((p) => p.id === project);
-  function filter(next: {
-    project: string;
-    completed: string;
-    priority: string;
-  }) {
-    setBoardFilters(next);
+  function changeFilter(key: string, value: string) {
+    const next = new URLSearchParams(canonical);
+    next.delete("task");
+    if (value) next.set(key, value);
+    else next.delete(key);
+    setParams(next);
   }
-  // A deleted selected project returns to all tasks via the explicit delete action.
+  function selectTask(id: string) {
+    setParams((previous) => {
+      const next = new URLSearchParams(previous);
+      if (id) next.set("task", id);
+      else next.delete("task");
+      return next;
+    });
+  }
+  if (canonical.toString() !== params.toString())
+    return <Navigate to={{ pathname, search: canonical.toString() }} replace />;
+  const selected = projects.find((p) => p.id === project);
+  if (projectId && !selected)
+    return (
+      <section>
+        <h1>Project</h1>
+        <p role={loading ? "status" : "alert"}>
+          {loading
+            ? "Loading project…"
+            : projectError || "Project is unavailable."}
+        </p>
+        <Link to="/tasks">All tasks</Link>
+      </section>
+    );
+  if (recurring) return <RecurrenceBoard />;
+  const title = today
+    ? "Today"
+    : (selected?.name ?? (project === "none" ? "Unassigned" : "All tasks"));
   return (
-    <div className="workspace">
-      <aside className="project-sidebar" aria-label="Project navigation">
-        <span className="eyebrow">Your workspace</span>
-        <button
-          className={`project-link ${!recurrences && !today && !project ? "selected" : ""}`}
-          disabled={mutating}
-          onClick={() => {
-            setRecurrences(false);
-            setToday(false);
-            filter({ project: "", completed, priority });
-          }}
-        >
-          All tasks <span>↗</span>
-        </button>
-        <button
-          className={`project-link ${today ? "selected" : ""}`}
-          aria-pressed={today}
-          disabled={mutating}
-          onClick={() => {
-            setRecurrences(false);
-            setToday(true);
-            setPlanDate("");
-            filter({ project: "", completed, priority });
-          }}
-        >
-          Today
-        </button>
-        <button
-          className={`project-link ${!recurrences && !today && project === "none" ? "selected" : ""}`}
-          disabled={mutating}
-          onClick={() => {
-            setRecurrences(false);
-            setToday(false);
-            filter({ project: "none", completed, priority });
-          }}
-        >
-          Unassigned
-        </button>
-        <button
-          className={`project-link ${recurrences ? "selected" : ""}`}
-          onClick={() => {
-            setRecurrences(true);
-            setToday(false);
-          }}
-          disabled={mutating}
-        >
-          Recurring tasks
-        </button>
-        <div className="sidebar-heading">
-          <h2>Projects</h2>
-          <button
-            className="icon-button"
-            aria-label="Refresh projects"
-            disabled={mutating}
-            onClick={() => void loadProjects()}
-          >
-            ↻
-          </button>
-          {!recurrences && !today && (
-            <button
-              className="icon-button"
-              aria-label="New project"
-              onClick={() => setEditor("new")}
-              disabled={mutating}
-            >
-              ＋
-            </button>
-          )}
-        </div>
-        {loading && <p role="status">Loading projects…</p>}
-        {projectError && (
-          <div role="alert" className="notice error">
-            {projectError}
-            <button className="text-button" onClick={() => void loadProjects()}>
-              Try loading projects again
-            </button>
+    <TaskBoard
+      key={JSON.stringify([
+        project,
+        filters.completed,
+        filters.priority,
+        filters.planDate,
+        today,
+      ])}
+      today={today}
+      filters={taskFilters}
+      projects={projects}
+      title={title}
+      onAccessLost={() => {
+        void refreshProjects();
+        navigate("/tasks", { replace: true });
+      }}
+      selectedId={canonical.get("task") ?? ""}
+      selectTask={selectTask}
+      toolbar={
+        <>
+          <div className="view-tabs" aria-label="Task status">
+            {[
+              ["", "All tasks"],
+              ["false", "Open"],
+              ["true", "Completed"],
+            ].map(([value, label]) => (
+              <button
+                key={label}
+                aria-pressed={filters.completed === value}
+                onClick={() => changeFilter("completed", value)}
+              >
+                {label}
+              </button>
+            ))}
           </div>
-        )}
-        {!loading && !projectError && projects.length === 0 && (
-          <p className="hint">
-            {today || recurrences
-              ? "No projects yet. You can create one from All tasks."
-              : "Give your next idea a place to grow. Start a project."}
-          </p>
-        )}
-        {projects.map((p) => (
-          <button
-            key={p.id}
-            className={`project-link ${!recurrences && !today && project === p.id ? "selected" : ""}`}
-            disabled={mutating}
-            onClick={() => {
-              setRecurrences(false);
-              setToday(false);
-              setPlanDate("");
-              filter({ project: p.id, completed, priority });
-            }}
-          >
-            <span className="project-dot" aria-hidden="true" />
-            {p.name}
-          </button>
-        ))}
-      </aside>
-      <div className="workspace-main">
-        {recurrences ? (
-          <RecurrenceBoard />
-        ) : (
-          <>
-            <div className="workspace-toolbar">
-              <div className="filters">
-                <label>
-                  Status
-                  <select
-                    aria-label="Filter by status"
-                    value={completed}
-                    disabled={mutating}
-                    onChange={(e) =>
-                      filter({ project, completed: e.target.value, priority })
-                    }
-                  >
-                    <option value="">All statuses</option>
-                    <option value="false">Incomplete</option>
-                    <option value="true">Completed</option>
-                  </select>
-                </label>
-                <label>
-                  Priority
-                  <select
-                    aria-label="Filter by priority"
-                    value={priority}
-                    disabled={mutating}
-                    onChange={(e) =>
-                      filter({ project, completed, priority: e.target.value })
-                    }
-                  >
-                    <option value="">All priorities</option>
-                    <option value="3">High</option>
-                    <option value="2">Medium</option>
-                    <option value="1">Low</option>
-                  </select>
-                </label>
-                {!recurrences && !today && !project && (
-                  <div className="plan-date-filter">
-                    <label htmlFor="plan-date-filter">
-                      Planned date (history)
-                    </label>
-                    <div className="plan-date-control">
-                      <input
-                        id="plan-date-filter"
-                        aria-label="Filter by planned date"
-                        type="date"
-                        min="0001-01-01"
-                        max="9999-12-31"
-                        value={planDate}
-                        disabled={mutating}
-                        onChange={(e) => setPlanDate(e.target.value)}
-                      />
-                      {planDate && (
-                        <button
-                          className="text-button"
-                          disabled={mutating}
-                          onClick={() => setPlanDate("")}
-                        >
-                          Clear date filter
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-              {selected && (
-                <div className="project-actions">
-                  <button
-                    className="text-button"
-                    disabled={mutating}
-                    onClick={() => setSharing(selected)}
-                  >
-                    Members & invitations
-                  </button>
-                  {selected.role === "owner" && (
-                    <>
-                      <button
-                        className="text-button"
-                        disabled={mutating}
-                        onClick={() => setEditor(selected)}
-                      >
-                        Edit project
-                      </button>
-                      <button
-                        className="text-button danger-text"
-                        disabled={mutating}
-                        onClick={() => setDeleting(selected)}
-                      >
-                        Delete project
-                      </button>
-                    </>
+          <div className="workspace-toolbar">
+            <div className="filters">
+              <label>
+                Priority
+                <select
+                  aria-label="Filter by priority"
+                  value={filters.priority}
+                  onChange={(e) => changeFilter("priority", e.target.value)}
+                >
+                  <option value="">All priorities</option>
+                  <option value="3">High</option>
+                  <option value="2">Medium</option>
+                  <option value="1">Low</option>
+                </select>
+              </label>
+              {!today && !project && (
+                <label className="plan-date-filter">
+                  Planned date
+                  <input
+                    aria-label="Filter by planned date"
+                    type="date"
+                    min="0001-01-01"
+                    max="9999-12-31"
+                    value={filters.planDate}
+                    onChange={(e) => changeFilter("plan_date", e.target.value)}
+                  />
+                  {filters.planDate && (
+                    <button
+                      className="text-button"
+                      onClick={() => changeFilter("plan_date", "")}
+                    >
+                      Clear date filter
+                    </button>
                   )}
-                </div>
+                </label>
               )}
             </div>
-            {selected?.description && (
-              <p className="project-description">{selected.description}</p>
+            {selected && (
+              <Link
+                className="text-button"
+                to={`/projects/${encodeURIComponent(selected.id)}/settings`}
+                state={{ workspaceReturnTo: pathname + search }}
+              >
+                Project settings
+              </Link>
             )}
-            <TaskBoard
-              key={JSON.stringify([
-                boardFilters,
-                today,
-                !project ? planDate : "",
-              ])}
-              today={today}
-              filters={taskFilters}
-              projects={projects}
-              title={
-                today
-                  ? "Today"
-                  : selected?.name ||
-                    (project === "none" ? "Unassigned" : "All tasks")
-              }
-              setMutating={setMutating}
-            />
-          </>
-        )}
-      </div>
-      {sharing && (
-        <SharingPanel
-          project={sharing}
-          close={() => setSharing(null)}
-          changed={() => void loadProjects()}
-        />
-      )}
-      {editor && (
-        <ProjectEditor
-          project={editor === "new" ? undefined : editor}
-          close={() => setEditor(null)}
-          saved={() => {
-            setEditor(null);
-            void loadProjects();
-          }}
-        />
-      )}
-      {deleting && (
-        <DeleteDialog
-          title="Delete project"
-          name={deleting.name}
-          project
-          close={() => setDeleting(null)}
-          remove={async () => {
-            await authorize((credentials) =>
-              workspaceApi.deleteProject(credentials, deleting.id),
-            );
-            if (project === deleting.id)
-              filter({ project: "", completed, priority });
-            await loadProjects();
-          }}
-        />
-      )}
-    </div>
+          </div>
+        </>
+      }
+    />
+  );
+}
+function validPlanDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || value < "0001-01-01") return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return (
+    Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value
   );
 }

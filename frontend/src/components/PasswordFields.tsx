@@ -32,15 +32,15 @@ export function PasswordFields({
           disabled={busy}
           required
           aria-invalid={!!errors.password}
-          aria-describedby={`${prefix}-password-help`}
+          aria-describedby={
+            errors.password ? `${prefix}-password-help` : undefined
+          }
         />
-        <p
-          id={`${prefix}-password-help`}
-          className={errors.password ? "field-error" : "hint"}
-        >
-          {errors.password ||
-            "Use 8–128 characters. A few memorable words work well."}
-        </p>
+        {errors.password && (
+          <p id={`${prefix}-password-help`} className="field-error">
+            {errors.password}
+          </p>
+        )}
       </div>
       <div className="field">
         <label htmlFor={`${prefix}-confirm`}>Confirm new password</label>

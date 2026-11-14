@@ -2,15 +2,22 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, Navigate, useNavigate, useLocation } from "react-router";
 import { api, errorMessage } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
+import { returnTarget } from "../auth/navigation";
 import { validate, type FieldErrors } from "../auth/validation";
 
 export function AuthPage({ register = false }: { register?: boolean }) {
   const auth = useAuth();
   const navigate = useNavigate();
-  const nextInvite =
-    new URLSearchParams(useLocation().search).get("next") === "invite";
-  const destination = nextInvite ? "/invite" : "/profile";
-  const suffix = nextInvite ? "?next=invite" : "";
+  const params = new URLSearchParams(useLocation().search);
+  const nextInvite = params.get("next") === "invite";
+  const destination = nextInvite
+    ? "/invite"
+    : returnTarget(params.get("returnTo"));
+  const suffix = nextInvite
+    ? "?next=invite"
+    : destination === "/tasks"
+      ? ""
+      : `?returnTo=${encodeURIComponent(destination)}`;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -69,39 +76,13 @@ export function AuthPage({ register = false }: { register?: boolean }) {
 
   return (
     <div className="auth-layout">
-      <aside className="story" aria-label="About TaskFlow">
-        <span className="eyebrow">A LITTLE ROOM TO FOCUS</span>
-        <h2>
-          Make room
-          <br />
-          for what matters.
-        </h2>
-        <p>
-          Begin with a little clarity.
-          <br />
-          Find a rhythm of your own.
-        </p>
-        <div className="art" aria-hidden="true">
-          <span />
-          <span />
-          <span />
-        </div>
-        <p className="story-bottom">Less noise. More room to breathe.</p>
-      </aside>
       <section className="auth-card" aria-labelledby="auth-heading">
-        <span className="eyebrow">YOUR PERSONAL SPACE</span>
-        <h1 id="auth-heading">
-          {register ? "Make yourself a little space" : "Welcome back."}
-        </h1>
-        <p className="subtitle">
-          {register
-            ? "A fresh start, and a little space of your own."
-            : "Step back into your space."}
-        </p>
+        <h1 id="auth-heading">{register ? "Create account" : "Sign in"}</h1>
+
         {registered ? (
           <>
             <div className="notice" role="status">
-              Your space is ready. Sign in to make it your own.
+              Account created.
             </div>
             <Link className="button primary wide" to={"/login" + suffix}>
               Continue to sign in
@@ -161,24 +142,13 @@ export function AuthPage({ register = false }: { register?: boolean }) {
                   disabled={submitting}
                   aria-invalid={!!errors.password}
                   aria-describedby={
-                    errors.password
-                      ? "password-error"
-                      : register
-                        ? "password-hint"
-                        : undefined
+                    errors.password ? "password-error" : undefined
                   }
                 />
-                {errors.password ? (
+                {errors.password && (
                   <p className="field-error" id="password-error">
                     {errors.password}
                   </p>
-                ) : (
-                  register && (
-                    <p className="hint" id="password-hint">
-                      Use 8–128 characters. A few memorable words can make a
-                      good passphrase.
-                    </p>
-                  )
                 )}
               </div>
               {register && (
@@ -215,28 +185,22 @@ export function AuthPage({ register = false }: { register?: boolean }) {
                 disabled={submitting}
                 type="submit"
               >
-                {submitting && <span className="spinner" aria-hidden="true" />}
                 {submitting
                   ? register
-                    ? "Creating your space…"
+                    ? "Creating account…"
                     : "Signing in…"
                   : register
                     ? "Create account"
                     : "Sign in"}
-                <span aria-hidden="true">→</span>
               </button>
             </form>
             <p className="auth-switch">
-              {register ? "Already have an account?" : "New here?"}{" "}
               <Link to={(register ? "/login" : "/register") + suffix}>
                 {register ? "Sign in" : "Create account"}
               </Link>
             </p>
           </>
         )}
-        <p className="footnote">
-          Stay signed in across refreshes and tabs until your session expires.
-        </p>
       </section>
     </div>
   );

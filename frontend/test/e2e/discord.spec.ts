@@ -16,7 +16,10 @@ test("profile channel binding, private code and mobile layout", async ({
     if (path.endsWith("/discord/code"))
       return route.fulfill({
         status: 201,
-        json: { code, expires_at: "2099-01-01T00:00:00Z" },
+        json: {
+          code,
+          expires_at: new Date(Date.now() + 300_000).toISOString(),
+        },
       });
     if (path.endsWith("/integrations/discord")) {
       if (req.method() === "DELETE") {
@@ -45,6 +48,8 @@ test("profile channel binding, private code and mobile layout", async ({
     .getByLabel("Password", { exact: true })
     .fill("a long learning passphrase");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByRole("link", { name: "Settings", exact: true }).click();
+  await page.getByRole("link", { name: "Integrations", exact: true }).click();
   await page
     .getByRole("button", { name: "Generate connection code", exact: true })
     .click();

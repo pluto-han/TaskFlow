@@ -11,7 +11,7 @@ test("two accounts share tasks, bind invite recipient, revoke access and transfe
     memberContext = await browser.newContext();
   const owner = await ownerContext.newPage(),
     member = await memberContext.newPage();
-  const base = "http://127.0.0.1:5173";
+  const base = process.env.TASKFLOW_FLOW_BASE_URL || "http://127.0.0.1:5173";
   const password = "a long shared browser passphrase";
   async function login(page: Page, email: string) {
     await page.getByLabel("Email address").fill(email);
@@ -33,7 +33,7 @@ test("two accounts share tasks, bind invite recipient, revoke access and transfe
     await page.getByRole("link", { name: "Continue to sign in" }).click();
     await login(page, email);
     await expect(
-      page.getByRole("heading", { name: "A space of your own" }),
+      page.getByRole("heading", { name: "All tasks" }),
     ).toBeVisible();
     return account.id as string;
   }
@@ -50,18 +50,28 @@ test("two accounts share tasks, bind invite recipient, revoke access and transfe
     await owner.getByLabel("Project name").fill("A shared space");
     await owner.getByRole("button", { name: "Save project" }).click();
     await owner
-      .getByRole("button", { name: "A shared space", exact: true })
+      .getByRole("link", { name: "A shared space", exact: true })
       .click();
     await owner.getByRole("button", { name: "New task", exact: false }).click();
     await owner.getByLabel("Task title").fill("A task from the owner");
     await owner.getByRole("button", { name: "Save task" }).click();
-    await owner.getByRole("button", { name: "Members & invitations" }).click();
+    await owner.getByRole("link", { name: "Project settings" }).click();
     await owner.getByLabel("Recipient account ID").fill(memberID);
     await owner.getByRole("button", { name: "Create invitation link" }).click();
-    const invitation = await owner
-      .getByLabel("Shown once. Share this link privately with the recipient.")
-      .inputValue();
-    await owner.getByRole("button", { name: "Close dialog" }).click();
+    const invitation = await owner.getByLabel("Invitation link").inputValue();
+    await owner
+      .getByRole("link", { name: "Back to tasks", exact: true })
+      .click();
+    const wrongRecipient = await ownerContext.newPage();
+    await wrongRecipient.goto(invitation);
+    await wrongRecipient
+      .getByRole("button", { name: "Accept invitation" })
+      .click();
+    await expect(wrongRecipient.getByRole("alert")).toBeVisible();
+    await wrongRecipient.close();
+    await member.getByRole("link", { name: "Settings", exact: true }).click();
+    await member.getByRole("button", { name: "Sign out", exact: true }).click();
+    await expect(member).toHaveURL(/\/login(?:\?|$)/);
     await member.goto(invitation);
     await expect(
       member.getByRole("heading", { name: "Project invitation" }),
@@ -70,13 +80,16 @@ test("two accounts share tasks, bind invite recipient, revoke access and transfe
     await member.getByRole("link", { name: "Sign in to accept" }).click();
     await login(member, memberEmail);
     await member.getByRole("button", { name: "Accept invitation" }).click();
-    await member.getByRole("link", { name: "Open workspace" }).click();
+    await member.getByRole("link", { name: "Open project" }).click();
     await member
-      .getByRole("button", { name: "A shared space", exact: true })
+      .getByRole("link", { name: "A shared space", exact: true })
       .click();
     await expect(
       member.getByRole("button", { name: "Delete project", exact: true }),
     ).toHaveCount(0);
+    await member
+      .getByRole("button", { name: "A task from the owner", exact: true })
+      .click();
     await member
       .getByRole("button", { name: "Edit task: A task from the owner" })
       .click();
@@ -90,9 +103,12 @@ test("two accounts share tasks, bind invite recipient, revoke access and transfe
     await member.getByRole("button", { name: "Save task" }).click();
     await owner.getByRole("button", { name: "Refresh", exact: true }).click();
     await expect(
-      owner.getByRole("heading", { name: "A shared edit from a member" }),
+      owner.getByRole("button", {
+        name: "A shared edit from a member",
+        exact: true,
+      }),
     ).toBeVisible();
-    await owner.getByRole("button", { name: "Members & invitations" }).click();
+    await owner.getByRole("link", { name: "Project settings" }).click();
     await expect(
       owner.getByRole("button", { name: "Remove member" }),
     ).toBeVisible();
@@ -104,30 +120,32 @@ test("two accounts share tasks, bind invite recipient, revoke access and transfe
       .getByRole("button", { name: "Remove member", exact: true })
       .click();
     await owner.getByRole("button", { name: "Confirm remove member" }).click();
-    await expect(owner.getByRole("dialog")).not.toBeVisible();
+    await expect(
+      owner.getByRole("button", { name: "Remove member", exact: true }),
+    ).toHaveCount(0);
     // The member's existing session cannot see even their own project task now.
     await member.getByRole("button", { name: "Refresh", exact: true }).click();
     await expect(
-      member.getByRole("heading", { name: "A member’s project task" }),
+      member.getByRole("button", {
+        name: "A member’s project task",
+        exact: true,
+      }),
     ).toHaveCount(0);
     await member.getByRole("button", { name: "Refresh projects" }).click();
     await expect(
-      member.getByRole("button", { name: "A shared space", exact: true }),
+      member.getByRole("link", { name: "A shared space", exact: true }),
     ).toHaveCount(0);
     // Reinvite, then transfer ownership through an explicit confirmation.
-    await owner.getByRole("button", { name: "Members & invitations" }).click();
     await owner.getByLabel("Recipient account ID").fill(memberID);
     await owner.getByRole("button", { name: "Create invitation link" }).click();
-    const again = await owner
-      .getByLabel("Shown once. Share this link privately with the recipient.")
-      .inputValue();
-    await owner.getByRole("button", { name: "Close dialog" }).click();
+    const again = await owner.getByLabel("Invitation link").inputValue();
+    await owner
+      .getByRole("link", { name: "Back to tasks", exact: true })
+      .click();
     await member.goto(again);
-    await member.getByRole("link", { name: "Sign in to accept" }).click();
-    await login(member, memberEmail);
     await member.getByRole("button", { name: "Accept invitation" }).click();
-    await member.getByRole("link", { name: "Open workspace" }).click();
-    await owner.getByRole("button", { name: "Members & invitations" }).click();
+    await member.getByRole("link", { name: "Open project" }).click();
+    await owner.getByRole("link", { name: "Project settings" }).click();
     await owner
       .getByRole("button", { name: "Transfer ownership", exact: true })
       .click();
@@ -139,18 +157,22 @@ test("two accounts share tasks, bind invite recipient, revoke access and transfe
     ).toHaveCount(0);
     await member.getByRole("button", { name: "Refresh projects" }).click();
     await member
-      .getByRole("button", { name: "A shared space", exact: true })
+      .getByRole("link", { name: "A shared space", exact: true })
       .click();
+    await member.getByRole("link", { name: "Project settings" }).click();
     await expect(
       member.getByRole("button", { name: "Delete project", exact: true }),
     ).toBeVisible();
-    await owner.getByRole("button", { name: "Members & invitations" }).click();
+    await owner
+      .getByRole("link", { name: "A shared space", exact: true })
+      .click();
+    await owner.getByRole("link", { name: "Project settings" }).click();
     await owner
       .getByRole("button", { name: "Leave project", exact: true })
       .click();
     await owner.getByRole("button", { name: "Confirm leave project" }).click();
     await expect(
-      owner.getByRole("button", { name: "A shared space", exact: true }),
+      owner.getByRole("link", { name: "A shared space", exact: true }),
     ).toHaveCount(0);
     expect(
       await member.evaluate(() => localStorage.length + sessionStorage.length),

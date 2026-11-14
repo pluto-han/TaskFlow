@@ -1,9 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
-import {
-  RecurrenceBoard,
-  RecurrenceEditor,
-} from "../../../src/tasks/RecurrenceBoard";
+import { RecurrenceBoard } from "../../../src/recurrences/RecurrenceBoard";
+import { RecurrenceEditor } from "../../../src/recurrences/RecurrenceEditor";
 import { MemoryRouter } from "react-router";
 import { discordApi } from "../../../src/api/discord";
 import { recurrenceApi, type Recurrence } from "../../../src/api/recurrences";
@@ -133,9 +131,7 @@ it("pauses with a version and confirms deletion preserving history", async () =>
   const remove = vi.spyOn(recurrenceApi, "remove").mockResolvedValue(undefined);
   render(<RecurrenceBoard />);
   await screen.findByText("Read");
-  expect(
-    screen.getByText(/automatic task creation is not enabled yet/),
-  ).toBeVisible();
+  expect(screen.getByText(/Automatic creation disabled/)).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "Pause" }));
   await waitFor(() =>
     expect(update).toHaveBeenCalledWith({ csrfToken: "test" }, "r", {
@@ -166,9 +162,9 @@ it("shows the opt-in scheduler state from the API", async () => {
     scheduler_enabled: true,
   });
   render(<RecurrenceBoard />);
-  expect(await screen.findByText(/Automatic tasks are on/)).toBeVisible();
+  expect(await screen.findByText(/Automatic creation enabled/)).toBeVisible();
   expect(
-    screen.queryByText(/automatic task creation is not enabled yet/),
+    screen.queryByText(/Automatic creation disabled/),
   ).not.toBeInTheDocument();
 });
 
@@ -191,9 +187,9 @@ it("requires a bound channel before enabling Discord reminders", async () => {
   await waitFor(() =>
     expect(screen.getByLabelText("Discord channel reminder")).toBeDisabled(),
   );
-  expect(screen.getByRole("link", { name: "Profile" })).toHaveAttribute(
+  expect(screen.getByRole("link", { name: "Connect Discord" })).toHaveAttribute(
     "href",
-    "/profile",
+    "/settings/integrations",
   );
 });
 

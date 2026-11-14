@@ -30,7 +30,7 @@ it("requires explicit acceptance and clears the in-memory invitation after succe
     screen.getByRole("button", { name: "Accept invitation" }),
   );
   expect(await screen.findByRole("status")).toHaveTextContent(
-    "You are part of the project now",
+    "Invitation accepted.",
   );
   expect(sharingApi.accept).toHaveBeenCalledWith(
     { csrfToken: "session" },

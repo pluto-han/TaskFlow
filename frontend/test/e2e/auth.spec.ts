@@ -29,8 +29,12 @@ test("login, revocation, refresh and responsive layout", async ({ page }) => {
       },
     }),
   );
-  await page.route("**/api/auth/**", async (route) => {
+  await page.route("http://127.0.0.1:5173/api/auth/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (path === "/api/auth/email/verification")
+      return route.fulfill({ json: { enabled: false, verified_at: null } });
+    if (path === "/api/auth/sessions")
+      return route.fulfill({ json: { items: [], next_cursor: "" } });
     if (path.endsWith("/login")) {
       signedIn = true;
       return route.fulfill({ json: restored });
@@ -47,7 +51,7 @@ test("login, revocation, refresh and responsive layout", async ({ page }) => {
     return route.fulfill({ json: restored });
   });
   await page.goto("/profile");
-  await expect(page).toHaveURL(/\/login$/);
+  await expect(page).toHaveURL(/\/login\?returnTo=/);
   await page.screenshot({
     path: "test-results/login-desktop.png",
     fullPage: true,
@@ -58,8 +62,9 @@ test("login, revocation, refresh and responsive layout", async ({ page }) => {
       .getByLabel("Password", { exact: true })
       .fill("a long test passphrase");
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await page.getByRole("link", { name: "Settings", exact: true }).click();
     await expect(
-      page.getByRole("heading", { name: "A space of your own" }),
+      page.getByRole("heading", { name: "Account", exact: true }),
     ).toBeVisible();
   }
   await login();
@@ -76,7 +81,7 @@ test("login, revocation, refresh and responsive layout", async ({ page }) => {
   });
   await page.reload();
   await expect(
-    page.getByRole("heading", { name: "A space of your own" }),
+    page.getByRole("heading", { name: "Account", exact: true }),
   ).toBeVisible();
   expired = true;
   await page.getByRole("button", { name: "Refresh profile" }).click();
@@ -125,14 +130,18 @@ test("actual API registration/login/profile/logout through Vite proxy", async ({
     .getByLabel("Confirm password")
     .fill("a long live browser passphrase");
   await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page.getByRole("status")).toContainText("Your space is ready");
+  await expect(page.getByRole("status")).toContainText("Account created");
   await page.getByRole("link", { name: "Continue to sign in" }).click();
   await page.getByLabel("Email address").fill(email);
   await page
     .getByLabel("Password", { exact: true })
     .fill("a long live browser passphrase");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page.getByRole("heading", { name: email })).toBeVisible();
+  await expect(page).toHaveURL(/\/tasks$/);
+  await page.getByRole("link", { name: "Settings", exact: true }).click();
+  await expect(
+    page.getByRole("main").getByText(email, { exact: false }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Refresh profile" }).click();
   await expect(page.getByRole("button", { name: "Sign out" })).toBeEnabled();
   await page.getByRole("button", { name: "Sign out" }).click();

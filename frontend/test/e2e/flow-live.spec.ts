@@ -13,7 +13,7 @@ test("browser to API, scheduler, outbox and stubbed Discord", async ({
   const email = "browser-flow@example.com";
   const password = "a long browser integration passphrase";
   await page.goto("/");
-  await expect(page).toHaveURL(/\/login$/);
+  await expect(page).toHaveURL(/\/login(?:\?|$)/);
   await page.getByRole("link", { name: "Create account" }).click();
   await expect(page).toHaveURL(/\/register$/);
   // The URL can change before React replaces the login form. Both forms have
@@ -30,20 +30,22 @@ test("browser to API, scheduler, outbox and stubbed Discord", async ({
   );
   await page.getByRole("button", { name: "Create account" }).click();
   expect((await registration).status()).toBe(201);
-  await expect(page.getByRole("status")).toContainText("Your space is ready");
+  await expect(page.getByRole("status")).toContainText("Account created");
   await page.getByRole("link", { name: "Continue to sign in" }).click();
   await expect(
-    page.getByRole("heading", { name: "Welcome back.", exact: true }),
+    page.getByRole("heading", { name: "Sign in", exact: true }),
   ).toBeVisible();
   await page.getByLabel("Email address").fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page).toHaveURL(/\/tasks$/);
+  await page.getByRole("link", { name: "Settings", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "A space of your own" }),
+    page.getByRole("heading", { name: "Account", exact: true }),
   ).toBeVisible();
   await page.reload();
   await expect(
-    page.getByRole("heading", { name: "A space of your own" }),
+    page.getByRole("heading", { name: "Account", exact: true }),
   ).toBeVisible();
   const cookies = await page.context().cookies();
   const cookie = cookies.find((c) => c.name === "taskflow_session_dev");
@@ -58,9 +60,10 @@ test("browser to API, scheduler, outbox and stubbed Discord", async ({
   const tab = await page.context().newPage();
   await tab.goto("/profile");
   await expect(
-    tab.getByRole("heading", { name: "A space of your own" }),
+    tab.getByRole("heading", { name: "Account", exact: true }),
   ).toBeVisible();
   await tab.close();
+  await page.getByRole("link", { name: "Integrations", exact: true }).click();
   await page
     .getByRole("button", { name: "Generate connection code", exact: true })
     .click();
@@ -76,7 +79,7 @@ test("browser to API, scheduler, outbox and stubbed Discord", async ({
   await expect(page.getByText("#test-channel")).toBeVisible();
   await page.getByRole("link", { name: "Tasks", exact: true }).click();
   await page
-    .getByRole("button", { name: "Recurring tasks", exact: true })
+    .getByRole("link", { name: "Recurring tasks", exact: true })
     .click();
   await page.getByRole("button", { name: "New recurring task" }).click();
   await page.getByLabel("Task title").fill("Browser flow reminder");
@@ -87,32 +90,32 @@ test("browser to API, scheduler, outbox and stubbed Discord", async ({
     page.getByRole("heading", { name: "Browser flow reminder" }),
   ).toBeVisible();
   expect((await page.request.post("/__fixture/pump")).status()).toBe(204);
-  await page.getByRole("button", { name: "Today", exact: true }).click();
+  await page.getByRole("link", { name: "Today", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "Browser flow reminder" }),
+    page.getByRole("button", { name: "Browser flow reminder", exact: true }),
   ).toBeVisible();
   const messages = await (await page.request.get("/__fixture/messages")).json();
   expect(messages).toHaveLength(1);
   expect(messages[0].content).toContain("<@333>");
   expect(messages[0].content).toContain("Browser flow reminder");
   expect(messages[0].allowed_mentions).toEqual({ parse: [], users: ["333"] });
-  await page.getByRole("link", { name: "Profile", exact: true }).click();
+  await page.getByRole("link", { name: "Settings", exact: true }).click();
   const peer = await page.context().newPage();
   await peer.goto("/profile");
   await expect(peer.getByRole("button", { name: "Sign out" })).toBeVisible();
   await peer.getByRole("button", { name: "Sign out" }).click();
-  await expect(peer).toHaveURL(/\/login$/);
+  await expect(peer).toHaveURL(/\/login(?:\?|$)/);
   // BroadcastChannel tells this tab to recheck; it carries no credentials.
-  await expect(page).toHaveURL(/\/login$/);
+  await expect(page).toHaveURL(/\/login(?:\?|$)/);
   await peer.close();
   await page.reload();
-  await expect(page).toHaveURL(/\/login$/);
+  await expect(page).toHaveURL(/\/login(?:\?|$)/);
   async function signInAgain() {
     await page.getByLabel("Email address").fill(email);
     await page.getByLabel("Password", { exact: true }).fill(password);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
     await expect(
-      page.getByRole("heading", { name: "A space of your own" }),
+      page.getByRole("heading", { name: "Account", exact: true }),
     ).toBeVisible();
   }
   for (const fault of ["expire", "revoke"]) {
@@ -121,6 +124,6 @@ test("browser to API, scheduler, outbox and stubbed Discord", async ({
       (await page.request.post(`/__fixture/session/${fault}`)).status(),
     ).toBe(204);
     await page.reload();
-    await expect(page).toHaveURL(/\/login$/);
+    await expect(page).toHaveURL(/\/login(?:\?|$)/);
   }
 });

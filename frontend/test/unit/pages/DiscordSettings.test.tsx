@@ -7,7 +7,7 @@ import {
   within,
 } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
-import { DiscordSettings } from "../../../src/pages/DiscordSettings";
+import { IntegrationsSettings } from "../../../src/settings/IntegrationsSettings";
 import { discordApi } from "../../../src/api/discord";
 import { ApiError } from "../../../src/api/client";
 const authorize = <T,>(
@@ -36,7 +36,7 @@ it("issues a private code in memory, refreshes binding and unbinds with a versio
     expires_at: new Date(Date.now() + 600000).toISOString(),
   });
   const unbind = vi.spyOn(discordApi, "unbind").mockResolvedValue(undefined);
-  render(<DiscordSettings />);
+  render(<IntegrationsSettings />);
   await waitFor(() =>
     expect(
       screen.getByRole("button", { name: "Generate connection code" }),
@@ -84,11 +84,9 @@ it("disables code issuance until configured and preserves the target on conflict
   vi.spyOn(discordApi, "unbind").mockRejectedValue(
     new ApiError("DISCORD_BINDING_CONFLICT", 409),
   );
-  render(<DiscordSettings />);
+  render(<IntegrationsSettings />);
   await screen.findByText(/Not set up yet/);
-  expect(
-    screen.getByText(/configure the Discord Application ID/),
-  ).toBeVisible();
+  expect(screen.getByText(/Not set up yet/)).toBeVisible();
   expect(
     screen.getByRole("button", { name: "Generate connection code" }),
   ).toBeDisabled();
@@ -125,7 +123,7 @@ it("removes an expired code from the rendered settings", async () => {
       expires_at: new Date(Date.now() + 10000).toISOString(),
     });
     await act(async () => {
-      render(<DiscordSettings />);
+      render(<IntegrationsSettings />);
     });
     await act(async () => {
       fireEvent.click(
@@ -161,7 +159,9 @@ it("shows recent notification results without displaying another user's data", a
     },
   ]);
   vi.spyOn(discordApi, "status").mockResolvedValue(empty);
-  render(<DiscordSettings />);
+  render(<IntegrationsSettings />);
+  expect(discordApi.notifications).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Recent reminders" }));
   expect(await screen.findByText("Reading")).toBeVisible();
   expect(screen.getByText("Waiting to retry")).toBeVisible();
 });

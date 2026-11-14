@@ -1,4 +1,6 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
+
+import { Icon } from "./Icon";
 
 export function Modal({
   title,
@@ -11,6 +13,7 @@ export function Modal({
   close(): void;
   children: ReactNode;
 }) {
+  const titleId = useId();
   const dialog = useRef<HTMLDialogElement>(null);
   const previous = useRef<HTMLElement | null>(null);
   useEffect(() => {
@@ -26,14 +29,14 @@ export function Modal({
     <dialog
       ref={dialog}
       className="modal"
-      aria-labelledby="modal-title"
+      aria-labelledby={titleId}
       onCancel={(event) => {
         event.preventDefault();
         if (!busy) close();
       }}
     >
       <header className="modal-heading">
-        <h2 id="modal-title">{title}</h2>
+        <h2 id={titleId}>{title}</h2>
         <button
           className="icon-button"
           type="button"
@@ -41,7 +44,7 @@ export function Modal({
           disabled={busy}
           aria-label="Close dialog"
         >
-          ×
+          <Icon name="x" />
         </button>
       </header>
       {children}

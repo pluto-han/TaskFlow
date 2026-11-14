@@ -21,7 +21,7 @@ export function TaskEditor({
   projects: Project[];
   defaultProject: string;
   close(): void;
-  saved(): void;
+  saved(task: Task): void;
 }) {
   const { authorize } = useAuth();
   const [draftDay, setDraftDay] = useState(todayDate);
@@ -61,8 +61,9 @@ export function TaskEditor({
     setBusy(true);
     setError("");
     try {
+      let result: Task;
       if (!base && draftDay) {
-        await authorize((credentials) =>
+        result = await authorize((credentials) =>
           workspaceApi.createToday(credentials, {
             plan_date: draftDay,
             title: title.trim(),
@@ -72,7 +73,7 @@ export function TaskEditor({
           }),
         );
       } else if (!base)
-        await authorize((credentials) =>
+        result = await authorize((credentials) =>
           workspaceApi.createTask(credentials, {
             title: title.trim(),
             description,
@@ -94,11 +95,11 @@ export function TaskEditor({
           close();
           return;
         }
-        await authorize((credentials) =>
+        result = await authorize((credentials) =>
           workspaceApi.updateTask(credentials, base.id, patch),
         );
       }
-      saved();
+      saved(result);
     } catch (err) {
       if (err instanceof ApiError && err.code === "PLAN_DAY_CHANGED")
         setDayConflict(true);
@@ -179,7 +180,6 @@ export function TaskEditor({
       {(base?.plan_date || draftDay) && (
         <p className="hint">
           Planned for: {base?.plan_date || draftDay} · Europe/Amsterdam.
-          Personal plans stay outside projects.
         </p>
       )}
       {conflict && (
@@ -225,18 +225,6 @@ export function TaskEditor({
             </div>
           )}
         </section>
-      )}
-      {project && (
-        <p className="notice">
-          Everyone in this project can view, edit, and delete its tasks. Only
-          the person who created a task can move it to another project or remove
-          it from this one.
-        </p>
-      )}
-      {base && !base.can_move && !base.plan_date && (
-        <p className="hint">
-          Only the person who created this task can change its project.
-        </p>
       )}
       <form onSubmit={(event) => void submit(event)} aria-busy={busy}>
         <div className="field">
@@ -308,9 +296,7 @@ export function TaskEditor({
             disabled={busy}
           />
           <p className="hint">
-            Your time zone: {Intl.DateTimeFormat().resolvedOptions().timeZone}.
-            Leave blank for no due date. When daylight saving repeats a time,
-            your browser uses the earlier occurrence.
+            {Intl.DateTimeFormat().resolvedOptions().timeZone}
           </p>
           {due && (
             <button

@@ -57,12 +57,10 @@ it("waits for bootstrap without flashing the login page", async () => {
     }),
   );
   app();
-  expect(screen.getByRole("status")).toHaveTextContent("check your sign-in");
+  expect(screen.getByRole("status")).toHaveTextContent("Loading…");
   expect(screen.queryByLabelText("Password")).not.toBeInTheDocument();
   await act(async () => finish(session()));
-  expect(
-    await screen.findByRole("heading", { name: "A space of your own" }),
-  ).toBeVisible();
+  expect(await screen.findByRole("heading", { name: "Account" })).toBeVisible();
 });
 
 it.each([new ApiError("NETWORK_ERROR"), new ApiError("INTERNAL_ERROR", 500)])(
@@ -77,7 +75,7 @@ it.each([new ApiError("NETWORK_ERROR"), new ApiError("INTERNAL_ERROR", 500)])(
       screen.getByRole("button", { name: "Try again" }).click(),
     );
     expect(
-      await screen.findByRole("heading", { name: "A space of your own" }),
+      await screen.findByRole("heading", { name: "Account" }),
     ).toBeVisible();
   },
 );
@@ -88,9 +86,7 @@ it("treats an expired bootstrap session as anonymous", async () => {
     expires_at: "2000-01-01T00:00:00Z",
   });
   app();
-  expect(
-    await screen.findByRole("heading", { name: "Welcome back." }),
-  ).toBeVisible();
+  expect(await screen.findByRole("heading", { name: "Sign in" })).toBeVisible();
 });
 
 class Channel {

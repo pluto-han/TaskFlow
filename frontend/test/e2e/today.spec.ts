@@ -96,19 +96,15 @@ test("today CRUD, draft rollover and history in a non-Dutch mobile browser", asy
     .fill("a long test passphrase");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await page.getByRole("link", { name: "Tasks", exact: true }).click();
-  await page.getByRole("button", { name: "Today", exact: true }).click();
-  await expect(
-    page.getByText("Amsterdam time / Europe/Amsterdam · 2026-11-05"),
-  ).toBeVisible();
-  await expect(page.getByRole("button", { name: "New project" })).toHaveCount(
-    0,
-  );
-  await page.getByRole("button", { name: "＋ New task" }).click();
+  await page.getByRole("link", { name: "Today", exact: true }).click();
+  await expect(page.getByText("Europe/Amsterdam · 2026-11-05")).toBeVisible();
+  await expect(page.getByRole("button", { name: "New project" })).toBeVisible();
+  await page.getByRole("button", { name: "New task" }).click();
   await expect(page.getByLabel("Project", { exact: true })).toHaveCount(0);
   await page.getByLabel("Task title").fill("Amsterdam today task");
   await page.getByRole("button", { name: "Save task" }).click();
   await expect(
-    page.getByRole("heading", { name: "Amsterdam today task" }),
+    page.getByRole("button", { name: "Amsterdam today task", exact: true }),
   ).toBeVisible();
   await page
     .getByRole("checkbox", { name: "Complete task: Amsterdam today task" })
@@ -119,12 +115,15 @@ test("today CRUD, draft rollover and history in a non-Dutch mobile browser", asy
     }),
   ).toBeChecked();
   await page
+    .getByRole("button", { name: "Amsterdam today task", exact: true })
+    .click();
+  await page
     .getByRole("button", { name: "Edit task: Amsterdam today task" })
     .click();
   await expect(page.getByLabel("Project", { exact: true })).toHaveCount(0);
   await page.getByLabel("Task title").fill("Edited today task");
   await page.getByRole("button", { name: "Save task" }).click();
-  await page.getByRole("button", { name: "＋ New task" }).click();
+  await page.getByRole("button", { name: "New task" }).click();
   await page.getByLabel("Task title").fill("A draft for a new day");
   businessDate = "2026-11-06";
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
@@ -138,10 +137,10 @@ test("today CRUD, draft rollover and history in a non-Dutch mobile browser", asy
   await page.getByRole("button", { name: "Refresh and confirm date" }).click();
   await page.getByRole("button", { name: "Save task" }).click();
   await expect(
-    page.getByRole("heading", { name: "Edited today task" }),
+    page.getByRole("button", { name: "Edited today task", exact: true }),
   ).toHaveCount(0);
   await expect(
-    page.getByRole("heading", { name: "A draft for a new day" }),
+    page.getByRole("button", { name: "A draft for a new day", exact: true }),
   ).toBeVisible();
   await page.setViewportSize({ width: 375, height: 812 });
   expect(
@@ -153,17 +152,21 @@ test("today CRUD, draft rollover and history in a non-Dutch mobile browser", asy
     path: "test-results/today-mobile.png",
     fullPage: true,
   });
-  await page.getByRole("button", { name: /All tasks/ }).click();
+  await page.getByRole("button", { name: "Open navigation" }).click();
+  await page.getByRole("link", { name: "All tasks", exact: true }).click();
   await page.getByLabel("Filter by planned date").fill("2026-11-05");
   await expect(
-    page.getByRole("heading", { name: "Edited today task" }),
+    page.getByRole("button", { name: "Edited today task", exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "A draft for a new day" }),
+    page.getByRole("button", { name: "A draft for a new day", exact: true }),
   ).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Edited today task", exact: true })
+    .click();
   await page
     .getByRole("button", { name: "Delete task: Edited today task" })
     .click();
   await page.getByRole("button", { name: "Confirm delete" }).click();
-  await expect(page.getByText("No tasks here yet")).toBeVisible();
+  await expect(page.getByText("No tasks")).toBeVisible();
 });

@@ -4,7 +4,7 @@ import { test, expect } from "@playwright/test";
 for (const width of [1280, 390, 320]) {
   test(`account settings layout and modal at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
-    await page.route("**/api/**", async (route) => {
+    await page.route("http://127.0.0.1:5173/api/**", async (route) => {
       const path = new URL(route.request().url()).pathname;
       if (path === "/api/auth/browser/session")
         return route.fulfill({
@@ -52,7 +52,7 @@ for (const width of [1280, 390, 320]) {
         json: { error: { code: "ROUTE_NOT_FOUND" } },
       });
     });
-    await page.goto("/profile");
+    await page.goto("/settings/security");
     await expect(
       page.getByRole("button", { name: "End current session" }),
     ).toBeVisible();
@@ -69,18 +69,21 @@ for (const width of [1280, 390, 320]) {
         ),
         fullPage: true,
       });
-    await page.locator("summary").focus();
+    await page
+      .getByRole("button", { name: "Change password", exact: true })
+      .focus();
     await page.keyboard.press("Enter");
     await expect(page.getByLabel("Current password")).toBeVisible();
     if (width !== 320)
       await page
-        .getByRole("region", { name: "Sign-in & security" })
+        .getByRole("region", { name: "Security", exact: true })
         .screenshot({
           path: resolve(
             import.meta.dirname,
             `../../../artifacts/lesson50/security-expanded-${width}.png`,
           ),
         });
+    await page.keyboard.press("Escape");
     await page.getByRole("button", { name: "End current session" }).click();
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
@@ -96,7 +99,7 @@ test("recovery link is cleared before requests and never submitted on load", asy
 }) => {
   const token = "T".repeat(43);
   let writes = 0;
-  await page.route("**/api/**", async (route) => {
+  await page.route("http://127.0.0.1:5173/api/**", async (route) => {
     if (route.request().method() === "POST") writes++;
     return route.fulfill({
       status: 401,
