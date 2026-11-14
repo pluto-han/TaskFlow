@@ -8,36 +8,39 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pluto-han/taskflow/internal/planning"
-	"github.com/pluto-han/taskflow/internal/session"
-	"github.com/pluto-han/taskflow/internal/task"
+	applicationtask "github.com/pluto-han/taskflow/internal/application/task"
+	domainaccount "github.com/pluto-han/taskflow/internal/domain/account"
+	domainplanning "github.com/pluto-han/taskflow/internal/domain/planning"
+	domaintask "github.com/pluto-han/taskflow/internal/domain/task"
+	interfaceshttptask "github.com/pluto-han/taskflow/internal/interfaces/http/task"
+	"github.com/pluto-han/taskflow/test/support/task"
 )
 
 const (
-	baselineOwner session.UserID = "00000000-0000-4000-8000-000000000037"
-	secondOwner   session.UserID = "00000000-0000-4000-8000-000000000038"
+	baselineOwner domainaccount.UserID = "00000000-0000-4000-8000-000000000037"
+	secondOwner   domainaccount.UserID = "00000000-0000-4000-8000-000000000038"
 )
 
 // Count only the target list read. Writes, item reads and authentication are
 // deliberately outside this counter; memory timings are not PostgreSQL timings.
 type countingRepository struct {
-	task.Repository
+	domaintask.Repository
 	findPages atomic.Int64
 }
 
-func (r *countingRepository) FindPage(ctx context.Context, owner session.UserID, query task.PageQuery) ([]task.Task, error) {
+func (r *countingRepository) FindPage(ctx context.Context, owner domainaccount.UserID, query domaintask.PageQuery) ([]domaintask.Task, error) {
 	r.findPages.Add(1)
 	return r.Repository.FindPage(ctx, owner, query)
 }
 
-func todayFixture(tb testing.TB) (*task.Service, *countingRepository, *time.Time) {
+func todayFixture(tb testing.TB) (*applicationtask.Service, *countingRepository, *time.Time) {
 	tb.Helper()
 	now := time.Date(2026, 11, 5, 12, 0, 0, 0, time.UTC)
 	repo := &countingRepository{Repository: task.NewMemoryRepository()}
-	day := planning.At(now).PlanDate
+	day := domainplanning.At(now).PlanDate
 	yesterday := "2026-11-04"
 	for _, seed := range []struct {
-		owner session.UserID
+		owner domainaccount.UserID
 		name  string
 		count int
 		date  *string
@@ -48,7 +51,7 @@ func todayFixture(tb testing.TB) (*task.Service, *countingRepository, *time.Time
 		{baselineOwner, "ordinary", 4, nil},
 	} {
 		for i := 0; i < seed.count; i++ {
-			item := task.Task{ID: fmt.Sprintf("baseline-%s-%02d", seed.name, i),
+			item := domaintask.Task{ID: fmt.Sprintf("baseline-%s-%02d", seed.name, i),
 				Title: "Baseline task", Priority: i%3 + 1, Completed: i%4 == 0,
 				CreatedAt: now.Add(time.Duration(i) * time.Microsecond), PlanDate: seed.date}
 			if i%2 == 0 {
@@ -60,12 +63,12 @@ func todayFixture(tb testing.TB) (*task.Service, *countingRepository, *time.Time
 			}
 		}
 	}
-	return task.NewServiceWithClock(repo, nil, func() time.Time { return now }), repo, &now
+	return applicationtask.NewWithClock(repo, nil, func() time.Time { return now }), repo, &now
 }
 
-func checkToday(tb testing.TB, page task.TodayPage, owner session.UserID, count int) {
+func checkToday(tb testing.TB, page applicationtask.TodayResult, owner domainaccount.UserID, count int) {
 	tb.Helper()
-	if len(page.Items) != count || page.PlanDate != "2026-11-05" || page.Timezone != planning.Timezone {
+	if len(page.Items) != count || page.PlanDate != "2026-11-05" || page.Timezone != domainplanning.Timezone {
 		tb.Fatalf("unexpected page: count=%d date=%s timezone=%s", len(page.Items), page.PlanDate, page.Timezone)
 	}
 	for _, item := range page.Items {
@@ -86,7 +89,7 @@ func TestTodayUncachedBaseline(t *testing.T) {
 				if scenario == "alternating-two-users" && i%2 == 1 {
 					owner, count = secondOwner, 8
 				}
-				page, err := svc.ListToday(context.Background(), owner, task.ListOptions{Limit: 20})
+				page, err := svc.ListToday(context.Background(), owner, applicationtask.ListOptions{Limit: 20})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -107,7 +110,7 @@ func TestTodayUncachedBaseline(t *testing.T) {
 // This does not implement cache eligibility or introduce a Redis dependency.
 func TestTodayUncachedQueryVariants(t *testing.T) {
 	svc, repo, _ := todayFixture(t)
-	first, err := svc.ListToday(context.Background(), baselineOwner, task.ListOptions{})
+	first, err := svc.ListToday(context.Background(), baselineOwner, applicationtask.ListOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,7 +131,7 @@ func TestTodayUncachedQueryVariants(t *testing.T) {
 		{"untrusted identity ignored", "owner_id=" + string(secondOwner), 20},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			options, err := task.ParseListOptions(tc.query)
+			options, err := interfaceshttptask.ParseListOptions(tc.query)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -146,22 +149,22 @@ func TestTodayUncachedQueryVariants(t *testing.T) {
 	for _, query := range []string{"limit=0", "limit=101", "limit=20&limit=20", "completed=", "priority=4", "project_id=none", "plan_date=2026-11-04", "cursor=invalid"} {
 		t.Run("invalid/"+query, func(t *testing.T) {
 			before := repo.findPages.Load()
-			options, err := task.ParseListOptions(query)
+			options, err := interfaceshttptask.ParseListOptions(query)
 			if err == nil {
 				_, err = svc.ListToday(context.Background(), baselineOwner, options)
 			}
-			if !errors.Is(err, task.ErrInvalidList) || repo.findPages.Load() != before {
+			if !errors.Is(err, domaintask.ErrInvalidList) || repo.findPages.Load() != before {
 				t.Fatalf("invalid query reached repository or changed error: %v", err)
 			}
 		})
 	}
 	before := repo.findPages.Load()
-	if _, err := svc.ListToday(context.Background(), "", task.ListOptions{}); !errors.Is(err, session.ErrUnauthorized) {
+	if _, err := svc.ListToday(context.Background(), "", applicationtask.ListOptions{}); !errors.Is(err, domainaccount.ErrUnauthorized) {
 		t.Fatal("missing identity accepted")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := svc.ListToday(ctx, baselineOwner, task.ListOptions{}); !errors.Is(err, context.Canceled) {
+	if _, err := svc.ListToday(ctx, baselineOwner, applicationtask.ListOptions{}); !errors.Is(err, context.Canceled) {
 		t.Fatal("cancellation lost")
 	}
 	if repo.findPages.Load() != before {
@@ -171,19 +174,19 @@ func TestTodayUncachedQueryVariants(t *testing.T) {
 
 func TestTodayUncachedDayBoundary(t *testing.T) {
 	svc, repo, now := todayFixture(t)
-	first, err := svc.ListToday(context.Background(), baselineOwner, task.ListOptions{})
+	first, err := svc.ListToday(context.Background(), baselineOwner, applicationtask.ListOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	*now = first.NextDayAt
-	page, err := svc.ListToday(context.Background(), baselineOwner, task.ListOptions{})
+	page, err := svc.ListToday(context.Background(), baselineOwner, applicationtask.ListOptions{})
 	if err != nil || len(page.Items) != 0 || page.PlanDate != "2026-11-06" || !page.ServerTime.Equal(*now) {
 		t.Fatal("new Amsterdam day returned stale items or time", err)
 	}
 	if repo.findPages.Load() != 2 {
 		t.Fatal("both days must read the repository")
 	}
-	if _, err := svc.ListToday(context.Background(), baselineOwner, task.ListOptions{Cursor: first.NextCursor}); !errors.Is(err, task.ErrInvalidList) {
+	if _, err := svc.ListToday(context.Background(), baselineOwner, applicationtask.ListOptions{Cursor: first.NextCursor}); !errors.Is(err, domaintask.ErrInvalidList) {
 		t.Fatal("previous day's cursor accepted")
 	}
 	if repo.findPages.Load() != 2 {
@@ -203,7 +206,7 @@ func BenchmarkTodayUncached(b *testing.B) {
 				if scenario == "alternating-two-users" && i%2 == 1 {
 					owner = secondOwner
 				}
-				if _, err := svc.ListToday(ctx, owner, task.ListOptions{Limit: 20}); err != nil {
+				if _, err := svc.ListToday(ctx, owner, applicationtask.ListOptions{Limit: 20}); err != nil {
 					b.Fatal(err)
 				}
 			}

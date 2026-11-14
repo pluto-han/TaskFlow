@@ -17,18 +17,16 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-
 	applicationaccount "github.com/pluto-han/taskflow/internal/application/account"
 	"github.com/pluto-han/taskflow/internal/httpapi"
-	"github.com/pluto-han/taskflow/internal/integration"
 	interfaceshttpaccount "github.com/pluto-han/taskflow/internal/interfaces/http/account"
-	email "github.com/pluto-han/taskflow/internal/mail"
-	"github.com/pluto-han/taskflow/internal/notification"
-	"github.com/pluto-han/taskflow/internal/project"
-	"github.com/pluto-han/taskflow/internal/recurrence"
-	"github.com/pluto-han/taskflow/internal/server"
-	"github.com/pluto-han/taskflow/internal/session"
-	"github.com/pluto-han/taskflow/internal/task"
+	interfaceshttpintegration "github.com/pluto-han/taskflow/internal/interfaces/http/integration"
+	interfaceshttpnotification "github.com/pluto-han/taskflow/internal/interfaces/http/notification"
+	interfaceshttpproject "github.com/pluto-han/taskflow/internal/interfaces/http/project"
+	interfaceshttprecurrence "github.com/pluto-han/taskflow/internal/interfaces/http/recurrence"
+	interfaceshttprouter "github.com/pluto-han/taskflow/internal/interfaces/http/router"
+	interfaceshttpsession "github.com/pluto-han/taskflow/internal/interfaces/http/session"
+	interfaceshttptask "github.com/pluto-han/taskflow/internal/interfaces/http/task"
 )
 
 type schema struct {
@@ -74,7 +72,7 @@ func readContract(t *testing.T) (document, map[string]any) {
 	return d, tree
 }
 func testRouter() *gin.Engine {
-	return server.NewRouter(server.Dependencies{Users: applicationaccount.New(nil, nil), Ping: func(context.Context) error { return nil }, Logger: slog.New(slog.NewJSONHandler(io.Discard, nil))})
+	return interfaceshttprouter.New(interfaceshttprouter.Dependencies{Users: applicationaccount.New(nil, nil), Ping: func(context.Context) error { return nil }, Logger: slog.New(slog.NewJSONHandler(io.Discard, nil))})
 }
 
 func TestContractRoutesAndReferences(t *testing.T) {
@@ -173,7 +171,7 @@ func TestContractDTOFields(t *testing.T) {
 	if !reflect.DeepEqual(d.Security, []map[string][]string{{"bearerSession": {}}, {"browserSession": {}}}) {
 		t.Fatal("global authentication must allow either mechanism, never require both")
 	}
-	for name, value := range map[string]any{"EmailVerificationStatus": email.Status{}, "PasswordResetRequest": email.ResetRequest{}, "PasswordResetConfirm": email.ResetConfirmRequest{}, "SessionInfo": session.SessionInfo{}, "SessionPage": session.SessionPage{}, "PasswordChangeRequest": session.PasswordChangeRequest{}, "BrowserSession": session.BrowserResponse{}, "NotificationEvent": notification.Event{}, "DiscordBinding": integration.Binding{}, "DiscordBindingCode": integration.Code{}, "UnbindDiscord": integration.UnbindRequest{}, "Recurrence": recurrence.Rule{}, "CreateRecurrence": recurrence.CreateRequest{}, "UpdateRecurrence": recurrence.UpdateRequest{}, "DeleteRecurrence": recurrence.DeleteRequest{}, "PreviewRecurrenceRequest": recurrence.PreviewRequest{}, "RecurrencePreview": recurrence.Preview{}, "RecurrencePage": recurrence.Page{}, "RegisterRequest": interfaceshttpaccount.RegisterRequest{}, "LoginRequest": session.LoginRequest{}, "LoginResponse": session.LoginResponse{}, "User": interfaceshttpaccount.UserResponse{}, "Task": task.Task{}, "CreateTask": task.CreateTaskRequest{}, "CreateTodayTask": task.CreateTodayTaskRequest{}, "TodayPage": task.TodayPage{}, "UpdateTask": task.UpdateTaskRequest{}, "Member": project.Member{}, "Invitation": project.Invitation{}, "InviteRequest": project.InviteRequest{}, "AcceptRequest": project.AcceptRequest{}, "Project": project.Project{}, "CreateProject": project.CreateRequest{}, "UpdateProject": project.UpdateRequest{}, "Error": httpapi.ErrorResponse{}, "ErrorDetail": httpapi.ErrorDetail{}} {
+	for name, value := range map[string]any{"EmailVerificationStatus": interfaceshttpaccount.VerificationStatusResponse{}, "PasswordResetRequest": interfaceshttpaccount.ResetRequest{}, "PasswordResetConfirm": interfaceshttpaccount.ResetConfirmRequest{}, "SessionInfo": interfaceshttpsession.SessionInfoResponse{}, "SessionPage": interfaceshttpsession.SessionPage{}, "PasswordChangeRequest": interfaceshttpsession.PasswordChangeRequest{}, "BrowserSession": interfaceshttpsession.BrowserResponse{}, "NotificationEvent": interfaceshttpnotification.EventResponse{}, "DiscordBinding": interfaceshttpintegration.BindingResponse{}, "DiscordBindingCode": interfaceshttpintegration.CodeResponse{}, "UnbindDiscord": interfaceshttpintegration.UnbindRequest{}, "Recurrence": interfaceshttprecurrence.RuleResponse{}, "CreateRecurrence": interfaceshttprecurrence.CreateRequest{}, "UpdateRecurrence": interfaceshttprecurrence.UpdateRequest{}, "DeleteRecurrence": interfaceshttprecurrence.DeleteRequest{}, "PreviewRecurrenceRequest": interfaceshttprecurrence.PreviewRequest{}, "RecurrencePreview": interfaceshttprecurrence.PreviewResponse{}, "RecurrencePage": interfaceshttprecurrence.PageResponse{}, "RegisterRequest": interfaceshttpaccount.RegisterRequest{}, "LoginRequest": interfaceshttpsession.LoginRequest{}, "LoginResponse": interfaceshttpsession.LoginResponse{}, "User": interfaceshttpaccount.UserResponse{}, "Task": interfaceshttptask.TaskResponse{}, "CreateTask": interfaceshttptask.CreateTaskRequest{}, "CreateTodayTask": interfaceshttptask.CreateTodayTaskRequest{}, "TodayPage": interfaceshttptask.TodayPageResponse{}, "UpdateTask": interfaceshttptask.UpdateTaskRequest{}, "Member": interfaceshttpproject.MemberResponse{}, "Invitation": interfaceshttpproject.InvitationResponse{}, "InviteRequest": interfaceshttpproject.InviteRequest{}, "AcceptRequest": interfaceshttpproject.AcceptRequest{}, "Project": interfaceshttpproject.ProjectResponse{}, "CreateProject": interfaceshttpproject.CreateRequest{}, "UpdateProject": interfaceshttpproject.UpdateRequest{}, "Error": httpapi.ErrorResponse{}, "ErrorDetail": httpapi.ErrorDetail{}} {
 		t.Run(name, func(t *testing.T) {
 			fields := map[string]bool{}
 			typ := reflect.TypeOf(value)

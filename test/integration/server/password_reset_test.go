@@ -11,16 +11,18 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/pluto-han/taskflow/internal/httpapi"
+	applicationaccount "github.com/pluto-han/taskflow/internal/application/account"
+	applicationsession "github.com/pluto-han/taskflow/internal/application/session"
+	domainaccount "github.com/pluto-han/taskflow/internal/domain/account"
+	inframail "github.com/pluto-han/taskflow/internal/infra/mail"
 	infrapassword "github.com/pluto-han/taskflow/internal/infra/password"
-	email "github.com/pluto-han/taskflow/internal/mail"
-	"github.com/pluto-han/taskflow/internal/server"
-	"github.com/pluto-han/taskflow/internal/session"
+	interfaceshttpmiddleware "github.com/pluto-han/taskflow/internal/interfaces/http/middleware"
+	interfaceshttprouter "github.com/pluto-han/taskflow/internal/interfaces/http/router"
 )
 
-func resetLink(t *testing.T, f *accountFixture, s *email.Service, inbox *email.MemorySender, address string) string {
+func resetLink(t *testing.T, f *accountFixture, s *mailFixture, inbox *inframail.MemorySender, address string) string {
 	t.Helper()
-	if err := s.RequestReset(f.ctx, email.ResetRequest{Email: address}); err != nil {
+	if err := s.RequestReset(f.ctx, applicationaccount.ResetInput{Email: address}); err != nil {
 		t.Fatal("reset request failed", err)
 	}
 	if err := s.Poll(f.ctx); err != nil {
@@ -47,11 +49,11 @@ func TestPasswordResetLifecycleAndPurposeIsolation(t *testing.T) {
 	f := accountDatabase(t)
 	u, old, p := f.account(t)
 	other, otherLogin, _ := f.account(t)
-	_, browserToken, err := f.svc.LoginBrowser(f.ctx, session.LoginRequest{Email: u.Email, Password: accountPassword})
+	_, browserToken, err := f.svc.LoginBrowser(f.ctx, applicationsession.LoginInput{Email: u.Email, Password: accountPassword})
 	if err != nil {
 		t.Fatal(err)
 	}
-	inbox := &email.MemorySender{}
+	inbox := &inframail.MemorySender{}
 	s := mailService(t, f, inbox)
 	verifyToken := verificationToken(t, s, inbox, f, p)
 	first := resetLink(t, f, s, inbox, u.Email)
@@ -62,37 +64,37 @@ func TestPasswordResetLifecycleAndPurposeIsolation(t *testing.T) {
 	if err := f.admin.QueryRow(f.ctx, "SELECT count(*) FROM email_tokens WHERE purpose='reset_password' AND consumed_at IS NULL").Scan(&count); err != nil || count != 2 {
 		t.Fatal("new request invalidated old link")
 	}
-	if !errors.Is(s.Confirm(f.ctx, first), email.ErrToken) {
+	if !errors.Is(s.Confirm(f.ctx, first), domainaccount.ErrToken) {
 		t.Fatal("reset capability verified email")
 	}
-	if !errors.Is(s.ConfirmReset(f.ctx, email.ResetConfirmRequest{Token: verifyToken, NewPassword: "a new password"}), email.ErrResetToken) {
+	if !errors.Is(s.ConfirmReset(f.ctx, applicationaccount.ResetConfirmInput{Token: verifyToken, NewPassword: "a new password"}), domainaccount.ErrResetToken) {
 		t.Fatal("verification capability reset password")
 	}
 	if err := s.Confirm(f.ctx, verifyToken); err != nil {
 		t.Fatal("email verification failed")
 	}
 	// Verification only cancels verification deliveries, not pending reset capabilities.
-	if err := s.ConfirmReset(f.ctx, email.ResetConfirmRequest{Token: first, NewPassword: "a new password"}); err != nil {
+	if err := s.ConfirmReset(f.ctx, applicationaccount.ResetConfirmInput{Token: first, NewPassword: "a new password"}); err != nil {
 		t.Fatal("reset failed", err)
 	}
 	for _, token := range []string{first, second} {
-		if !errors.Is(s.ConfirmReset(f.ctx, email.ResetConfirmRequest{Token: token, NewPassword: "another new password"}), email.ErrResetToken) {
+		if !errors.Is(s.ConfirmReset(f.ctx, applicationaccount.ResetConfirmInput{Token: token, NewPassword: "another new password"}), domainaccount.ErrResetToken) {
 			t.Fatal("reset capability replayed")
 		}
 	}
-	if _, err := f.svc.Authenticate(f.ctx, old.AccessToken); !errors.Is(err, session.ErrUnauthorized) {
+	if _, err := f.svc.Authenticate(f.ctx, old.AccessToken); !errors.Is(err, domainaccount.ErrUnauthorized) {
 		t.Fatal("old bearer survived")
 	}
-	if _, err := f.svc.AuthenticateBrowser(f.ctx, browserToken); !errors.Is(err, session.ErrUnauthorized) {
+	if _, err := f.svc.AuthenticateBrowser(f.ctx, browserToken); !errors.Is(err, domainaccount.ErrUnauthorized) {
 		t.Fatal("old browser session survived")
 	}
 	if _, err := f.svc.Authenticate(f.ctx, otherLogin.AccessToken); err != nil {
 		t.Fatal("other user revoked")
 	}
-	if _, err := f.svc.Login(f.ctx, session.LoginRequest{Email: u.Email, Password: accountPassword}); !errors.Is(err, session.ErrUnauthorized) {
+	if _, err := f.svc.Login(f.ctx, applicationsession.LoginInput{Email: u.Email, Password: accountPassword}); !errors.Is(err, domainaccount.ErrUnauthorized) {
 		t.Fatal("old password accepted")
 	}
-	if _, err := f.svc.Login(f.ctx, session.LoginRequest{Email: u.Email, Password: "a new password"}); err != nil {
+	if _, err := f.svc.Login(f.ctx, applicationsession.LoginInput{Email: u.Email, Password: "a new password"}); err != nil {
 		t.Fatal("new password rejected")
 	}
 	var version int
@@ -128,7 +130,7 @@ func (h resetHashGate) HashPassword(ctx context.Context, password string) (strin
 func TestPasswordResetConcurrentConsumption(t *testing.T) {
 	f := accountDatabase(t)
 	u, _, _ := f.account(t)
-	inbox := &email.MemorySender{}
+	inbox := &inframail.MemorySender{}
 	s := mailService(t, f, inbox)
 	token := resetLink(t, f, s, inbox, u.Email)
 	hash, err := (infrapassword.PasswordHasher{}).HashPassword(f.ctx, "concurrent reset password")
@@ -143,7 +145,7 @@ func TestPasswordResetConcurrentConsumption(t *testing.T) {
 	results := make(chan error, 2)
 	for range 2 {
 		go func() {
-			results <- s.ConfirmReset(f.ctx, email.ResetConfirmRequest{Token: token, NewPassword: "concurrent reset password"})
+			results <- s.ConfirmReset(f.ctx, applicationaccount.ResetConfirmInput{Token: token, NewPassword: "concurrent reset password"})
 		}()
 	}
 	for range 2 {
@@ -164,7 +166,7 @@ func TestPasswordResetConcurrentConsumption(t *testing.T) {
 		err := <-results
 		if err == nil {
 			success++
-		} else if errors.Is(err, email.ErrResetToken) {
+		} else if errors.Is(err, domainaccount.ErrResetToken) {
 			invalid++
 		} else {
 			t.Fatal("unexpected reset error", err)
@@ -179,14 +181,14 @@ func TestPasswordResetClosesOldLoginRace(t *testing.T) {
 	for _, kind := range []string{"bearer", "browser"} {
 		t.Run(kind, func(t *testing.T) {
 			u, _, _ := f.account(t)
-			inbox := &email.MemorySender{}
+			inbox := &inframail.MemorySender{}
 			s := mailService(t, f, inbox)
 			token := resetLink(t, f, s, inbox, u.Email)
 			arrived := make(chan struct{}, 1)
 			release := make(chan struct{})
 			unblock := sync.OnceFunc(func() { close(release) })
 			defer unblock()
-			blocked, err := session.NewService(f.ctx, f.users, f.repo, barrierPasswords{arrived: arrived, release: release})
+			blocked, err := applicationsession.New(f.ctx, f.users, f.repo, barrierPasswords{arrived: arrived, release: release})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -196,7 +198,7 @@ func TestPasswordResetClosesOldLoginRace(t *testing.T) {
 			}
 			done := make(chan result, 1)
 			go func() {
-				input := session.LoginRequest{Email: u.Email, Password: accountPassword}
+				input := applicationsession.LoginInput{Email: u.Email, Password: accountPassword}
 				if kind == "browser" {
 					_, raw, err := blocked.LoginBrowser(f.ctx, input)
 					done <- result{raw, err}
@@ -206,12 +208,12 @@ func TestPasswordResetClosesOldLoginRace(t *testing.T) {
 				}
 			}()
 			waitForPassword(t, f, arrived)
-			if err := s.ConfirmReset(f.ctx, email.ResetConfirmRequest{Token: token, NewPassword: "password after recovery"}); err != nil {
+			if err := s.ConfirmReset(f.ctx, applicationaccount.ResetConfirmInput{Token: token, NewPassword: "password after recovery"}); err != nil {
 				t.Fatal("reset failed")
 			}
 			unblock()
 			got := <-done
-			if got.token != "" || !errors.Is(got.err, session.ErrUnauthorized) {
+			if got.token != "" || !errors.Is(got.err, domainaccount.ErrUnauthorized) {
 				t.Fatal("old password verification established login")
 			}
 		})
@@ -220,7 +222,7 @@ func TestPasswordResetClosesOldLoginRace(t *testing.T) {
 func TestPasswordResetExpiryAndPasswordChangeFence(t *testing.T) {
 	f := accountDatabase(t)
 	u, _, p := f.account(t)
-	inbox := &email.MemorySender{}
+	inbox := &inframail.MemorySender{}
 	s := mailService(t, f, inbox)
 	token := resetLink(t, f, s, inbox, u.Email)
 	arrived := make(chan struct{}, 1)
@@ -230,24 +232,24 @@ func TestPasswordResetExpiryAndPasswordChangeFence(t *testing.T) {
 	s.WithPasswords(resetHashGate{hash: "unused-fixture-hash", arrived: arrived, release: release})
 	done := make(chan error, 1)
 	go func() {
-		done <- s.ConfirmReset(f.ctx, email.ResetConfirmRequest{Token: token, NewPassword: "a reset password"})
+		done <- s.ConfirmReset(f.ctx, applicationaccount.ResetConfirmInput{Token: token, NewPassword: "a reset password"})
 	}()
 	waitForPassword(t, f, arrived)
-	if err := f.svc.ChangePassword(f.ctx, p, session.PasswordChangeRequest{CurrentPassword: accountPassword, NewPassword: "authenticated new password"}); err != nil {
+	if err := f.svc.ChangePassword(f.ctx, p, applicationsession.PasswordChangeInput{CurrentPassword: accountPassword, NewPassword: "authenticated new password"}); err != nil {
 		t.Fatal(err)
 	}
 	unblock()
-	if !errors.Is(<-done, email.ErrResetToken) {
+	if !errors.Is(<-done, domainaccount.ErrResetToken) {
 		t.Fatal("reset ignored credential epoch change")
 	}
-	if _, err := f.svc.Login(f.ctx, session.LoginRequest{Email: u.Email, Password: "authenticated new password"}); err != nil {
+	if _, err := f.svc.Login(f.ctx, applicationsession.LoginInput{Email: u.Email, Password: "authenticated new password"}); err != nil {
 		t.Fatal("stale reset overwrote password")
 	}
 }
 func TestPasswordResetCommitRollback(t *testing.T) {
 	f := accountDatabase(t)
 	u, login, _ := f.account(t)
-	inbox := &email.MemorySender{}
+	inbox := &inframail.MemorySender{}
 	s := mailService(t, f, inbox)
 	token := resetLink(t, f, s, inbox, u.Email)
 	_, err := f.admin.Exec(f.ctx, `CREATE FUNCTION fail_reset_commit() RETURNS trigger LANGUAGE plpgsql AS $$BEGIN RAISE EXCEPTION 'test fault';END$$;
@@ -260,7 +262,7 @@ func TestPasswordResetCommitRollback(t *testing.T) {
 			t.Fatal("fault cleanup failed")
 		}
 	}
-	if s.ConfirmReset(f.ctx, email.ResetConfirmRequest{Token: token, NewPassword: "password after rollback"}) == nil {
+	if s.ConfirmReset(f.ctx, applicationaccount.ResetConfirmInput{Token: token, NewPassword: "password after rollback"}) == nil {
 		cleanup()
 		t.Fatal("failed commit reported success")
 	}
@@ -268,20 +270,20 @@ func TestPasswordResetCommitRollback(t *testing.T) {
 	if _, err := f.svc.Authenticate(f.ctx, login.AccessToken); err != nil {
 		t.Fatal("rollback revoked old session")
 	}
-	if _, err := f.svc.Login(f.ctx, session.LoginRequest{Email: u.Email, Password: accountPassword}); err != nil {
+	if _, err := f.svc.Login(f.ctx, applicationsession.LoginInput{Email: u.Email, Password: accountPassword}); err != nil {
 		t.Fatal("rollback changed password")
 	}
-	if err := s.ConfirmReset(f.ctx, email.ResetConfirmRequest{Token: token, NewPassword: "password after rollback"}); err != nil {
+	if err := s.ConfirmReset(f.ctx, applicationaccount.ResetConfirmInput{Token: token, NewPassword: "password after rollback"}); err != nil {
 		t.Fatal("rollback consumed token")
 	}
 }
 func TestPasswordResetHTTPUniformityAndLogs(t *testing.T) {
 	f := accountDatabase(t)
 	u, _, _ := f.account(t)
-	inbox := &email.MemorySender{}
+	inbox := &inframail.MemorySender{}
 	s := mailService(t, f, inbox)
 	var logs bytes.Buffer
-	router := server.NewRouter(server.Dependencies{Mail: s, Security: httpapi.SecurityOptions{PublicOrigin: "https://taskflow.example.com"}, Logger: slog.New(slog.NewTextHandler(&logs, nil))})
+	router := interfaceshttprouter.New(interfaceshttprouter.Dependencies{Mail: s.CapabilityService, Security: interfaceshttpmiddleware.SecurityOptions{PublicOrigin: "https://taskflow.example.com"}, Logger: slog.New(slog.NewTextHandler(&logs, nil))})
 	request := func(method, path, body string, want int) *httptest.ResponseRecorder {
 		t.Helper()
 		r := httptest.NewRequest(method, path, strings.NewReader(body))
@@ -326,7 +328,7 @@ func TestPasswordResetHTTPUniformityAndLogs(t *testing.T) {
 	if known.Header().Get("Set-Cookie") != "" || confirmed.Header().Get("Set-Cookie") != "" || confirmed.Body.Len() != 0 {
 		t.Fatal("reset issued session cookie")
 	}
-	disabled := server.NewRouter(server.Dependencies{Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	disabled := interfaceshttprouter.New(interfaceshttprouter.Dependencies{Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
 	for _, path := range []string{"/auth/password/reset/request", "/auth/password/reset/confirm"} {
 		w := httptest.NewRecorder()
 		disabled.ServeHTTP(w, httptest.NewRequest("POST", path, strings.NewReader("not json")))
@@ -339,7 +341,7 @@ func TestPasswordResetHTTPUniformityAndLogs(t *testing.T) {
 func TestPasswordResetExpiresDuringHashing(t *testing.T) {
 	f := accountDatabase(t)
 	u, login, _ := f.account(t)
-	inbox := &email.MemorySender{}
+	inbox := &inframail.MemorySender{}
 	s := mailService(t, f, inbox)
 	token := resetLink(t, f, s, inbox, u.Email)
 	arrived := make(chan struct{}, 1)
@@ -349,14 +351,14 @@ func TestPasswordResetExpiresDuringHashing(t *testing.T) {
 	s.WithPasswords(resetHashGate{hash: "unused-after-expiry", arrived: arrived, release: release})
 	done := make(chan error, 1)
 	go func() {
-		done <- s.ConfirmReset(f.ctx, email.ResetConfirmRequest{Token: token, NewPassword: "a reset password"})
+		done <- s.ConfirmReset(f.ctx, applicationaccount.ResetConfirmInput{Token: token, NewPassword: "a reset password"})
 	}()
 	waitForPassword(t, f, arrived)
 	if _, err := f.admin.Exec(f.ctx, "UPDATE email_tokens SET expires_at=clock_timestamp()-interval '1 second' WHERE purpose='reset_password'"); err != nil {
 		t.Fatal("expiry setup failed")
 	}
 	unblock()
-	if !errors.Is(<-done, email.ErrResetToken) {
+	if !errors.Is(<-done, domainaccount.ErrResetToken) {
 		t.Fatal("expiry not rechecked after hashing")
 	}
 	if _, err := f.svc.Authenticate(f.ctx, login.AccessToken); err != nil {
@@ -366,11 +368,11 @@ func TestPasswordResetExpiresDuringHashing(t *testing.T) {
 func TestPasswordResetDailyQuotaSurvivesTokenCleanup(t *testing.T) {
 	f := accountDatabase(t)
 	u, _, _ := f.account(t)
-	inbox := &email.MemorySender{}
+	inbox := &inframail.MemorySender{}
 	s := mailService(t, f, inbox)
 	for range 3 {
 		allowNextReset(t, f)
-		if err := s.RequestReset(f.ctx, email.ResetRequest{Email: u.Email}); err != nil {
+		if err := s.RequestReset(f.ctx, applicationaccount.ResetInput{Email: u.Email}); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := f.admin.Exec(f.ctx, "UPDATE email_tokens SET expires_at=clock_timestamp()-interval '1 second'"); err != nil {
@@ -384,7 +386,7 @@ func TestPasswordResetDailyQuotaSurvivesTokenCleanup(t *testing.T) {
 	for _, address := range []string{u.Email, "unknown-quota@example.com"} {
 		for range 4 {
 			allowNextReset(t, f)
-			if err := s.RequestReset(f.ctx, email.ResetRequest{Email: address}); err != nil {
+			if err := s.RequestReset(f.ctx, applicationaccount.ResetInput{Email: address}); err != nil {
 				t.Fatal("quota leaked account state")
 			}
 		}
@@ -409,34 +411,34 @@ func TestPasswordResetDailyQuotaSurvivesTokenCleanup(t *testing.T) {
 func TestPasswordResetHashBusyLeavesCapabilityUsable(t *testing.T) {
 	f := accountDatabase(t)
 	u, login, _ := f.account(t)
-	inbox := &email.MemorySender{}
+	inbox := &inframail.MemorySender{}
 	s := mailService(t, f, inbox)
 	token := resetLink(t, f, s, inbox, u.Email)
 	arrived := make(chan struct{}, 1)
 	release := make(chan struct{})
 	close(release)
 	s.WithPasswords(resetHashGate{arrived: arrived, release: release, err: infrapassword.ErrBusy})
-	if !errors.Is(s.ConfirmReset(f.ctx, email.ResetConfirmRequest{Token: token, NewPassword: "a valid new password"}), infrapassword.ErrBusy) {
+	if !errors.Is(s.ConfirmReset(f.ctx, applicationaccount.ResetConfirmInput{Token: token, NewPassword: "a valid new password"}), infrapassword.ErrBusy) {
 		t.Fatal("busy hash not reported")
 	}
 	if _, err := f.svc.Authenticate(f.ctx, login.AccessToken); err != nil {
 		t.Fatal("busy hash revoked session")
 	}
 	s.WithPasswords(infrapassword.PasswordHasher{})
-	if err := s.ConfirmReset(f.ctx, email.ResetConfirmRequest{Token: token, NewPassword: "a valid new password"}); err != nil {
+	if err := s.ConfirmReset(f.ctx, applicationaccount.ResetConfirmInput{Token: token, NewPassword: "a valid new password"}); err != nil {
 		t.Fatal("busy hash consumed capability")
 	}
 }
 func TestPasswordResetGlobalAndQueueCapsAreUniform(t *testing.T) {
 	f := accountDatabase(t)
 	u, _, _ := f.account(t)
-	inbox := &email.MemorySender{}
+	inbox := &inframail.MemorySender{}
 	s := mailService(t, f, inbox)
 	if _, err := f.admin.Exec(f.ctx, `INSERT INTO email_reset_requests(target_hash) SELECT decode(md5(g::text)||md5('quota'||g::text),'hex') FROM generate_series(1,30) g`); err != nil {
 		t.Fatal(err)
 	}
 	for _, address := range []string{u.Email, "unknown-cap@example.com"} {
-		if err := s.RequestReset(f.ctx, email.ResetRequest{Email: address}); err != nil {
+		if err := s.RequestReset(f.ctx, applicationaccount.ResetInput{Email: address}); err != nil {
 			t.Fatal("global cap leaked state")
 		}
 	}
@@ -448,7 +450,7 @@ func TestPasswordResetGlobalAndQueueCapsAreUniform(t *testing.T) {
 		t.Fatal(err)
 	}
 	// A full delivery queue also returns neutral acceptance for either target.
-	if err := s.RequestReset(f.ctx, email.ResetRequest{Email: u.Email}); err != nil {
+	if err := s.RequestReset(f.ctx, applicationaccount.ResetInput{Email: u.Email}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := f.admin.Exec(f.ctx, `INSERT INTO email_outbox(id,token_hash,recipient,link,expires_at)
@@ -457,7 +459,7 @@ func TestPasswordResetGlobalAndQueueCapsAreUniform(t *testing.T) {
 	}
 	allowNextReset(t, f)
 	for _, address := range []string{u.Email, "unknown-cap@example.com"} {
-		if err := s.RequestReset(f.ctx, email.ResetRequest{Email: address}); err != nil {
+		if err := s.RequestReset(f.ctx, applicationaccount.ResetInput{Email: address}); err != nil {
 			t.Fatal("full queue leaked state")
 		}
 	}

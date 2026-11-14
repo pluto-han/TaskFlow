@@ -15,16 +15,19 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-
 	applicationaccount "github.com/pluto-han/taskflow/internal/application/account"
-	"github.com/pluto-han/taskflow/internal/config"
+	applicationproject "github.com/pluto-han/taskflow/internal/application/project"
+	applicationsession "github.com/pluto-han/taskflow/internal/application/session"
+	applicationtask "github.com/pluto-han/taskflow/internal/application/task"
+	domainaccount "github.com/pluto-han/taskflow/internal/domain/account"
+	infradatabase "github.com/pluto-han/taskflow/internal/infra/database"
 	infrapassword "github.com/pluto-han/taskflow/internal/infra/password"
 	infraaccount "github.com/pluto-han/taskflow/internal/infra/persistence/account"
-	"github.com/pluto-han/taskflow/internal/project"
-	"github.com/pluto-han/taskflow/internal/server"
-	"github.com/pluto-han/taskflow/internal/session"
-	"github.com/pluto-han/taskflow/internal/task"
-	"github.com/pluto-han/taskflow/internal/testdb"
+	infraproject "github.com/pluto-han/taskflow/internal/infra/persistence/project"
+	infrasession "github.com/pluto-han/taskflow/internal/infra/persistence/session"
+	infratask "github.com/pluto-han/taskflow/internal/infra/persistence/task"
+	interfaceshttprouter "github.com/pluto-han/taskflow/internal/interfaces/http/router"
+	"github.com/pluto-han/taskflow/test/support/testdb"
 )
 
 // Real TCP HTTP + production router + real hashing/session/sqlc/PostgreSQL.
@@ -52,7 +55,7 @@ func TestReliabilityHTTPIntegration(t *testing.T) {
 	}
 
 	t.Run("least privilege runtime role", func(t *testing.T) {
-		if config.CheckRuntimeRole(ctx, pool) == nil {
+		if infradatabase.CheckRuntimeRole(ctx, pool) == nil {
 			t.Fatal("superuser accepted as runtime role")
 		}
 		_, err := pool.Exec(ctx, `CREATE ROLE taskflow_security_runtime NOLOGIN;
@@ -71,7 +74,7 @@ func TestReliabilityHTTPIntegration(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer limited.Close()
-		if err = config.CheckRuntimeRole(ctx, limited); err != nil {
+		if err = infradatabase.CheckRuntimeRole(ctx, limited); err != nil {
 			t.Fatal(err)
 		}
 		for _, query := range []string{"CREATE TABLE public.forbidden(id int)", "DELETE FROM users", "SELECT * FROM taskflow_test_lease"} {
@@ -83,14 +86,14 @@ func TestReliabilityHTTPIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		pr := project.NewPostgresRepository(limited)
-		owner := session.UserID(u.ID)
-		p, err := project.NewService(pr).Create(ctx, owner, project.CreateRequest{Name: "limited project"})
+		pr := infraproject.New(limited)
+		owner := domainaccount.UserID(u.ID)
+		p, err := applicationproject.New(pr, pr).Create(ctx, owner, applicationproject.CreateInput{Name: "limited project"})
 		if err != nil {
 			t.Fatal(err)
 		}
-		svc := task.NewService(task.NewPostgresRepository(limited), pr)
-		item, err := svc.Create(ctx, owner, task.CreateTaskRequest{Title: "limited task", Priority: 1, ProjectID: &p.ID})
+		svc := applicationtask.New(infratask.New(limited), pr)
+		item, err := svc.Create(ctx, owner, applicationtask.CreateInput{Title: "limited task", Priority: 1, ProjectID: &p.ID})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -99,12 +102,12 @@ func TestReliabilityHTTPIntegration(t *testing.T) {
 		}
 	})
 	users := infraaccount.New(pool)
-	projects := project.NewPostgresRepository(pool)
-	sessions, err := session.NewService(ctx, users, session.NewPostgresRepository(pool), infrapassword.PasswordHasher{})
+	projects := infraproject.New(pool)
+	sessions, err := applicationsession.New(ctx, users, infrasession.New(pool), infrapassword.PasswordHasher{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv := httptest.NewServer(server.NewRouter(server.Dependencies{Users: applicationaccount.New(users, infrapassword.PasswordHasher{}), Sessions: sessions, Projects: project.NewService(projects), Tasks: task.NewService(task.NewPostgresRepository(pool), projects), Ping: pool.Ping, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))}))
+	srv := httptest.NewServer(interfaceshttprouter.New(interfaceshttprouter.Dependencies{Users: applicationaccount.New(users, infrapassword.PasswordHasher{}), Sessions: sessions, Projects: applicationproject.New(projects, projects), Tasks: applicationtask.New(infratask.New(pool), projects), Ping: pool.Ping, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))}))
 	defer srv.Close()
 	client := srv.Client()
 	client.Timeout = 5 * time.Second

@@ -82,8 +82,8 @@ def main():
         # Build a tiny fixture using the actual Go telemetry implementation.
         source = directory/'main.go'
         source.write_text('''package main
-import("context";"net/http";"time";"github.com/pluto-han/taskflow/internal/telemetry")
-func main(){m:=telemetry.New(nil,func(context.Context)error{return nil});m.Observe("GET","/tasks/:id",200,10*time.Millisecond)
+import("context";"net/http";"time";inframetrics "github.com/pluto-han/taskflow/internal/infra/metrics")
+func main(){m:=inframetrics.New(nil,func(context.Context)error{return nil});m.Observe("GET","/tasks/:id",200,10*time.Millisecond)
 mux:=http.NewServeMux();mux.Handle("/metrics",m.Handler())
 mux.HandleFunc("/fixture/enable",func(w http.ResponseWriter,r *http.Request){m.SetCacheEnabled(true);w.Write([]byte("{}"))})
 mux.HandleFunc("/fixture/hit",func(w http.ResponseWriter,r *http.Request){m.ObserveTodayCache("hit");m.ObserveTodayCacheFill("success");m.ObserveTodayCacheOperation("get",true,time.Millisecond);w.Write([]byte("{}"))})

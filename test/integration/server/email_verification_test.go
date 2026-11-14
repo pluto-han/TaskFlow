@@ -11,13 +11,19 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/pluto-han/taskflow/internal/httpapi"
-	email "github.com/pluto-han/taskflow/internal/mail"
-	"github.com/pluto-han/taskflow/internal/server"
-	"github.com/pluto-han/taskflow/internal/session"
+	applicationaccount "github.com/pluto-han/taskflow/internal/application/account"
+	applicationmail "github.com/pluto-han/taskflow/internal/application/mail"
+	domainaccount "github.com/pluto-han/taskflow/internal/domain/account"
+	domainsession "github.com/pluto-han/taskflow/internal/domain/session"
+	inframail "github.com/pluto-han/taskflow/internal/infra/mail"
+	infrapassword "github.com/pluto-han/taskflow/internal/infra/password"
+	infraaccount "github.com/pluto-han/taskflow/internal/infra/persistence/account"
+	inframailstore "github.com/pluto-han/taskflow/internal/infra/persistence/mail"
+	interfaceshttpmiddleware "github.com/pluto-han/taskflow/internal/interfaces/http/middleware"
+	interfaceshttprouter "github.com/pluto-han/taskflow/internal/interfaces/http/router"
 )
 
-func mailService(t *testing.T, f *accountFixture, sender email.Sender) *email.Service {
+func mailService(t *testing.T, f *accountFixture, sender applicationmail.Sender) *mailFixture {
 	t.Helper()
 	// Each mail test owns the mail data inside the guarded lesson47 fixture.
 	if _, err := f.admin.Exec(f.ctx, "DELETE FROM email_tokens; DELETE FROM email_reset_requests"); err != nil {
@@ -28,13 +34,13 @@ func mailService(t *testing.T, f *accountFixture, sender email.Sender) *email.Se
 			t.Error("mail fixture cleanup failed")
 		}
 	})
-	s, err := email.New(f.pool, sender, "https://taskflow.example.com")
+	s, err := applicationaccount.NewCapabilities(infraaccount.NewCapabilities(f.pool), sender != nil, "https://taskflow.example.com", infrapassword.PasswordHasher{})
 	if err != nil {
 		t.Fatal("mail setup failed")
 	}
-	return s
+	return &mailFixture{CapabilityService: s, worker: applicationmail.New(inframailstore.New(f.pool), sender)}
 }
-func verificationToken(t *testing.T, s *email.Service, inbox *email.MemorySender, f *accountFixture, p session.Principal) string {
+func verificationToken(t *testing.T, s *mailFixture, inbox *inframail.MemorySender, f *accountFixture, p domainsession.Principal) string {
 	t.Helper()
 	if err := s.Request(f.ctx, p); err != nil {
 		t.Fatal("verification request failed", err)
@@ -59,7 +65,7 @@ func TestEmailVerificationLifecycle(t *testing.T) {
 	f := accountDatabase(t)
 	u, login, p := f.account(t)
 	other, _, _ := f.account(t)
-	inbox := &email.MemorySender{}
+	inbox := &inframail.MemorySender{}
 	s := mailService(t, f, inbox)
 	var verified bool
 	if err := f.admin.QueryRow(f.ctx, "SELECT email_verified_at IS NOT NULL FROM users WHERE id=$1", u.ID).Scan(&verified); err != nil || verified {
@@ -82,7 +88,7 @@ func TestEmailVerificationLifecycle(t *testing.T) {
 	for err := range results {
 		if err == nil {
 			successes++
-		} else if errors.Is(err, email.ErrToken) {
+		} else if errors.Is(err, domainaccount.ErrToken) {
 			invalid++
 		} else {
 			t.Fatal("confirmation failed unexpectedly")
@@ -111,13 +117,13 @@ func TestEmailVerificationLifecycle(t *testing.T) {
 func TestEmailExpiryAndAtomicRollback(t *testing.T) {
 	f := accountDatabase(t)
 	_, _, p := f.account(t)
-	inbox := &email.MemorySender{}
+	inbox := &inframail.MemorySender{}
 	s := mailService(t, f, inbox)
 	token := verificationToken(t, s, inbox, f, p)
 	if _, err := f.admin.Exec(f.ctx, "UPDATE email_tokens SET expires_at=clock_timestamp()-interval '1 second' WHERE user_id=$1", string(p.UserID)); err != nil {
 		t.Fatal(err)
 	}
-	if !errors.Is(s.Confirm(f.ctx, token), email.ErrToken) {
+	if !errors.Is(s.Confirm(f.ctx, token), domainaccount.ErrToken) {
 		t.Fatal("expired token accepted")
 	}
 	_, _, p2 := f.account(t)
@@ -145,7 +151,7 @@ func TestEmailExpiryAndAtomicRollback(t *testing.T) {
 
 type failingEmailSender struct{ calls int }
 
-func (s *failingEmailSender) Send(ctx context.Context, m email.Message) error {
+func (s *failingEmailSender) Send(ctx context.Context, m applicationmail.Message) error {
 	s.calls++
 	if _, ok := ctx.Deadline(); !ok {
 		return errors.New("missing deadline")
@@ -199,11 +205,11 @@ func TestEmailRetryLeasesAndScrubbing(t *testing.T) {
 func TestEmailQuotasAndQueueCapacity(t *testing.T) {
 	f := accountDatabase(t)
 	_, _, p := f.account(t)
-	s := mailService(t, f, &email.MemorySender{})
+	s := mailService(t, f, &inframail.MemorySender{})
 	if err := s.Request(f.ctx, p); err != nil {
 		t.Fatal(err)
 	}
-	if !errors.Is(s.Request(f.ctx, p), email.ErrLimited) {
+	if !errors.Is(s.Request(f.ctx, p), domainaccount.ErrLimited) {
 		t.Fatal("cooldown ignored")
 	}
 	for range 2 {
@@ -217,7 +223,7 @@ func TestEmailQuotasAndQueueCapacity(t *testing.T) {
 	if _, err := f.admin.Exec(f.ctx, "UPDATE email_tokens SET created_at=clock_timestamp()-interval '2 minutes' WHERE user_id=$1", string(p.UserID)); err != nil {
 		t.Fatal(err)
 	}
-	if !errors.Is(s.Request(f.ctx, p), email.ErrLimited) {
+	if !errors.Is(s.Request(f.ctx, p), domainaccount.ErrLimited) {
 		t.Fatal("daily quota ignored")
 	}
 	// Fill to exactly the global cap without producing external messages.
@@ -229,7 +235,7 @@ func TestEmailQuotasAndQueueCapacity(t *testing.T) {
 	}
 	t.Cleanup(func() { _, _ = f.admin.Exec(f.ctx, "DELETE FROM email_outbox WHERE recipient='fake@example.com'") })
 	_, _, p2 := f.account(t)
-	if !errors.Is(s.Request(f.ctx, p2), email.ErrLimited) {
+	if !errors.Is(s.Request(f.ctx, p2), domainaccount.ErrLimited) {
 		t.Fatal("queue cap ignored")
 	}
 }
@@ -237,9 +243,9 @@ func TestEmailQuotasAndQueueCapacity(t *testing.T) {
 func TestEmailHTTPAndDisabledIsolation(t *testing.T) {
 	f := accountDatabase(t)
 	_, login, p := f.account(t)
-	inbox := &email.MemorySender{}
+	inbox := &inframail.MemorySender{}
 	s := mailService(t, f, inbox)
-	router := server.NewRouter(server.Dependencies{Mail: s, Sessions: f.svc, Security: httpapi.SecurityOptions{PublicOrigin: "http://127.0.0.1:5173"}, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	router := interfaceshttprouter.New(interfaceshttprouter.Dependencies{Mail: s.CapabilityService, Sessions: f.svc, Security: interfaceshttpmiddleware.SecurityOptions{PublicOrigin: "http://127.0.0.1:5173"}, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
 	do := func(method, path, body, bearer string, status int) {
 		t.Helper()
 		r := httptest.NewRequest(method, path, strings.NewReader(body))
@@ -260,7 +266,7 @@ func TestEmailHTTPAndDisabledIsolation(t *testing.T) {
 	do("POST", "/auth/email/verification/confirm", `{"token":"`+token+`","purpose":"reset"}`, "", 400)
 	do("POST", "/auth/email/verification/confirm", `{"token":"`+token+`"}`, "", 204)
 	do("POST", "/auth/email/verification/confirm", `{"token":"`+token+`"}`, "", 400)
-	disabled := server.NewRouter(server.Dependencies{})
+	disabled := interfaceshttprouter.New(interfaceshttprouter.Dependencies{})
 	for _, path := range []string{"/auth/email/verification", "/auth/email/verification/confirm"} {
 		r := httptest.NewRequest(http.MethodPost, path, strings.NewReader("not json"))
 		w := httptest.NewRecorder()
@@ -273,7 +279,7 @@ func TestEmailHTTPAndDisabledIsolation(t *testing.T) {
 
 type gatedEmailSender struct{ started, release chan struct{} }
 
-func (s *gatedEmailSender) Send(ctx context.Context, m email.Message) error {
+func (s *gatedEmailSender) Send(ctx context.Context, m applicationmail.Message) error {
 	close(s.started)
 	select {
 	case <-ctx.Done():
@@ -321,7 +327,7 @@ func TestEmailClaimAndConsumedLeaseFence(t *testing.T) {
 
 type timeoutEmailSender struct{}
 
-func (timeoutEmailSender) Send(ctx context.Context, m email.Message) error {
+func (timeoutEmailSender) Send(ctx context.Context, m applicationmail.Message) error {
 	<-ctx.Done()
 	return ctx.Err()
 }
@@ -354,14 +360,14 @@ func TestEmailSenderTimeoutAndExpiryCleanup(t *testing.T) {
 func TestEmailGlobalQuotaAndPurposeConstraint(t *testing.T) {
 	f := accountDatabase(t)
 	_, _, p := f.account(t)
-	s := mailService(t, f, &email.MemorySender{})
+	s := mailService(t, f, &inframail.MemorySender{})
 	_, err := f.admin.Exec(f.ctx, `INSERT INTO email_tokens(token_hash,user_id,purpose,expires_at)
  SELECT decode(md5(g::text)||md5('fixture'||g::text),'hex'),$1,'verify_email',clock_timestamp()+interval '1 day' FROM generate_series(1,30) g`, string(p.UserID))
 	if err != nil {
 		t.Fatal("global quota setup failed")
 	}
 	_, _, other := f.account(t)
-	if !errors.Is(s.Request(f.ctx, other), email.ErrLimited) {
+	if !errors.Is(s.Request(f.ctx, other), domainaccount.ErrLimited) {
 		t.Fatal("global request budget bypassed")
 	}
 	if _, err = f.admin.Exec(f.ctx, `INSERT INTO email_tokens(token_hash,user_id,purpose,expires_at) VALUES(decode(repeat('ff',32),'hex'),$1,'unsupported_purpose',clock_timestamp()+interval '1 day')`, string(p.UserID)); err == nil {
@@ -371,7 +377,7 @@ func TestEmailGlobalQuotaAndPurposeConstraint(t *testing.T) {
 func TestEmailExpiredLeaseReclaimed(t *testing.T) {
 	f := accountDatabase(t)
 	_, _, p := f.account(t)
-	inbox := &email.MemorySender{}
+	inbox := &inframail.MemorySender{}
 	s := mailService(t, f, inbox)
 	if err := s.Request(f.ctx, p); err != nil {
 		t.Fatal(err)
@@ -405,3 +411,10 @@ func TestEmailStatusAvailableWhenDeliveryDisabled(t *testing.T) {
 		t.Fatal("status crossed users")
 	}
 }
+
+type mailFixture struct {
+	*applicationaccount.CapabilityService
+	worker *applicationmail.Service
+}
+
+func (f *mailFixture) Poll(ctx context.Context) error { return f.worker.Poll(ctx) }

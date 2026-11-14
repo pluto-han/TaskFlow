@@ -62,6 +62,6 @@ func (h *Handler) Register(c *gin.Context) {
 	c.JSON(http.StatusCreated, userResponseFromResult(u))
 }
 
-func userResponseFromResult(u *applicationaccount.Profile) UserResponse {
-	return UserResponse{ID: u.ID, Email: u.Email, CreatedAt: u.CreatedAt}
+func userResponseFromResult(userProfile *applicationaccount.Profile) UserResponse {
+	return UserResponse{ID: userProfile.ID, Email: userProfile.Email, CreatedAt: userProfile.CreatedAt}
 }

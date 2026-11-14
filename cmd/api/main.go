@@ -13,22 +13,35 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-
 	applicationaccount "github.com/pluto-han/taskflow/internal/application/account"
-	"github.com/pluto-han/taskflow/internal/cache"
-	"github.com/pluto-han/taskflow/internal/config"
-	"github.com/pluto-han/taskflow/internal/discord"
+	applicationintegration "github.com/pluto-han/taskflow/internal/application/integration"
+	applicationmail "github.com/pluto-han/taskflow/internal/application/mail"
+	applicationnotification "github.com/pluto-han/taskflow/internal/application/notification"
+	applicationproject "github.com/pluto-han/taskflow/internal/application/project"
+	applicationrecurrence "github.com/pluto-han/taskflow/internal/application/recurrence"
+	applicationsession "github.com/pluto-han/taskflow/internal/application/session"
+	applicationtask "github.com/pluto-han/taskflow/internal/application/task"
+	infracache "github.com/pluto-han/taskflow/internal/infra/cache"
+	infraconfig "github.com/pluto-han/taskflow/internal/infra/config"
+	infradatabase "github.com/pluto-han/taskflow/internal/infra/database"
+	infradiscord "github.com/pluto-han/taskflow/internal/infra/discord"
+	inframailsender "github.com/pluto-han/taskflow/internal/infra/mail"
+	inframetrics "github.com/pluto-han/taskflow/internal/infra/metrics"
 	infrapassword "github.com/pluto-han/taskflow/internal/infra/password"
 	infraaccount "github.com/pluto-han/taskflow/internal/infra/persistence/account"
-	"github.com/pluto-han/taskflow/internal/integration"
-	"github.com/pluto-han/taskflow/internal/mail"
-	"github.com/pluto-han/taskflow/internal/notification"
-	"github.com/pluto-han/taskflow/internal/project"
-	"github.com/pluto-han/taskflow/internal/recurrence"
-	"github.com/pluto-han/taskflow/internal/server"
-	"github.com/pluto-han/taskflow/internal/session"
-	"github.com/pluto-han/taskflow/internal/task"
-	"github.com/pluto-han/taskflow/internal/telemetry"
+	infraintegration "github.com/pluto-han/taskflow/internal/infra/persistence/integration"
+	inframail "github.com/pluto-han/taskflow/internal/infra/persistence/mail"
+	infranotification "github.com/pluto-han/taskflow/internal/infra/persistence/notification"
+	infraproject "github.com/pluto-han/taskflow/internal/infra/persistence/project"
+	infrarecurrence "github.com/pluto-han/taskflow/internal/infra/persistence/recurrence"
+	infrasession "github.com/pluto-han/taskflow/internal/infra/persistence/session"
+	infratask "github.com/pluto-han/taskflow/internal/infra/persistence/task"
+	interfaceshttpdiscord "github.com/pluto-han/taskflow/internal/interfaces/http/discord"
+	interfaceshttpmiddleware "github.com/pluto-han/taskflow/internal/interfaces/http/middleware"
+	interfaceshttprouter "github.com/pluto-han/taskflow/internal/interfaces/http/router"
+	interfacesschedulermail "github.com/pluto-han/taskflow/internal/interfaces/scheduler/mail"
+	interfacesschedulernotification "github.com/pluto-han/taskflow/internal/interfaces/scheduler/notification"
+	interfacesschedulerrecurrence "github.com/pluto-han/taskflow/internal/interfaces/scheduler/recurrence"
 )
 
 func main() {
@@ -36,9 +49,10 @@ func main() {
 		if healthy() {
 			return
 		}
+
 		os.Exit(1)
 	}
-	cfg := config.Load()
+	cfg := infraconfig.Load()
 	cacheOptions, err := cfg.Cache()
 	if err != nil {
 		log.Fatal(err)
@@ -63,9 +77,21 @@ func main() {
 		log.Fatal(err)
 	}
 
-	mailSender, err := cfg.Mail()
+	mailOptions, err := cfg.Mail()
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	var mailSender applicationmail.Sender
+	if mailOptions != nil {
+		if mailOptions.Driver == "memory" {
+			mailSender = &inframailsender.MemorySender{}
+		} else {
+			mailSender, err = inframailsender.NewResendSender(mailOptions.Key, mailOptions.From, nil)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
 	}
 
 	if cfg.DatabaseURL == "" {
@@ -90,7 +116,7 @@ func main() {
 	}
 
 	if security.Production {
-		if err := config.CheckRuntimeRole(dbCtx, pool); err != nil {
+		if err := infradatabase.CheckRuntimeRole(dbCtx, pool); err != nil {
 			dbCancel()
 			pool.Close()
 			log.Fatal(err)
@@ -99,18 +125,19 @@ func main() {
 	dbCancel()
 	defer pool.Close()
 
-	repo := task.NewPostgresRepository(pool)
-	projectRepo := project.NewPostgresRepository(pool)
-	service := task.NewService(repo, projectRepo)
+	repo := infratask.New(pool)
+	projectRepo := infraproject.New(pool)
+	service := applicationtask.New(repo, projectRepo)
 
 	userRepo := infraaccount.New(pool)
-	sessionService, err := session.NewService(context.Background(), userRepo, session.NewPostgresRepository(pool), infrapassword.PasswordHasher{})
+	sessionService, err := applicationsession.New(context.Background(), userRepo, infrasession.New(pool), infrapassword.PasswordHasher{})
 	if err != nil {
 		log.Fatal("Could not initialize password verification")
 	}
-	cacheClient, err := cache.New(cacheOptions)
+	cacheClient, err := infracache.New(cacheOptions)
 	if err != nil {
 		log.Print("Could not configure optional cache")
+
 		return
 	}
 	if cacheClient != nil {
@@ -120,30 +147,34 @@ func main() {
 			log.Print("Optional cache unavailable; business queries still use PostgreSQL")
 		}
 	}
-	metrics := telemetry.New(pool, pool.Ping)
+	metrics := inframetrics.New(pool, pool.Ping)
 	metrics.SetCacheEnabled(cacheClient != nil)
 	service.WithTodayCacheObserver(metrics)
 	metrics.SetWorkers(schedulerEnabled, senderEnabled)
-	mailService, err := mail.New(pool, mailSender, security.PublicOrigin)
+	mailService, err := applicationaccount.NewCapabilities(infraaccount.NewCapabilities(pool), mailSender != nil, security.PublicOrigin, infrapassword.PasswordHasher{})
 	if err != nil {
 		log.Fatal(err)
 	}
-	mailService.WithObserver(metrics)
-	bindings := integration.NewService(pool, len(discordKey) > 0)
-	router := server.NewRouter(server.Dependencies{
+	mailWorker := applicationmail.New(inframail.New(pool), mailSender).WithObserver(metrics)
+	bindings := applicationintegration.New(infraintegration.New(pool), len(discordKey) > 0)
+	router := interfaceshttprouter.New(interfaceshttprouter.Dependencies{
 		Mail:          mailService,
-		Notifications: notification.NewService(pool, nil),
-		Discord:       discord.NewHandler(discordKey, discordApp, bindings),
+		Notifications: applicationnotification.New(infranotification.New(pool, "default"), nil),
+		Discord:       interfaceshttpdiscord.New(discordKey, discordApp, bindings, infradiscord.Verify),
 		Integrations:  bindings,
-		Recurrences:   recurrence.NewServiceWithScheduler(recurrence.NewPostgresRepository(pool), schedulerEnabled),
-		Security:      security,
-		Metrics:       metrics,
-		Users:         applicationaccount.New(userRepo, infrapassword.PasswordHasher{}),
-		Sessions:      sessionService,
-		Tasks:         service,
-		Projects:      project.NewService(projectRepo),
-		Ping:          pool.Ping,
-		Logger:        slog.New(slog.NewJSONHandler(os.Stdout, nil)),
+		Recurrences:   applicationrecurrence.NewWithScheduler(infrarecurrence.New(pool), schedulerEnabled),
+		Security: interfaceshttpmiddleware.SecurityOptions{
+			Production:     security.Production,
+			PublicOrigin:   security.PublicOrigin,
+			TrustedProxies: security.TrustedProxies,
+		},
+		Metrics:  metrics,
+		Users:    applicationaccount.New(userRepo, infrapassword.PasswordHasher{}),
+		Sessions: sessionService,
+		Tasks:    service,
+		Projects: applicationproject.New(projectRepo, projectRepo),
+		Ping:     pool.Ping,
+		Logger:   slog.New(slog.NewJSONHandler(os.Stdout, nil)),
 	})
 
 	server := &http.Server{
@@ -169,8 +200,10 @@ func main() {
 		listener, err := net.Listen("tcp", cfg.MetricsAddr)
 		if err != nil {
 			log.Print("Metrics listener failed to bind")
+
 			return
 		}
+
 		metricsServer = &http.Server{Handler: metrics.Handler(), ReadHeaderTimeout: 3 * time.Second,
 			ReadTimeout: 5 * time.Second, WriteTimeout: 5 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 8192}
 		go func() {
@@ -182,7 +215,7 @@ func main() {
 
 	mailDone := make(chan struct{})
 	if mailService.Enabled() {
-		go func() { defer close(mailDone); mailService.Run(shutdownCtx) }()
+		go func() { defer close(mailDone); interfacesschedulermail.New(mailWorker, metrics).Run(shutdownCtx) }()
 	} else {
 		close(mailDone)
 	}
@@ -191,7 +224,7 @@ func main() {
 
 	workerDone := make(chan struct{})
 	if schedulerEnabled {
-		workerConfig, err := recurrence.WorkerPoolConfig(cfg.DatabaseURL)
+		workerConfig, err := infradatabase.WorkerPoolConfig(cfg.DatabaseURL)
 		if err != nil {
 			log.Print("Could not configure recurrence pool")
 			if metricsServer != nil {
@@ -199,6 +232,7 @@ func main() {
 			}
 			return
 		}
+
 		workerPool, err := pgxpool.NewWithConfig(shutdownCtx, workerConfig)
 		if err != nil {
 			log.Print("Could not initialize recurrence pool")
@@ -207,45 +241,55 @@ func main() {
 			}
 			return
 		}
+
 		defer workerPool.Close()
-		generator := recurrence.NewPostgresRepository(workerPool)
-		if cacheClient != nil {
-			generator.WithTodayInvalidation(service.InvalidateToday)
-		}
-		worker := recurrence.NewScheduler(generator, slog.Default(), metrics)
-		go func() { defer close(workerDone); worker.Run(shutdownCtx) }()
+		generator := applicationrecurrence.NewGenerator(infrarecurrence.New(workerPool), service.InvalidateToday)
+		worker := interfacesschedulerrecurrence.NewScheduler(generator, slog.Default(), metrics)
+		go func() {
+			defer close(workerDone)
+			worker.Run(shutdownCtx)
+		}()
 	} else {
 		close(workerDone)
 	}
 
 	notificationDone := make(chan struct{})
 	if senderEnabled {
-		workerConfig, err := recurrence.WorkerPoolConfig(cfg.DatabaseURL)
+		workerConfig, err := infradatabase.WorkerPoolConfig(cfg.DatabaseURL)
 		if err != nil {
 			log.Print("Could not configure notification pool")
 			stop()
 			<-workerDone
+
 			return
 		}
+
 		workerConfig.ConnConfig.RuntimeParams["application_name"] = "taskflow-notification"
 		workerPool, err := pgxpool.NewWithConfig(shutdownCtx, workerConfig)
 		if err != nil {
 			log.Print("Could not initialize notification pool")
 			stop()
 			<-workerDone
+
 			return
 		}
-		sender, err := discord.NewMessageSender(cfg.DiscordBotToken, nil)
+
+		sender, err := infradiscord.NewMessageSender(cfg.DiscordBotToken, nil)
 		if err != nil {
 			log.Print("Invalid Discord bot token")
 			workerPool.Close()
 			stop()
 			<-workerDone
+
 			return
 		}
+
 		defer workerPool.Close()
-		worker := notification.NewService(workerPool, sender).WithObserver(metrics)
-		go func() { defer close(notificationDone); worker.Run(shutdownCtx) }()
+		worker := applicationnotification.New(infranotification.New(workerPool, sender.CredentialFingerprint()), sender).WithObserver(metrics)
+		go func() {
+			defer close(notificationDone)
+			interfacesschedulernotification.New(worker, slog.Default(), metrics).Run(shutdownCtx)
+		}()
 	} else {
 		close(notificationDone)
 	}

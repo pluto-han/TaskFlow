@@ -18,21 +18,28 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
-
 	applicationaccount "github.com/pluto-han/taskflow/internal/application/account"
-	"github.com/pluto-han/taskflow/internal/cache"
+	applicationproject "github.com/pluto-han/taskflow/internal/application/project"
+	applicationsession "github.com/pluto-han/taskflow/internal/application/session"
+	applicationtask "github.com/pluto-han/taskflow/internal/application/task"
+	domainaccount "github.com/pluto-han/taskflow/internal/domain/account"
+	domainsession "github.com/pluto-han/taskflow/internal/domain/session"
+	domaintask "github.com/pluto-han/taskflow/internal/domain/task"
+	infracache "github.com/pluto-han/taskflow/internal/infra/cache"
+	inframetrics "github.com/pluto-han/taskflow/internal/infra/metrics"
 	infrapassword "github.com/pluto-han/taskflow/internal/infra/password"
 	infraaccount "github.com/pluto-han/taskflow/internal/infra/persistence/account"
-	"github.com/pluto-han/taskflow/internal/project"
-	"github.com/pluto-han/taskflow/internal/server"
-	"github.com/pluto-han/taskflow/internal/session"
-	"github.com/pluto-han/taskflow/internal/task"
-	"github.com/pluto-han/taskflow/internal/telemetry"
-	"github.com/pluto-han/taskflow/internal/testdb"
+	infraproject "github.com/pluto-han/taskflow/internal/infra/persistence/project"
+	infrasession "github.com/pluto-han/taskflow/internal/infra/persistence/session"
+	infratask "github.com/pluto-han/taskflow/internal/infra/persistence/task"
+	interfaceshttprouter "github.com/pluto-han/taskflow/internal/interfaces/http/router"
+	interfaceshttpsession "github.com/pluto-han/taskflow/internal/interfaces/http/session"
+	interfaceshttptask "github.com/pluto-han/taskflow/internal/interfaces/http/task"
+	"github.com/pluto-han/taskflow/test/support/testdb"
 )
 
 type observedStore struct {
-	cache.Store
+	applicationtask.Store
 	gets, sets atomic.Int64
 }
 
@@ -46,12 +53,12 @@ func (s *observedStore) Set(ctx context.Context, key string, value []byte, ttl t
 }
 
 type observedSQL struct {
-	task.Repository
+	domaintask.Repository
 	reads atomic.Int64
 	gate  func(context.Context) error
 }
 
-func (r *observedSQL) FindPage(ctx context.Context, owner session.UserID, query task.PageQuery) ([]task.Task, error) {
+func (r *observedSQL) FindPage(ctx context.Context, owner domainaccount.UserID, query domaintask.PageQuery) ([]domaintask.Task, error) {
 	r.reads.Add(1)
 	rows, err := r.Repository.FindPage(ctx, owner, query)
 	if err == nil && r.gate != nil {
@@ -61,23 +68,23 @@ func (r *observedSQL) FindPage(ctx context.Context, owner session.UserID, query 
 }
 
 type observedSessions struct {
-	session.Repository
+	domainsession.Repository
 	reads atomic.Int64
 }
 
-func (r *observedSessions) FindActive(ctx context.Context, hash [32]byte) (session.Principal, error) {
+func (r *observedSessions) FindActive(ctx context.Context, hash [32]byte) (domainsession.Principal, error) {
 	r.reads.Add(1)
 	return r.Repository.FindActive(ctx, hash)
 }
 
 type cacheHTTPFixture struct {
-	metrics *telemetry.Metrics
+	metrics *inframetrics.Metrics
 	pool    *pgxpool.Pool
-	client  *cache.Client
+	client  *infracache.Client
 	store   *observedStore
 	repo    *observedSQL
 	auth    *observedSessions
-	service *task.Service
+	service *applicationtask.Service
 	server  *httptest.Server
 	http    *http.Client
 	marker  string
@@ -109,31 +116,31 @@ func newCacheHTTPFixture(t *testing.T, mode string) *cacheHTTPFixture {
 		} else {
 			t.Fatal("unknown fixture mode")
 		}
-		client, err = cache.New(options)
+		client, err = infracache.New(options)
 		if err != nil {
 			t.Fatal("cannot create fault client")
 		}
 		t.Cleanup(func() { _ = client.Close() })
 	}
 	store := &observedStore{Store: client}
-	repo := &observedSQL{Repository: task.NewPostgresRepository(pool)}
-	projects := project.NewPostgresRepository(pool)
+	repo := &observedSQL{Repository: infratask.New(pool)}
+	projects := infraproject.New(pool)
 	fixed := time.Date(2026, 11, 5, 12, 0, 0, 0, time.UTC)
 	clock := func() time.Time { return fixed }
 	if mode == "performance" {
 		started := time.Now()
 		clock = func() time.Time { return fixed.Add(time.Since(started)) }
 	}
-	metrics := telemetry.New(nil, nil)
+	metrics := inframetrics.New(nil, nil)
 	metrics.SetCacheEnabled(true)
-	tasks := task.NewServiceWithClock(repo, projects, clock).WithTodayCache(store).WithTodayCacheObserver(metrics)
+	tasks := applicationtask.NewWithClock(repo, projects, clock).WithTodayCache(store).WithTodayCacheObserver(metrics)
 	users := infraaccount.New(pool)
-	sessions := &observedSessions{Repository: session.NewPostgresRepository(pool)}
-	sessionService, err := session.NewService(context.Background(), users, sessions, infrapassword.PasswordHasher{})
+	sessions := &observedSessions{Repository: infrasession.New(pool)}
+	sessionService, err := applicationsession.New(context.Background(), users, sessions, infrapassword.PasswordHasher{})
 	if err != nil {
 		t.Fatal("cannot prepare sessions")
 	}
-	router := server.NewRouter(server.Dependencies{Tasks: tasks, Projects: project.NewService(projects),
+	router := interfaceshttprouter.New(interfaceshttprouter.Dependencies{Tasks: tasks, Projects: applicationproject.New(projects, projects),
 		Users: applicationaccount.New(users, infrapassword.PasswordHasher{}), Sessions: sessionService, Ping: pool.Ping,
 		Metrics: metrics, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
 	httpServer := httptest.NewServer(router)
@@ -172,37 +179,37 @@ func (f *cacheHTTPFixture) request(t *testing.T, method, path, token string, bod
 
 const fixturePassword = "lesson41 isolated passphrase"
 
-func (f *cacheHTTPFixture) register(t *testing.T, label string) (session.UserID, string, string) {
+func (f *cacheHTTPFixture) register(t *testing.T, label string) (domainaccount.UserID, string, string) {
 	t.Helper()
 	email := "cache41-" + f.marker[:12] + "-" + label + "@example.com"
 	var registered struct{ ID string }
 	if json.Unmarshal(f.request(t, "POST", "/auth/register", "", map[string]string{"email": email, "password": fixturePassword}, 201), &registered) != nil {
 		t.Fatal("cannot decode registered fixture user")
 	}
-	return session.UserID(registered.ID), f.login(t, email), email
+	return domainaccount.UserID(registered.ID), f.login(t, email), email
 }
 
 func (f *cacheHTTPFixture) login(t *testing.T, email string) string {
 	t.Helper()
-	var result session.LoginResponse
+	var result interfaceshttpsession.LoginResponse
 	if json.Unmarshal(f.request(t, "POST", "/auth/login", "", map[string]string{"email": email, "password": fixturePassword}, 200), &result) != nil || result.AccessToken == "" {
 		t.Fatal("cannot decode fixture login")
 	}
 	return result.AccessToken
 }
 
-func (f *cacheHTTPFixture) today(t *testing.T, token string) task.TodayPage {
+func (f *cacheHTTPFixture) today(t *testing.T, token string) interfaceshttptask.TodayPageResponse {
 	t.Helper()
-	var page task.TodayPage
+	var page interfaceshttptask.TodayPageResponse
 	if json.Unmarshal(f.request(t, "GET", "/tasks/today?limit=20", token, nil, 200), &page) != nil {
 		t.Fatal("cannot decode Today response")
 	}
 	return page
 }
 
-func (f *cacheHTTPFixture) create(t *testing.T, token, title string) task.Task {
+func (f *cacheHTTPFixture) create(t *testing.T, token, title string) interfaceshttptask.TaskResponse {
 	t.Helper()
-	var item task.Task
+	var item interfaceshttptask.TaskResponse
 	if json.Unmarshal(f.request(t, "POST", "/tasks/today", token,
 		map[string]any{"plan_date": "2026-11-05", "title": title, "priority": 2}, 201), &item) != nil || item.ID == "" {
 		t.Fatal("cannot decode created task")
@@ -210,8 +217,8 @@ func (f *cacheHTTPFixture) create(t *testing.T, token, title string) task.Task {
 	return item
 }
 
-func todayFixtureKey(owner session.UserID) string {
-	return cache.KeyPrefix + "v1:today:" + string(owner) + ":2026-11-05:first20"
+func todayFixtureKey(owner domainaccount.UserID) string {
+	return applicationtask.KeyPrefix + "v1:today:" + string(owner) + ":2026-11-05:first20"
 }
 
 func TestRedisPostgresRevocationAndCorruption(t *testing.T) {
@@ -279,7 +286,7 @@ func TestRedisPostgresDatabaseFailure(t *testing.T) {
 	}
 	f.pool.Close() // Fail the actual PostgreSQL adapter without touching other fixtures' pools.
 	fills := f.store.sets.Load()
-	if _, err := f.service.ListToday(context.Background(), owner, task.ListOptions{}); err == nil || f.store.sets.Load() != fills {
+	if _, err := f.service.ListToday(context.Background(), owner, applicationtask.ListOptions{}); err == nil || f.store.sets.Load() != fills {
 		t.Fatal("expired Redis data hid the database error or cached it")
 	}
 	if err := f.client.Set(context.Background(), key, valid, time.Second); err != nil {
@@ -329,7 +336,7 @@ func controlRedis(t *testing.T, marker, action string) {
 	case "seed":
 		args = []string{"exec", id, "sh", "-ec",
 			`export REDISCLI_AUTH="$(cat /run/secrets/redis_password)"; exec redis-cli --user taskflow_cache SET "$1" "$2"`,
-			"fixture", cache.KeyPrefix + "test-run:" + marker, marker}
+			"fixture", applicationtask.KeyPrefix + "test-run:" + marker, marker}
 	default:
 		t.Fatal("unsupported fixture action")
 	}
@@ -426,7 +433,7 @@ func TestRedisPostgresConcurrentMisses(t *testing.T) {
 	results := make(chan error, requests)
 	for range requests {
 		go func() {
-			page, err := f.service.ListToday(ctx, owner, task.ListOptions{})
+			page, err := f.service.ListToday(ctx, owner, applicationtask.ListOptions{})
 			if err == nil && len(page.Items) != 1 {
 				err = fmt.Errorf("wrong fixture page")
 			}
@@ -462,8 +469,8 @@ func TestRedisPostgresEvictionRecovery(t *testing.T) {
 	// The runner's candidate sets maxmemory=4mb with the SAME allkeys-lru
 	// policy. All pressure keys stay in this random project's owned namespace.
 	const keys = 48
-	payload := bytes.Repeat([]byte("x"), cache.MaxValueBytes)
-	key := func(i int) string { return fmt.Sprintf("%seviction:%s:%d", cache.KeyPrefix, marker, i) }
+	payload := bytes.Repeat([]byte("x"), applicationtask.MaxValueBytes)
+	key := func(i int) string { return fmt.Sprintf("%seviction:%s:%d", applicationtask.KeyPrefix, marker, i) }
 	t.Cleanup(func() {
 		for i := range keys {
 			_ = client.Delete(context.Background(), key(i))
@@ -480,7 +487,7 @@ func TestRedisPostgresEvictionRecovery(t *testing.T) {
 	misses := 0
 	for i := range keys {
 		_, err := client.Get(context.Background(), key(i))
-		if err == cache.ErrMiss {
+		if err == applicationtask.ErrMiss {
 			misses++
 		} else if err != nil {
 			t.Fatal("eviction caused a cache operation failure")

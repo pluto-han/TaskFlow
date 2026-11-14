@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pluto-han/taskflow/internal/httpapi"
-	"github.com/pluto-han/taskflow/internal/server"
+	interfaceshttpmiddleware "github.com/pluto-han/taskflow/internal/interfaces/http/middleware"
+	interfaceshttprouter "github.com/pluto-han/taskflow/internal/interfaces/http/router"
 )
 
 // Exercise the actual production registration/login routes, before any expensive
@@ -22,7 +22,7 @@ func TestAuthRateLimitsCannotBeBypassedByForwardedIP(t *testing.T) {
 		initialStatus int
 	}{{"/auth/register", 10, 400}, {"/auth/login", 20, 400}, {"/auth/password/change", 5, 401}, {"/auth/email/verification", 10, 503}, {"/auth/email/verification/confirm", 10, 503}, {"/auth/password/reset/request", 10, 503}, {"/auth/password/reset/confirm", 10, 503}} {
 		t.Run(tc.path, func(t *testing.T) {
-			r := server.NewRouter(server.Dependencies{Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+			r := interfaceshttprouter.New(interfaceshttprouter.Dependencies{Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
 			for n := 0; n <= tc.limit; n++ {
 				req := httptest.NewRequest("POST", tc.path, strings.NewReader("not JSON"))
 				req.Header.Set("Content-Type", "application/json")
@@ -45,7 +45,7 @@ func TestAuthRateLimitsCannotBeBypassedByForwardedIP(t *testing.T) {
 }
 
 func TestBrowserAndBearerLoginSharePeerBudget(t *testing.T) {
-	r := server.NewRouter(server.Dependencies{Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), Security: httpapi.SecurityOptions{PublicOrigin: "http://127.0.0.1:5173"}})
+	r := interfaceshttprouter.New(interfaceshttprouter.Dependencies{Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), Security: interfaceshttpmiddleware.SecurityOptions{PublicOrigin: "http://127.0.0.1:5173"}})
 	for n := 0; n < 22; n++ {
 		path := "/auth/login"
 		if n%2 == 1 {
@@ -69,7 +69,7 @@ func TestBrowserAndBearerLoginSharePeerBudget(t *testing.T) {
 
 func TestBrowserLoginBodyLimitMatchesLegacy(t *testing.T) {
 	for _, path := range []string{"/auth/login", "/auth/browser/login", "/auth/password/change", "/auth/email/verification", "/auth/email/verification/confirm", "/auth/password/reset/request", "/auth/password/reset/confirm"} {
-		r := server.NewRouter(server.Dependencies{Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+		r := interfaceshttprouter.New(interfaceshttprouter.Dependencies{Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
 		req := httptest.NewRequest("POST", path, strings.NewReader(strings.Repeat("x", 4097)))
 		req.Header.Set("Origin", "http://127.0.0.1:5173")
 		req.ContentLength = -1
@@ -83,7 +83,7 @@ func TestBrowserLoginBodyLimitMatchesLegacy(t *testing.T) {
 
 func TestBrowserLoginUsesTrustedTLSBoundary(t *testing.T) {
 	_, trusted, _ := net.ParseCIDR("127.0.0.1/32")
-	r := server.NewRouter(server.Dependencies{Security: httpapi.SecurityOptions{Production: true, PublicOrigin: "https://tasks.example.com", TrustedProxies: []*net.IPNet{trusted}}, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	r := interfaceshttprouter.New(interfaceshttprouter.Dependencies{Security: interfaceshttpmiddleware.SecurityOptions{Production: true, PublicOrigin: "https://tasks.example.com", TrustedProxies: []*net.IPNet{trusted}}, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
 	for _, tc := range []struct {
 		peer, proto string
 		want        int

@@ -18,20 +18,24 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5"
+	pgx "github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
-
 	applicationaccount "github.com/pluto-han/taskflow/internal/application/account"
-	"github.com/pluto-han/taskflow/internal/config"
-	"github.com/pluto-han/taskflow/internal/httpapi"
+	applicationproject "github.com/pluto-han/taskflow/internal/application/project"
+	applicationsession "github.com/pluto-han/taskflow/internal/application/session"
+	applicationtask "github.com/pluto-han/taskflow/internal/application/task"
+	infradatabase "github.com/pluto-han/taskflow/internal/infra/database"
 	infrapassword "github.com/pluto-han/taskflow/internal/infra/password"
 	infraaccount "github.com/pluto-han/taskflow/internal/infra/persistence/account"
-	"github.com/pluto-han/taskflow/internal/project"
-	"github.com/pluto-han/taskflow/internal/server"
-	"github.com/pluto-han/taskflow/internal/session"
-	"github.com/pluto-han/taskflow/internal/task"
-	"github.com/pluto-han/taskflow/internal/testdb"
+	infraproject "github.com/pluto-han/taskflow/internal/infra/persistence/project"
+	infrasession "github.com/pluto-han/taskflow/internal/infra/persistence/session"
+	infratask "github.com/pluto-han/taskflow/internal/infra/persistence/task"
+	interfaceshttpmiddleware "github.com/pluto-han/taskflow/internal/interfaces/http/middleware"
+	interfaceshttprouter "github.com/pluto-han/taskflow/internal/interfaces/http/router"
+	interfaceshttpsession "github.com/pluto-han/taskflow/internal/interfaces/http/session"
+	interfaceshttptask "github.com/pluto-han/taskflow/internal/interfaces/http/task"
+	"github.com/pluto-han/taskflow/test/support/testdb"
 )
 
 // Uses only the disposable, leased database created by test_integration.py.
@@ -62,7 +66,7 @@ func TestBrowserSessionHTTPIntegration(t *testing.T) {
 	legacyHash := bytes.Repeat([]byte{0xab}, 32)
 	var oldHash [32]byte
 	copy(oldHash[:], legacyHash)
-	if _, err := session.NewPostgresRepository(admin).FindActive(ctx, oldHash); err != nil {
+	if _, err := infrasession.New(admin).FindActive(ctx, oldHash); err != nil {
 		t.Fatal("upgrade invalidated the v13 session")
 	}
 
@@ -95,24 +99,24 @@ func TestBrowserSessionHTTPIntegration(t *testing.T) {
 		t.Fatal("cannot open runtime pool")
 	}
 	defer pool.Close()
-	if err := config.CheckRuntimeRole(ctx, pool); err != nil {
+	if err := infradatabase.CheckRuntimeRole(ctx, pool); err != nil {
 		t.Fatal("runtime role is privileged")
 	}
 	if _, err := pool.Exec(ctx, "UPDATE users SET email='forbidden' WHERE false"); err == nil {
 		t.Fatal("runtime unexpectedly has identity UPDATE")
 	}
 	users := infraaccount.New(pool)
-	repo := session.NewPostgresRepository(pool)
-	sessions, err := session.NewService(ctx, users, repo, infrapassword.PasswordHasher{})
+	repo := infrasession.New(pool)
+	sessions, err := applicationsession.New(ctx, users, repo, infrapassword.PasswordHasher{})
 	if err != nil {
 		t.Fatal("session setup failed")
 	}
-	projects := project.NewPostgresRepository(pool)
+	projects := infraproject.New(pool)
 	var logs lockedAuthLog
-	router := server.NewRouter(server.Dependencies{
+	router := interfaceshttprouter.New(interfaceshttprouter.Dependencies{
 		Users: applicationaccount.New(users, infrapassword.PasswordHasher{}), Sessions: sessions,
-		Tasks: task.NewService(task.NewPostgresRepository(pool), projects), Projects: project.NewService(projects),
-		Security: httpapi.SecurityOptions{PublicOrigin: "http://127.0.0.1:5173"},
+		Tasks: applicationtask.New(infratask.New(pool), projects), Projects: applicationproject.New(projects, projects),
+		Security: interfaceshttpmiddleware.SecurityOptions{PublicOrigin: "http://127.0.0.1:5173"},
 		Logger:   slog.New(slog.NewJSONHandler(&logs, nil)), Ping: pool.Ping,
 	})
 	httpServer := httptest.NewServer(router)
@@ -153,7 +157,7 @@ func TestBrowserSessionHTTPIntegration(t *testing.T) {
 	password := "browser integration passphrase"
 	loginBody := `{"email":"browser45@example.com","password":"` + password + `"}`
 	perform(plain, "POST", "/auth/register", loginBody, "", "", nil, 201)
-	var logged session.BrowserResponse
+	var logged interfaceshttpsession.BrowserResponse
 	raw := perform(client, "POST", "/auth/browser/login", loginBody, "", "", nil, 200)
 	if json.Unmarshal(raw, &logged) != nil || logged.User.ID == "" || logged.CSRFToken == "" {
 		t.Fatal("invalid login DTO")
@@ -176,7 +180,7 @@ func TestBrowserSessionHTTPIntegration(t *testing.T) {
 	}
 	newPage := &http.Client{Jar: jar, Timeout: 5 * time.Second}
 	for i := 0; i < 2; i++ {
-		var restored session.BrowserResponse
+		var restored interfaceshttpsession.BrowserResponse
 		raw := perform(newPage, "GET", "/auth/browser/session", "", "", "", nil, 200)
 		if json.Unmarshal(raw, &restored) != nil || restored.CSRFToken != logged.CSRFToken || !restored.ExpiresAt.Equal(expiry) || restored.User.ID != logged.User.ID {
 			t.Fatal("bootstrap changed identity, expiry or CSRF")
@@ -184,7 +188,7 @@ func TestBrowserSessionHTTPIntegration(t *testing.T) {
 	}
 	// Credential kinds are enforced in the real SQL, not only in an HTTP adapter.
 	perform(plain, "GET", "/auth/me", "", "", "Bearer "+cookie.Value, nil, 401)
-	var bearer session.LoginResponse
+	var bearer interfaceshttpsession.LoginResponse
 	if json.Unmarshal(perform(plain, "POST", "/auth/login", loginBody, "", "", nil, 200), &bearer) != nil {
 		t.Fatal("legacy login failed")
 	}
@@ -197,7 +201,7 @@ func TestBrowserSessionHTTPIntegration(t *testing.T) {
 		t.Fatal("CSRF rejection wrote a task")
 	}
 	taskRaw := perform(client, "POST", "/tasks", `{"title":"cookie task","priority":2}`, logged.CSRFToken, "", nil, 201)
-	var created task.Task
+	var created interfaceshttptask.TaskResponse
 	if json.Unmarshal(taskRaw, &created) != nil || created.ID == "" {
 		t.Fatal("cookie task write failed")
 	}

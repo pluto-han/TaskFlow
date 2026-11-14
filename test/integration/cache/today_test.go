@@ -6,16 +6,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pluto-han/taskflow/internal/session"
-	"github.com/pluto-han/taskflow/internal/task"
+	applicationtask "github.com/pluto-han/taskflow/internal/application/task"
+	domainaccount "github.com/pluto-han/taskflow/internal/domain/account"
+	domaintask "github.com/pluto-han/taskflow/internal/domain/task"
+	"github.com/pluto-han/taskflow/test/support/task"
 )
 
 type todayReadCounter struct {
-	task.Repository
+	domaintask.Repository
 	reads int
 }
 
-func (r *todayReadCounter) FindPage(ctx context.Context, owner session.UserID, query task.PageQuery) ([]task.Task, error) {
+func (r *todayReadCounter) FindPage(ctx context.Context, owner domainaccount.UserID, query domaintask.PageQuery) ([]domaintask.Task, error) {
 	r.reads++
 	return r.Repository.FindPage(ctx, owner, query)
 }
@@ -24,23 +26,23 @@ func TestRedisTodayServiceIntegration(t *testing.T) {
 	client, _, marker := redisFixture(t)
 	repo := &todayReadCounter{Repository: task.NewMemoryRepository()}
 	now := time.Date(2026, 11, 5, 12, 0, 0, 0, time.UTC)
-	svc := task.NewServiceWithClock(repo, nil, func() time.Time { return now }).WithTodayCache(client)
-	owner := session.UserID("00000000-0000-4000-8000-" + marker[:12])
-	empty, err := svc.ListToday(context.Background(), owner, task.ListOptions{})
+	svc := applicationtask.NewWithClock(repo, nil, func() time.Time { return now }).WithTodayCache(client)
+	owner := domainaccount.UserID("00000000-0000-4000-8000-" + marker[:12])
+	empty, err := svc.ListToday(context.Background(), owner, applicationtask.ListOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	// A second owner exercises independent keys and restores private ownership.
-	other := session.UserID("00000000-0000-4000-8001-" + marker[:12])
-	if _, err := svc.CreateToday(context.Background(), other, task.CreateTodayTaskRequest{PlanDate: empty.PlanDate, Title: "Redis Today fixture", Priority: 2}); err != nil {
+	other := domainaccount.UserID("00000000-0000-4000-8001-" + marker[:12])
+	if _, err := svc.CreateToday(context.Background(), other, applicationtask.CreateTodayInput{PlanDate: empty.PlanDate, Title: "Redis Today fixture", Priority: 2}); err != nil {
 		t.Fatal(err)
 	}
-	first, err := svc.ListToday(context.Background(), other, task.ListOptions{})
+	first, err := svc.ListToday(context.Background(), other, applicationtask.ListOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	now = now.Add(time.Second)
-	second, err := svc.ListToday(context.Background(), other, task.ListOptions{Limit: 20})
+	second, err := svc.ListToday(context.Background(), other, applicationtask.ListOptions{Limit: 20})
 	if err != nil || repo.reads != 2 || len(second.Items) != 1 || second.Items[0].OwnerID != other || !second.ServerTime.Equal(now) {
 		t.Fatal("real Redis did not preserve the Today hit contract", err)
 	}
@@ -49,7 +51,7 @@ func TestRedisTodayServiceIntegration(t *testing.T) {
 	if string(a) != string(b) || first.NextCursor != second.NextCursor {
 		t.Fatal("real Redis serialization changed public data")
 	}
-	if _, err := svc.ListToday(context.Background(), owner, task.ListOptions{}); err != nil || repo.reads != 2 {
+	if _, err := svc.ListToday(context.Background(), owner, applicationtask.ListOptions{}); err != nil || repo.reads != 2 {
 		t.Fatal("empty real Redis entry did not hit", err)
 	}
 }
@@ -58,11 +60,11 @@ func TestRedisTodayWritesIntegration(t *testing.T) {
 	client, _, marker := redisFixture(t)
 	repo := &todayReadCounter{Repository: task.NewMemoryRepository()}
 	now := time.Date(2026, 11, 5, 12, 0, 0, 0, time.UTC)
-	svc := task.NewServiceWithClock(repo, nil, func() time.Time { return now }).WithTodayCache(client)
-	owner := session.UserID("00000000-0000-4000-8002-" + marker[:12])
-	read := func() task.TodayPage {
+	svc := applicationtask.NewWithClock(repo, nil, func() time.Time { return now }).WithTodayCache(client)
+	owner := domainaccount.UserID("00000000-0000-4000-8002-" + marker[:12])
+	read := func() applicationtask.TodayResult {
 		t.Helper()
-		page, err := svc.ListToday(context.Background(), owner, task.ListOptions{})
+		page, err := svc.ListToday(context.Background(), owner, applicationtask.ListOptions{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -71,12 +73,12 @@ func TestRedisTodayWritesIntegration(t *testing.T) {
 	if len(read().Items) != 0 {
 		t.Fatal("fixture must start empty")
 	}
-	created, err := svc.CreateToday(context.Background(), owner, task.CreateTodayTaskRequest{PlanDate: "2026-11-05", Title: "Created after cached empty page", Priority: 2})
+	created, err := svc.CreateToday(context.Background(), owner, applicationtask.CreateTodayInput{PlanDate: "2026-11-05", Title: "Created after cached empty page", Priority: 2})
 	if err != nil || len(read().Items) != 1 || repo.reads != 2 {
 		t.Fatal("real Redis DEL did not invalidate the cached empty page", err)
 	}
 	title := "Updated after warm cache"
-	updated, err := svc.Update(context.Background(), owner, created.ID, task.UpdateTaskRequest{Version: &created.Version, Title: &title})
+	updated, err := svc.Update(context.Background(), owner, created.ID, applicationtask.UpdateInput{Version: &created.Version, Title: &title})
 	if err != nil || updated.Version != 2 {
 		t.Fatal("update failed", err)
 	}

@@ -14,18 +14,23 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-
 	applicationaccount "github.com/pluto-han/taskflow/internal/application/account"
+	applicationintegration "github.com/pluto-han/taskflow/internal/application/integration"
+	applicationnotification "github.com/pluto-han/taskflow/internal/application/notification"
+	applicationproject "github.com/pluto-han/taskflow/internal/application/project"
+	applicationrecurrence "github.com/pluto-han/taskflow/internal/application/recurrence"
+	applicationsession "github.com/pluto-han/taskflow/internal/application/session"
+	applicationtask "github.com/pluto-han/taskflow/internal/application/task"
 	infrapassword "github.com/pluto-han/taskflow/internal/infra/password"
 	infraaccount "github.com/pluto-han/taskflow/internal/infra/persistence/account"
-	"github.com/pluto-han/taskflow/internal/integration"
-	"github.com/pluto-han/taskflow/internal/notification"
-	"github.com/pluto-han/taskflow/internal/project"
-	"github.com/pluto-han/taskflow/internal/recurrence"
-	"github.com/pluto-han/taskflow/internal/server"
-	"github.com/pluto-han/taskflow/internal/session"
-	"github.com/pluto-han/taskflow/internal/task"
-	"github.com/pluto-han/taskflow/internal/testdb"
+	infraintegration "github.com/pluto-han/taskflow/internal/infra/persistence/integration"
+	infranotification "github.com/pluto-han/taskflow/internal/infra/persistence/notification"
+	infraproject "github.com/pluto-han/taskflow/internal/infra/persistence/project"
+	infrarecurrence "github.com/pluto-han/taskflow/internal/infra/persistence/recurrence"
+	infrasession "github.com/pluto-han/taskflow/internal/infra/persistence/session"
+	infratask "github.com/pluto-han/taskflow/internal/infra/persistence/task"
+	interfaceshttprouter "github.com/pluto-han/taskflow/internal/interfaces/http/router"
+	"github.com/pluto-han/taskflow/test/support/testdb"
 )
 
 // This is a response shape check for the subset used here, not a replacement for
@@ -122,13 +127,13 @@ func TestAPIExamplesIntegration(t *testing.T) {
 		t.Fatal("requires clean migration 15")
 	}
 	users := infraaccount.New(pool)
-	projects := project.NewPostgresRepository(pool)
-	sessions, err := session.NewService(ctx, users, session.NewPostgresRepository(pool), infrapassword.PasswordHasher{})
+	projects := infraproject.New(pool)
+	sessions, err := applicationsession.New(ctx, users, infrasession.New(pool), infrapassword.PasswordHasher{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	var logs bytes.Buffer
-	r := server.NewRouter(server.Dependencies{Notifications: notification.NewService(pool, nil), Integrations: integration.NewService(pool, true), Recurrences: recurrence.NewServiceWithClock(recurrence.NewPostgresRepository(pool), func() time.Time { return time.Date(2026, 11, 5, 12, 0, 0, 0, time.UTC) }), Users: applicationaccount.New(users, infrapassword.PasswordHasher{}), Sessions: sessions, Tasks: task.NewService(task.NewPostgresRepository(pool), projects), Projects: project.NewService(projects), Ping: pool.Ping, Logger: slog.New(slog.NewJSONHandler(&logs, nil))})
+	r := interfaceshttprouter.New(interfaceshttprouter.Dependencies{Notifications: applicationnotification.New(infranotification.New(pool, "default"), nil), Integrations: applicationintegration.New(infraintegration.New(pool), true), Recurrences: applicationrecurrence.NewWithClock(infrarecurrence.New(pool), func() time.Time { return time.Date(2026, 11, 5, 12, 0, 0, 0, time.UTC) }), Users: applicationaccount.New(users, infrapassword.PasswordHasher{}), Sessions: sessions, Tasks: applicationtask.New(infratask.New(pool), projects), Projects: applicationproject.New(projects, projects), Ping: pool.Ping, Logger: slog.New(slog.NewJSONHandler(&logs, nil))})
 	d, tree := readContract(t)
 	paths := tree["paths"].(map[string]any)
 	sample := func(path, method string) string {

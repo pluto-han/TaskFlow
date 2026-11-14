@@ -16,8 +16,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pluto-han/taskflow/internal/session"
-	"github.com/pluto-han/taskflow/internal/task"
+	domainaccount "github.com/pluto-han/taskflow/internal/domain/account"
+	domaintask "github.com/pluto-han/taskflow/internal/domain/task"
+	interfaceshttptask "github.com/pluto-han/taskflow/internal/interfaces/http/task"
 )
 
 type cacheSample struct {
@@ -53,7 +54,7 @@ func sampleToday(f *cacheHTTPFixture, token string, count int, due time.Time, fi
 	response, err := f.http.Do(request)
 	sample := cacheSample{StartLagMS: lag}
 	if err == nil {
-		var page task.TodayPage
+		var page interfaceshttptask.TodayPageResponse
 		decodeErr := json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&page)
 		_ = response.Body.Close()
 		sample.Status = response.StatusCode
@@ -91,9 +92,9 @@ func summarize(row *cacheComparison, started time.Time, reads, auth int64, f *ca
 	}
 }
 
-func seedPerformance(t *testing.T, f *cacheHTTPFixture, label string) ([2]session.UserID, [2]string) {
+func seedPerformance(t *testing.T, f *cacheHTTPFixture, label string) ([2]domainaccount.UserID, [2]string) {
 	t.Helper()
-	var owners [2]session.UserID
+	var owners [2]domainaccount.UserID
 	var tokens [2]string
 	for i := range owners {
 		owners[i], tokens[i], _ = f.register(t, label+fmt.Sprint(i))
@@ -109,7 +110,7 @@ func seedPerformance(t *testing.T, f *cacheHTTPFixture, label string) ([2]sessio
 		{0, "today-a", 24, &date}, {1, "today-b", 8, &date}, {0, "history", 3, &yesterday}, {0, "ordinary", 4, nil},
 	} {
 		for i := 0; i < seed.count; i++ {
-			item := task.Task{ID: fmt.Sprintf("%s-%s-%s-%d", f.marker, label, seed.name, i), Title: "Baseline task", Priority: i%3 + 1,
+			item := domaintask.Task{ID: fmt.Sprintf("%s-%s-%s-%d", f.marker, label, seed.name, i), Title: "Baseline task", Priority: i%3 + 1,
 				Completed: i%4 == 0, CreatedAt: now.Add(time.Duration(i) * time.Microsecond), PlanDate: seed.date}
 			if i%2 == 0 {
 				due := now.Add(time.Hour)

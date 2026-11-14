@@ -21,21 +21,29 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-
 	applicationaccount "github.com/pluto-han/taskflow/internal/application/account"
-	"github.com/pluto-han/taskflow/internal/discord"
-	"github.com/pluto-han/taskflow/internal/httpapi"
+	applicationintegration "github.com/pluto-han/taskflow/internal/application/integration"
+	applicationmail "github.com/pluto-han/taskflow/internal/application/mail"
+	applicationnotification "github.com/pluto-han/taskflow/internal/application/notification"
+	applicationproject "github.com/pluto-han/taskflow/internal/application/project"
+	applicationrecurrence "github.com/pluto-han/taskflow/internal/application/recurrence"
+	applicationsession "github.com/pluto-han/taskflow/internal/application/session"
+	applicationtask "github.com/pluto-han/taskflow/internal/application/task"
+	infradiscord "github.com/pluto-han/taskflow/internal/infra/discord"
+	inframail "github.com/pluto-han/taskflow/internal/infra/mail"
 	infrapassword "github.com/pluto-han/taskflow/internal/infra/password"
 	infraaccount "github.com/pluto-han/taskflow/internal/infra/persistence/account"
-	"github.com/pluto-han/taskflow/internal/integration"
-	email "github.com/pluto-han/taskflow/internal/mail"
-	"github.com/pluto-han/taskflow/internal/notification"
-	"github.com/pluto-han/taskflow/internal/project"
-	"github.com/pluto-han/taskflow/internal/recurrence"
-	"github.com/pluto-han/taskflow/internal/server"
-	"github.com/pluto-han/taskflow/internal/session"
-	"github.com/pluto-han/taskflow/internal/task"
-	"github.com/pluto-han/taskflow/internal/testdb"
+	infraintegration "github.com/pluto-han/taskflow/internal/infra/persistence/integration"
+	inframailstore "github.com/pluto-han/taskflow/internal/infra/persistence/mail"
+	infranotification "github.com/pluto-han/taskflow/internal/infra/persistence/notification"
+	infraproject "github.com/pluto-han/taskflow/internal/infra/persistence/project"
+	infrarecurrence "github.com/pluto-han/taskflow/internal/infra/persistence/recurrence"
+	infrasession "github.com/pluto-han/taskflow/internal/infra/persistence/session"
+	infratask "github.com/pluto-han/taskflow/internal/infra/persistence/task"
+	interfaceshttpdiscord "github.com/pluto-han/taskflow/internal/interfaces/http/discord"
+	interfaceshttpmiddleware "github.com/pluto-han/taskflow/internal/interfaces/http/middleware"
+	interfaceshttprouter "github.com/pluto-han/taskflow/internal/interfaces/http/router"
+	"github.com/pluto-han/taskflow/test/support/testdb"
 )
 
 type transport func(*http.Request) (*http.Response, error)
@@ -62,8 +70,8 @@ func TestBrowserDiscordFlow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	bindings := integration.NewService(pool, true)
-	sessionService, err := session.NewService(ctx, infraaccount.New(pool), session.NewPostgresRepository(pool), infrapassword.PasswordHasher{})
+	bindings := applicationintegration.New(infraintegration.New(pool), true)
+	sessionService, err := applicationsession.New(ctx, infraaccount.New(pool), infrasession.New(pool), infrapassword.PasswordHasher{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,13 +79,13 @@ func TestBrowserDiscordFlow(t *testing.T) {
 	app := httptest.NewUnstartedServer(mux)
 	defer app.Listener.Close()
 	origin := "http://" + app.Listener.Addr().String()
-	inbox := &email.MemorySender{}
-	mailService, err := email.New(pool, inbox, origin)
+	inbox := &inframail.MemorySender{}
+	mailService, err := applicationaccount.NewCapabilities(infraaccount.NewCapabilities(pool), inbox != nil, origin, infrapassword.PasswordHasher{})
 	if err != nil {
 		t.Fatal("mail fixture failed")
 	}
-	projects := project.NewPostgresRepository(pool)
-	router := server.NewRouter(server.Dependencies{Mail: mailService, Security: httpapi.SecurityOptions{PublicOrigin: origin}, Notifications: notification.NewService(pool, nil), Discord: discord.NewHandler(public, "777", bindings), Integrations: bindings, Recurrences: recurrence.NewServiceWithScheduler(recurrence.NewPostgresRepository(pool), true), Users: applicationaccount.New(infraaccount.New(pool), infrapassword.PasswordHasher{}), Sessions: sessionService, Tasks: task.NewService(task.NewPostgresRepository(pool), projects), Projects: project.NewService(projects), Ping: pool.Ping})
+	projects := infraproject.New(pool)
+	router := interfaceshttprouter.New(interfaceshttprouter.Dependencies{Mail: mailService, Security: interfaceshttpmiddleware.SecurityOptions{PublicOrigin: origin}, Notifications: applicationnotification.New(infranotification.New(pool, "default"), nil), Discord: interfaceshttpdiscord.New(public, "777", bindings, infradiscord.Verify), Integrations: bindings, Recurrences: applicationrecurrence.NewWithScheduler(infrarecurrence.New(pool), true), Users: applicationaccount.New(infraaccount.New(pool), infrapassword.PasswordHasher{}), Sessions: sessionService, Tasks: applicationtask.New(infratask.New(pool), projects), Projects: applicationproject.New(projects, projects), Ping: pool.Ping})
 	var mu sync.Mutex
 	var messages []map[string]any
 	fakeDiscord := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -99,7 +107,7 @@ func TestBrowserDiscordFlow(t *testing.T) {
 	defer fakeDiscord.Close()
 	localTransport := &http.Transport{Proxy: nil}
 	defer localTransport.CloseIdleConnections()
-	client, err := discord.NewMessageSender("fixture-token", transport(func(r *http.Request) (*http.Response, error) {
+	client, err := infradiscord.NewMessageSender("fixture-token", transport(func(r *http.Request) (*http.Response, error) {
 		if r.URL.Scheme != "https" || r.URL.Host != "discord.com" {
 			return nil, fmt.Errorf("unexpected destination")
 		}
@@ -114,7 +122,7 @@ func TestBrowserDiscordFlow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sender := notification.NewService(pool, client)
+	sender := applicationnotification.New(infranotification.New(pool, "default"), client)
 	root, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
 		t.Fatal(err)
@@ -145,7 +153,7 @@ func TestBrowserDiscordFlow(t *testing.T) {
 		raw, _ := json.Marshal(payload)
 		timestamp := fmt.Sprint(time.Now().Unix())
 		signature := hex.EncodeToString(ed25519.Sign(private, append([]byte(timestamp), raw...)))
-		request := httptest.NewRequest("POST", discord.Path, bytes.NewReader(raw))
+		request := httptest.NewRequest("POST", interfaceshttpdiscord.Path, bytes.NewReader(raw))
 		request.Header.Set("X-Signature-Ed25519", signature)
 		request.Header.Set("X-Signature-Timestamp", timestamp)
 		response := httptest.NewRecorder()
@@ -191,7 +199,7 @@ func TestBrowserDiscordFlow(t *testing.T) {
 			http.Error(w, "method", 405)
 			return
 		}
-		if err := mailService.Poll(r.Context()); err != nil {
+		if err := applicationmail.New(inframailstore.New(pool), inbox).Poll(r.Context()); err != nil {
 			http.Error(w, "mail fixture failed", 500)
 			return
 		}
@@ -204,7 +212,7 @@ func TestBrowserDiscordFlow(t *testing.T) {
 			http.Error(w, "method", 405)
 			return
 		}
-		result, err := recurrence.NewPostgresRepository(pool).GenerateBatch(r.Context(), time.Now)
+		result, err := infrarecurrence.New(pool).GenerateBatch(r.Context(), time.Now)
 		if err != nil || result.Generated != 1 {
 			http.Error(w, "generation failed", 500)
 			return

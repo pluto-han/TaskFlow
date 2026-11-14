@@ -8,12 +8,15 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/pluto-han/taskflow/internal/cache"
-	"github.com/pluto-han/taskflow/internal/project"
-	"github.com/pluto-han/taskflow/internal/recurrence"
-	"github.com/pluto-han/taskflow/internal/session"
-	"github.com/pluto-han/taskflow/internal/task"
-	"github.com/pluto-han/taskflow/internal/testdb"
+	applicationrecurrence "github.com/pluto-han/taskflow/internal/application/recurrence"
+	applicationtask "github.com/pluto-han/taskflow/internal/application/task"
+	domainaccount "github.com/pluto-han/taskflow/internal/domain/account"
+	domaintask "github.com/pluto-han/taskflow/internal/domain/task"
+	infradatabase "github.com/pluto-han/taskflow/internal/infra/database"
+	infraproject "github.com/pluto-han/taskflow/internal/infra/persistence/project"
+	infrarecurrence "github.com/pluto-han/taskflow/internal/infra/persistence/recurrence"
+	infratask "github.com/pluto-han/taskflow/internal/infra/persistence/task"
+	"github.com/pluto-han/taskflow/test/support/testdb"
 )
 
 type invalidationStore struct {
@@ -25,7 +28,7 @@ type invalidationStore struct {
 func (s *invalidationStore) Get(_ context.Context, key string) ([]byte, error) {
 	value, ok := s.values[key]
 	if !ok {
-		return nil, cache.ErrMiss
+		return nil, applicationtask.ErrMiss
 	}
 	return append([]byte(nil), value...), nil
 }
@@ -61,7 +64,7 @@ func TestCacheInvalidationPostgresCommitContract(t *testing.T) {
 		t.Fatal("cannot open fixture database")
 	}
 	defer pool.Close()
-	workerCfg, err := recurrence.WorkerPoolConfig(raw)
+	workerCfg, err := infradatabase.WorkerPoolConfig(raw)
 	if err != nil {
 		t.Fatal("cannot configure worker pool")
 	}
@@ -70,14 +73,14 @@ func TestCacheInvalidationPostgresCommitContract(t *testing.T) {
 		t.Fatal("cannot open worker pool")
 	}
 	defer workerPool.Close()
-	a := session.UserID("00000000-0000-4000-8000-000000000040")
-	b := session.UserID("00000000-0000-4000-8000-000000000041")
+	a := domainaccount.UserID("00000000-0000-4000-8000-000000000040")
+	b := domainaccount.UserID("00000000-0000-4000-8000-000000000041")
 	if _, err := pool.Exec(ctx, "INSERT INTO users(id,email,password_hash) VALUES ($1,'cache40a@example.com','fixture'),($2,'cache40b@example.com','fixture')", string(a), string(b)); err != nil {
 		t.Fatal("cannot create fixture users")
 	}
 	now := time.Date(2026, 11, 5, 12, 0, 0, 0, time.UTC)
 	clock := func() time.Time { return now }
-	setup := func(t *testing.T) (*task.Service, *invalidationStore) {
+	setup := func(t *testing.T) (*applicationtask.Service, *invalidationStore) {
 		t.Helper()
 		// This dedicated database contains only this test's fixtures and lease.
 		for _, table := range []string{"notification_outbox", "tasks", "recurrence_occurrences", "recurrence_rules"} {
@@ -87,20 +90,20 @@ func TestCacheInvalidationPostgresCommitContract(t *testing.T) {
 		}
 		now = time.Date(2026, 11, 5, 12, 0, 0, 0, time.UTC)
 		store := &invalidationStore{values: map[string][]byte{}}
-		return task.NewServiceWithClock(task.NewPostgresRepository(pool), nil, clock).WithTodayCache(store), store
+		return applicationtask.NewWithClock(infratask.New(pool), nil, clock).WithTodayCache(store), store
 	}
-	read := func(t *testing.T, svc *task.Service, owner session.UserID) task.TodayPage {
+	read := func(t *testing.T, svc *applicationtask.Service, owner domainaccount.UserID) applicationtask.TodayResult {
 		t.Helper()
-		page, err := svc.ListToday(ctx, owner, task.ListOptions{})
+		page, err := svc.ListToday(ctx, owner, applicationtask.ListOptions{})
 		if err != nil {
 			t.Fatal(err)
 		}
 		return page
 	}
-	rules := recurrence.NewServiceWithClock(recurrence.NewPostgresRepository(pool), clock)
-	createRule := func(t *testing.T, owner session.UserID) {
+	rules := applicationrecurrence.NewWithClock(infrarecurrence.New(pool), clock)
+	createRule := func(t *testing.T, owner domainaccount.UserID) {
 		t.Helper()
-		if _, err := rules.Create(ctx, owner, recurrence.CreateRequest{Title: "Cache invalidation fixture", Priority: 2, AnchorDate: "2026-11-05", IntervalDays: 1}); err != nil {
+		if _, err := rules.Create(ctx, owner, applicationrecurrence.CreateInput{Title: "Cache invalidation fixture", Priority: 2, AnchorDate: "2026-11-05", IntervalDays: 1}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -117,13 +120,13 @@ func TestCacheInvalidationPostgresCommitContract(t *testing.T) {
 			}
 			return nil
 		}
-		created, err := svc.CreateToday(ctx, a, task.CreateTodayTaskRequest{PlanDate: "2026-11-05", Title: "Committed", Priority: 2})
+		created, err := svc.CreateToday(ctx, a, applicationtask.CreateTodayInput{PlanDate: "2026-11-05", Title: "Committed", Priority: 2})
 		if err != nil || len(read(t, svc, a).Items) != 1 {
 			t.Fatal("create/read failed", err)
 		}
 		wantVersion = 2
 		completed := true
-		if _, err := svc.Update(ctx, a, created.ID, task.UpdateTaskRequest{Version: &created.Version, Completed: &completed}); err != nil || !read(t, svc, a).Items[0].Completed {
+		if _, err := svc.Update(ctx, a, created.ID, applicationtask.UpdateInput{Version: &created.Version, Completed: &completed}); err != nil || !read(t, svc, a).Items[0].Completed {
 			t.Fatal("update/read failed", err)
 		}
 		wantCount, wantVersion = 0, 0
@@ -139,8 +142,8 @@ func TestCacheInvalidationPostgresCommitContract(t *testing.T) {
 		createRule(t, b)
 		_ = read(t, svc, a)
 		_ = read(t, svc, b)
-		calls := map[session.UserID]int{}
-		generator := recurrence.NewPostgresRepository(workerPool).WithTodayInvalidation(func(batch context.Context, owner session.UserID, date string) error {
+		calls := map[domainaccount.UserID]int{}
+		generator := applicationrecurrence.NewGenerator(infrarecurrence.New(workerPool), func(batch context.Context, owner domainaccount.UserID, date string) error {
 			calls[owner]++
 			probe, stop := context.WithTimeout(context.Background(), 250*time.Millisecond)
 			defer stop()
@@ -175,10 +178,10 @@ CREATE CONSTRAINT TRIGGER cache_commit_failure AFTER INSERT ON tasks DEFERRABLE 
 		t.Cleanup(func() {
 			_, _ = pool.Exec(ctx, "DROP TRIGGER cache_commit_failure ON tasks; DROP FUNCTION fail_cache_commit()")
 		})
-		if _, err := svc.CreateToday(ctx, a, task.CreateTodayTaskRequest{PlanDate: "2026-11-05", Title: "Must roll back", Priority: 1}); err == nil {
+		if _, err := svc.CreateToday(ctx, a, applicationtask.CreateTodayInput{PlanDate: "2026-11-05", Title: "Must roll back", Priority: 1}); err == nil {
 			t.Fatal("task commit failure ignored")
 		}
-		generator := recurrence.NewPostgresRepository(workerPool).WithTodayInvalidation(svc.InvalidateToday)
+		generator := applicationrecurrence.NewGenerator(infrarecurrence.New(workerPool), svc.InvalidateToday)
 		if _, err := generator.GenerateBatch(ctx, clock); err == nil {
 			t.Fatal("generation commit failure ignored")
 		}
@@ -192,8 +195,8 @@ CREATE CONSTRAINT TRIGGER cache_commit_failure AFTER INSERT ON tasks DEFERRABLE 
 		svc, store := setup(t)
 		createRule(t, a)
 		_ = read(t, svc, a)
-		store.onDelete = func(context.Context, string) error { return cache.ErrUnavailable }
-		generator := recurrence.NewPostgresRepository(workerPool).WithTodayInvalidation(svc.InvalidateToday)
+		store.onDelete = func(context.Context, string) error { return applicationtask.ErrUnavailable }
+		generator := applicationrecurrence.NewGenerator(infrarecurrence.New(workerPool), svc.InvalidateToday)
 		result, err := generator.GenerateBatch(ctx, clock)
 		if err != nil || result.Generated != 1 || store.deletes != 1 {
 			t.Fatal("Redis failure converted committed generation into failure", err)
@@ -219,8 +222,8 @@ CREATE CONSTRAINT TRIGGER cache_commit_failure AFTER INSERT ON tasks DEFERRABLE 
 		if _, err := pool.Exec(ctx, "INSERT INTO project_memberships(project_id,user_id) VALUES ($1,$2)", pid, string(b)); err != nil {
 			t.Fatal("cannot create member fixture")
 		}
-		svc := task.NewServiceWithClock(task.NewPostgresRepository(pool), project.NewPostgresRepository(pool), clock).WithTodayCache(store)
-		created, err := svc.Create(ctx, a, task.CreateTaskRequest{Title: "Shared", Priority: 2, ProjectID: &pid})
+		svc := applicationtask.NewWithClock(infratask.New(pool), infraproject.New(pool), clock).WithTodayCache(store)
+		created, err := svc.Create(ctx, a, applicationtask.CreateInput{Title: "Shared", Priority: 2, ProjectID: &pid})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -234,13 +237,13 @@ CREATE CONSTRAINT TRIGGER cache_commit_failure AFTER INSERT ON tasks DEFERRABLE 
 			return nil
 		}
 		title := "Updated by shared member"
-		if _, err := svc.Update(ctx, b, created.ID, task.UpdateTaskRequest{Version: &created.Version, Title: &title}); err != nil || store.deletes != 1 || len(store.values) != 1 {
+		if _, err := svc.Update(ctx, b, created.ID, applicationtask.UpdateInput{Version: &created.Version, Title: &title}); err != nil || store.deletes != 1 || len(store.values) != 1 {
 			t.Fatal("shared edit or actor-scoped invalidation changed", err)
 		}
 		if len(read(t, svc, a).Items) != 0 || len(read(t, svc, b).Items) != 0 {
 			t.Fatal("project task leaked into personal Today")
 		}
-		page, err := svc.List(ctx, a, task.ListOptions{ListFilter: task.ListFilter{ProjectID: &pid}})
+		page, err := svc.List(ctx, a, applicationtask.ListOptions{ListFilter: domaintask.ListFilter{ProjectID: &pid}})
 		if err != nil || len(page.Items) != 1 || page.Items[0].Title != title {
 			t.Fatal("original shared query behavior changed", err)
 		}

@@ -20,7 +20,7 @@ import (
 	infrapassword "github.com/pluto-han/taskflow/internal/infra/password"
 	infraaccount "github.com/pluto-han/taskflow/internal/infra/persistence/account"
 	interfaceshttpaccount "github.com/pluto-han/taskflow/internal/interfaces/http/account"
-	"github.com/pluto-han/taskflow/internal/testdb"
+	"github.com/pluto-han/taskflow/test/support/testdb"
 )
 
 // Run via python3 scripts/test_integration.py. Ordinary unit tests never connect to a DB.

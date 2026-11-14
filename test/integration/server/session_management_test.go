@@ -16,26 +16,28 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5"
+	pgx "github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-
 	applicationaccount "github.com/pluto-han/taskflow/internal/application/account"
-	"github.com/pluto-han/taskflow/internal/config"
+	applicationsession "github.com/pluto-han/taskflow/internal/application/session"
 	domainaccount "github.com/pluto-han/taskflow/internal/domain/account"
-	"github.com/pluto-han/taskflow/internal/httpapi"
+	domainsession "github.com/pluto-han/taskflow/internal/domain/session"
+	infradatabase "github.com/pluto-han/taskflow/internal/infra/database"
 	infrapassword "github.com/pluto-han/taskflow/internal/infra/password"
 	infraaccount "github.com/pluto-han/taskflow/internal/infra/persistence/account"
-	"github.com/pluto-han/taskflow/internal/server"
-	"github.com/pluto-han/taskflow/internal/session"
-	"github.com/pluto-han/taskflow/internal/testdb"
+	infrasession "github.com/pluto-han/taskflow/internal/infra/persistence/session"
+	interfaceshttpmiddleware "github.com/pluto-han/taskflow/internal/interfaces/http/middleware"
+	interfaceshttprouter "github.com/pluto-han/taskflow/internal/interfaces/http/router"
+	interfaceshttpsession "github.com/pluto-han/taskflow/internal/interfaces/http/session"
+	"github.com/pluto-han/taskflow/test/support/testdb"
 )
 
 type accountFixture struct {
 	ctx         context.Context
 	admin, pool *pgxpool.Pool
 	users       *infraaccount.Repository
-	repo        *session.PostgresRepository
-	svc         *session.Service
+	repo        *infrasession.Repository
+	svc         *applicationsession.Service
 }
 
 func accountDatabase(t *testing.T) *accountFixture {
@@ -85,15 +87,15 @@ func accountDatabase(t *testing.T) *accountFixture {
 		t.Fatal("runtime connection failed")
 	}
 	t.Cleanup(pool.Close)
-	if err := config.CheckRuntimeRole(ctx, pool); err != nil {
+	if err := infradatabase.CheckRuntimeRole(ctx, pool); err != nil {
 		t.Fatal("runtime is privileged")
 	}
 	if _, err := pool.Exec(ctx, "UPDATE users SET email='forbidden' WHERE false"); err == nil {
 		t.Fatal("runtime can change account identity")
 	}
 	users := infraaccount.New(pool)
-	repo := session.NewPostgresRepository(pool)
-	svc, err := session.NewService(ctx, users, repo, infrapassword.PasswordHasher{})
+	repo := infrasession.New(pool)
+	svc, err := applicationsession.New(ctx, users, repo, infrapassword.PasswordHasher{})
 	if err != nil {
 		t.Fatal("session setup failed")
 	}
@@ -102,13 +104,13 @@ func accountDatabase(t *testing.T) *accountFixture {
 
 const accountPassword = "original account passphrase"
 
-func (f *accountFixture) account(t *testing.T) (*domainaccount.User, session.LoginResponse, session.Principal) {
+func (f *accountFixture) account(t *testing.T) (*domainaccount.User, applicationsession.LoginResult, domainsession.Principal) {
 	t.Helper()
 	u, err := applicationaccount.New(f.users, infrapassword.PasswordHasher{}).Register(f.ctx, applicationaccount.CreateInput{Email: strings.ToLower(rand.Text()) + "@example.com", Password: accountPassword})
 	if err != nil {
 		t.Fatal("account creation failed")
 	}
-	login, err := f.svc.Login(f.ctx, session.LoginRequest{Email: u.Email, Password: accountPassword})
+	login, err := f.svc.Login(f.ctx, applicationsession.LoginInput{Email: u.Email, Password: accountPassword})
 	if err != nil {
 		t.Fatal("account login failed")
 	}
@@ -127,7 +129,7 @@ func TestAccountManagementHTTPIntegration(t *testing.T) {
 	f := accountDatabase(t)
 	u, first, p := f.account(t)
 	other, otherLogin, otherP := f.account(t)
-	router := server.NewRouter(server.Dependencies{Sessions: f.svc, Security: httpapi.SecurityOptions{PublicOrigin: "http://127.0.0.1:5173"}, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	router := interfaceshttprouter.New(interfaceshttprouter.Dependencies{Sessions: f.svc, Security: interfaceshttpmiddleware.SecurityOptions{PublicOrigin: "http://127.0.0.1:5173"}, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
 	request := func(method, path, body, bearer string, cookie *http.Cookie, csrf string, status int) *httptest.ResponseRecorder {
 		t.Helper()
 		req := httptest.NewRequest(method, path, strings.NewReader(body))
@@ -151,10 +153,10 @@ func TestAccountManagementHTTPIntegration(t *testing.T) {
 		}
 		return rec
 	}
-	input, _ := json.Marshal(session.LoginRequest{Email: u.Email, Password: accountPassword})
+	input, _ := json.Marshal(interfaceshttpsession.LoginRequest{Email: u.Email, Password: accountPassword})
 	request("POST", "/auth/browser/login", string(input), "", nil, "", 403)
 	// // Login requires Origin even without a preexisting cookie.
-	browser, token, err := f.svc.LoginBrowser(f.ctx, session.LoginRequest{Email: u.Email, Password: accountPassword})
+	browser, token, err := f.svc.LoginBrowser(f.ctx, applicationsession.LoginInput{Email: u.Email, Password: accountPassword})
 	if err != nil {
 		t.Fatal("browser fixture login failed")
 	}
@@ -163,7 +165,7 @@ func TestAccountManagementHTTPIntegration(t *testing.T) {
 	if _, err := f.admin.Exec(f.ctx, "UPDATE sessions SET created_at=now()-interval '1 minute' WHERE user_id=$1", u.ID); err != nil {
 		t.Fatal("pagination fixture failed")
 	}
-	var page session.SessionPage
+	var page interfaceshttpsession.SessionPage
 	if json.Unmarshal(request("GET", "/auth/sessions?limit=1", "", first.AccessToken, nil, "", 200).Body.Bytes(), &page) != nil || len(page.Items) != 1 || page.NextCursor == "" {
 		t.Fatal("invalid first session page")
 	}
@@ -176,8 +178,8 @@ func TestAccountManagementHTTPIntegration(t *testing.T) {
 	if !current {
 		t.Fatal("requesting session not marked current")
 	}
-	_, err = f.svc.ListSessions(f.ctx, otherP, "cursor="+base64Cursor(t, p.UserID, page.Items[0]))
-	if !errors.Is(err, session.ErrInvalidSessionQuery) {
+	_, err = f.svc.ListSessions(f.ctx, otherP, applicationsession.ListInput{Cursor: base64Cursor(t, p.UserID, page.Items[0])})
+	if !errors.Is(err, domainsession.ErrInvalidSessionQuery) {
 		t.Fatal("foreign cursor accepted")
 	}
 	request("DELETE", "/auth/sessions/"+otherP.SessionID, "", first.AccessToken, nil, "", 404)
@@ -196,10 +198,10 @@ func TestAccountManagementHTTPIntegration(t *testing.T) {
 	if err != nil || stored.CredentialsVersion != 1 || stored.PasswordHash == u.PasswordHash {
 		t.Fatal("password/epoch not updated atomically")
 	}
-	if _, err := f.svc.Login(f.ctx, session.LoginRequest{Email: u.Email, Password: accountPassword}); !errors.Is(err, session.ErrUnauthorized) {
+	if _, err := f.svc.Login(f.ctx, applicationsession.LoginInput{Email: u.Email, Password: accountPassword}); !errors.Is(err, domainaccount.ErrUnauthorized) {
 		t.Fatal("old password still works")
 	}
-	fresh, err := f.svc.Login(f.ctx, session.LoginRequest{Email: u.Email, Password: "new account passphrase"})
+	fresh, err := f.svc.Login(f.ctx, applicationsession.LoginInput{Email: u.Email, Password: "new account passphrase"})
 	if err != nil {
 		t.Fatal("new password does not work")
 	}
@@ -210,7 +212,7 @@ func TestAccountManagementHTTPIntegration(t *testing.T) {
 	request("DELETE", "/auth/sessions/"+freshP.SessionID, "", fresh.AccessToken, nil, "", 204)
 	request("GET", "/auth/me", "", fresh.AccessToken, nil, "", 401)
 	// Current-cookie self revocation must remove the cookie too.
-	newBrowser, newToken, err := f.svc.LoginBrowser(f.ctx, session.LoginRequest{Email: other.Email, Password: accountPassword})
+	newBrowser, newToken, err := f.svc.LoginBrowser(f.ctx, applicationsession.LoginInput{Email: other.Email, Password: accountPassword})
 	if err != nil {
 		t.Fatal("other browser setup failed")
 	}
@@ -224,7 +226,7 @@ func TestAccountManagementHTTPIntegration(t *testing.T) {
 	}
 }
 
-func base64Cursor(t *testing.T, owner session.UserID, item session.SessionInfo) string {
+func base64Cursor(t *testing.T, owner domainaccount.UserID, item interfaceshttpsession.SessionInfoResponse) string {
 	t.Helper()
 	raw, err := json.Marshal(map[string]any{"owner": owner, "created_at": item.CreatedAt, "id": item.ID})
 	if err != nil {
@@ -274,7 +276,7 @@ func TestPasswordChangeClosesLoginRace(t *testing.T) {
 			release := make(chan struct{})
 			unblock := sync.OnceFunc(func() { close(release) })
 			defer unblock()
-			blocked, err := session.NewService(f.ctx, f.users, f.repo, barrierPasswords{arrived: arrived, release: release})
+			blocked, err := applicationsession.New(f.ctx, f.users, f.repo, barrierPasswords{arrived: arrived, release: release})
 			if err != nil {
 				t.Fatal("barrier service failed")
 			}
@@ -284,7 +286,7 @@ func TestPasswordChangeClosesLoginRace(t *testing.T) {
 			}
 			result := make(chan outcome, 1)
 			go func() {
-				input := session.LoginRequest{Email: u.Email, Password: accountPassword}
+				input := applicationsession.LoginInput{Email: u.Email, Password: accountPassword}
 				if kind == "browser" {
 					_, token, err := blocked.LoginBrowser(f.ctx, input)
 					result <- outcome{token, err}
@@ -304,12 +306,12 @@ func TestPasswordChangeClosesLoginRace(t *testing.T) {
 			if lockErr != nil {
 				t.Fatal("password work holds a database row lock")
 			}
-			if err := f.svc.ChangePassword(f.ctx, p, session.PasswordChangeRequest{CurrentPassword: accountPassword, NewPassword: "changed during login"}); err != nil {
+			if err := f.svc.ChangePassword(f.ctx, p, applicationsession.PasswordChangeInput{CurrentPassword: accountPassword, NewPassword: "changed during login"}); err != nil {
 				t.Fatal("concurrent password change failed")
 			}
 			unblock()
 			got := <-result
-			if !errors.Is(got.err, session.ErrUnauthorized) || got.token != "" {
+			if !errors.Is(got.err, domainaccount.ErrUnauthorized) || got.token != "" {
 				t.Fatal("stale password verification issued a new session")
 			}
 			var active int
@@ -327,7 +329,7 @@ func TestConcurrentPasswordChanges(t *testing.T) {
 	release := make(chan struct{})
 	unblock := sync.OnceFunc(func() { close(release) })
 	defer unblock()
-	blocked, err := session.NewService(f.ctx, f.users, f.repo, barrierPasswords{arrived: arrived, release: release})
+	blocked, err := applicationsession.New(f.ctx, f.users, f.repo, barrierPasswords{arrived: arrived, release: release})
 	if err != nil {
 		t.Fatal("barrier service failed")
 	}
@@ -338,7 +340,7 @@ func TestConcurrentPasswordChanges(t *testing.T) {
 	results := make(chan outcome, 2)
 	for _, password := range []string{"first competing password", "second competing password"} {
 		go func(password string) {
-			results <- outcome{password, blocked.ChangePassword(f.ctx, p, session.PasswordChangeRequest{CurrentPassword: accountPassword, NewPassword: password})}
+			results <- outcome{password, blocked.ChangePassword(f.ctx, p, applicationsession.PasswordChangeInput{CurrentPassword: accountPassword, NewPassword: password})}
 		}(password)
 	}
 	waitForPassword(t, f, arrived)
@@ -351,7 +353,7 @@ func TestConcurrentPasswordChanges(t *testing.T) {
 		if got.err == nil {
 			success++
 			winner = got.password
-		} else if errors.Is(got.err, session.ErrCredentialsChanged) {
+		} else if errors.Is(got.err, domainsession.ErrCredentialsChanged) {
 			conflict++
 		} else {
 			t.Fatal("unexpected concurrent change failure")
@@ -379,7 +381,7 @@ CREATE CONSTRAINT TRIGGER reject_session_revoke AFTER UPDATE ON sessions DEFERRA
 		defer cancel()
 		_, _ = f.admin.Exec(cleanup, "DROP TRIGGER IF EXISTS reject_session_revoke ON sessions; DROP FUNCTION IF EXISTS reject_session_revoke()")
 	})
-	if err := f.svc.ChangePassword(f.ctx, p, session.PasswordChangeRequest{CurrentPassword: accountPassword, NewPassword: "must be rolled back"}); err == nil {
+	if err := f.svc.ChangePassword(f.ctx, p, applicationsession.PasswordChangeInput{CurrentPassword: accountPassword, NewPassword: "must be rolled back"}); err == nil {
 		t.Fatal("expected deferred commit failure")
 	}
 	if _, err := f.admin.Exec(f.ctx, "DROP TRIGGER reject_session_revoke ON sessions; DROP FUNCTION reject_session_revoke()"); err != nil {
@@ -396,20 +398,20 @@ CREATE CONSTRAINT TRIGGER reject_session_revoke AFTER UPDATE ON sessions DEFERRA
 	release := make(chan struct{})
 	unblock := sync.OnceFunc(func() { close(release) })
 	defer unblock()
-	blocked, err := session.NewService(f.ctx, f.users, f.repo, barrierPasswords{arrived: arrived, release: release})
+	blocked, err := applicationsession.New(f.ctx, f.users, f.repo, barrierPasswords{arrived: arrived, release: release})
 	if err != nil {
 		t.Fatal("barrier service failed")
 	}
 	result := make(chan error, 1)
 	go func() {
-		result <- blocked.ChangePassword(f.ctx, p, session.PasswordChangeRequest{CurrentPassword: accountPassword, NewPassword: "revoked actor password"})
+		result <- blocked.ChangePassword(f.ctx, p, applicationsession.PasswordChangeInput{CurrentPassword: accountPassword, NewPassword: "revoked actor password"})
 	}()
 	waitForPassword(t, f, arrived)
 	if err := f.svc.Logout(f.ctx, p); err != nil {
 		t.Fatal("actor revoke failed")
 	}
 	unblock()
-	if err := <-result; !errors.Is(err, session.ErrUnauthorized) {
+	if err := <-result; !errors.Is(err, domainaccount.ErrUnauthorized) {
 		t.Fatal("revoked actor changed the password")
 	}
 	stored, err = f.users.GetByID(f.ctx, u.ID)

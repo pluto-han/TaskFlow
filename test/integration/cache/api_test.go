@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/pluto-han/taskflow/internal/testdb"
+	"github.com/pluto-han/taskflow/test/support/testdb"
 )
 
 func TestAPIOptionalCacheLifecycle(t *testing.T) {
