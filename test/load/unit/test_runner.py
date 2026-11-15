@@ -6,7 +6,7 @@ from unittest.mock import patch
 from unittest.mock import Mock
 from types import SimpleNamespace
 
-from scripts import test_load_stack as load
+from test.load import runner as load
 
 
 class LoadSafetyTests(unittest.TestCase):

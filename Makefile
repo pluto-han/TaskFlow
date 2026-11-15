@@ -24,6 +24,7 @@ test-unit: test-python
 
 test-python:
 	python3 -m unittest discover -s test/python -p 'test_*.py' -v
+	python3 -m unittest discover -s test/load/unit -p 'test_*.py' -v
 
 test-integration:
 	python3 scripts/test_integration.py --repeat 1
@@ -48,32 +49,32 @@ baseline-today:
 	go test ./test/load -run '^TestTodayUncached' -bench '^BenchmarkTodayUncached$$' -benchmem -benchtime=100x -count=1 -v
 
 test-cache:
-	python3 -m scripts.test_cache_stack
+	python3 -m test.load.cache_stack
 
 compare-cache:
 	python3 -m test.load.cache_compare
 
 test-load-smoke:
-	python3 -m scripts.test_load_stack --profile smoke
+	python3 -m test.load.runner --profile smoke
 
 test-load-baseline:
-	python3 -m scripts.test_load_stack --profile baseline
+	python3 -m test.load.runner --profile baseline
 
 test-load-staircase:
-	python3 -m scripts.test_load_staircase
+	python3 -m test.load.staircase
 
 test-load-cache-off:
-	python3 -m scripts.test_load_stack --profile baseline --cache-mode off
+	python3 -m test.load.runner --profile baseline --cache-mode off
 
 test-load-cache-cold:
-	python3 -m scripts.test_load_stack --profile baseline --cache-mode cold
+	python3 -m test.load.runner --profile baseline --cache-mode cold
 
 test-load-cache-warm:
-	python3 -m scripts.test_load_stack --profile baseline --cache-mode warm
+	python3 -m test.load.runner --profile baseline --cache-mode warm
 
 test-load-unit:
-	python3 -m unittest test.python.test_load_stack test.python.test_load_staircase -v
-	node --test test/load/k6/workload.test.mjs
+	python3 -m unittest test.load.unit.test_runner test.load.unit.test_staircase -v
+	node --test test/load/unit/workload.test.mjs
 
 check:
 	@test -z "$$(gofmt -l cmd internal test)"

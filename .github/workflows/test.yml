@@ -45,6 +45,8 @@ jobs:
           python3 -m unittest discover -s test/python -p "test_init_cache.py" -v
           python3 -m unittest discover -s test/python -p "test_prepare_cache.py" -v
           python3 -m unittest discover -s test/python -p "test_apply_cache.py" -v
+      - name: Load runner safety contracts (offline)
+        run: python3 -m unittest discover -s test/load/unit -p "test_*.py" -v
       - name: Unit tests and static checks
         run: |
           test -z "$(gofmt -l cmd internal test)"
@@ -107,6 +109,8 @@ jobs:
           npm run typecheck
           npm test
           npm run build
+      - name: Load workload contracts (offline)
+        run: node --test test/load/unit/workload.test.mjs
   container-smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 30

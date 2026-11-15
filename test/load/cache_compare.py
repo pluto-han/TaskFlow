@@ -2,7 +2,7 @@
 import json
 from pathlib import Path
 
-from scripts.test_cache_stack import main
+from test.load.cache_stack import main
 
 ROOT = Path(__file__).resolve().parents[2]
 

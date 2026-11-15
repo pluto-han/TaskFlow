@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateFixture, requestFor, validateResponse } from './workload.mjs';
+import { validateFixture, requestFor, validateResponse } from '../k6/workload.mjs';
 
 function fixture() {
   return { run_id: 'a'.repeat(20), origin: 'https://localhost:12345', profile: 'baseline', cache_mode: 'cold',

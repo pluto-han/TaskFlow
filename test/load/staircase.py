@@ -8,7 +8,7 @@ import subprocess
 import sys
 import time
 
-from scripts.test_load_stack import ROOT, local_docker
+from test.load.runner import ROOT, local_docker
 
 RATES = (1, 2, 4, 8, 16)
 
@@ -96,7 +96,7 @@ def main():
     try:
         for rate in RATES:
             print(f'Starting {rate} RPS, fresh isolated fixture, 120-second measurement', flush=True)
-            command = [sys.executable, '-u', '-m', 'scripts.test_load_stack', '--profile', 'step',
+            command = [sys.executable, '-u', '-m', 'test.load.runner', '--profile', 'step',
                        '--rps', str(rate), '--cache-mode', args.cache_mode, '--workload', args.workload]
             log_path = folder / f'{rate}-rps.log'
             row = {'rps': rate, 'result': 'failed', 'log': str(log_path.relative_to(ROOT))}

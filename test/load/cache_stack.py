@@ -14,7 +14,7 @@ import tempfile
 
 from scripts import init_cache
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def run(args, *, capture=False, env=None, timeout=180):

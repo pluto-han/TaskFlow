@@ -4,7 +4,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from scripts.test_load_staircase import classify
+from test.load.staircase import classify
 
 
 class StaircaseReportTests(unittest.TestCase):

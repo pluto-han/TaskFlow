@@ -1,4 +1,4 @@
-// Run only through scripts.test_load_stack: credentials and target are ephemeral.
+// Run only through test.load.runner: credentials and target are ephemeral.
 import http from 'k6/http';
 import exec from 'k6/execution';
 import { check } from 'k6';

@@ -24,7 +24,7 @@ import urllib.error
 
 from scripts import init_cache, init_local_stack
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 K6_IMAGE = 'grafana/k6:1.3.0@sha256:3ddc8b1a33a2c3d8edc6e99b6a762ae36cba08788463458f5e6a7703e14eb77d'
 LABEL = 'taskflow.load-run'
 PROFILES = {'smoke': 30, 'baseline': 300, 'step': 120}
