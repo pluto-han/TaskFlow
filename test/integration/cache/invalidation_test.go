@@ -112,11 +112,18 @@ func TestCacheInvalidationPostgresCommitContract(t *testing.T) {
 		svc, store := setup(t)
 		_ = read(t, svc, a)
 		wantCount, wantVersion := 1, int64(1)
-		store.onDelete = func(cleanup context.Context, _ string) error {
+		store.onDelete = func(_ context.Context, _ string) error {
+			// This SQL is a test oracle, not Redis work. A cold connection or
+			// CI scheduling delay must not consume the production delete budget.
+			probe, stop := context.WithTimeout(context.Background(), 5*time.Second)
+			defer stop()
 			var count int
 			var version int64
-			if err := workerPool.QueryRow(cleanup, "SELECT count(*),COALESCE(max(version),0) FROM tasks WHERE owner_id=$1", string(a)).Scan(&count, &version); err != nil || count != wantCount || version != wantVersion {
-				t.Error("Redis delete ran before another connection could see committed task state")
+			if err := workerPool.QueryRow(probe, "SELECT count(*),COALESCE(max(version),0) FROM tasks WHERE owner_id=$1", string(a)).Scan(&count, &version); err != nil {
+				t.Fatalf("commit visibility probe failed: %v", err)
+			}
+			if count != wantCount || version != wantVersion {
+				t.Errorf("delete callback cannot see committed task state: count=%d version=%d, want count=%d version=%d", count, version, wantCount, wantVersion)
 			}
 			return nil
 		}
@@ -132,6 +139,26 @@ func TestCacheInvalidationPostgresCommitContract(t *testing.T) {
 		wantCount, wantVersion = 0, 0
 		if err := svc.Delete(ctx, a, created.ID); err != nil || len(read(t, svc, a).Items) != 0 || store.deletes != 3 {
 			t.Fatal("delete/read failed", err)
+		}
+	})
+
+	t.Run("commit probe tolerates expired delete context", func(t *testing.T) {
+		svc, store := setup(t)
+		store.onDelete = func(cleanup context.Context, _ string) error {
+			<-cleanup.Done()
+			probe, stop := context.WithTimeout(context.Background(), 5*time.Second)
+			defer stop()
+			var count int
+			if err := workerPool.QueryRow(probe, "SELECT count(*) FROM tasks WHERE owner_id=$1", string(a)).Scan(&count); err != nil {
+				t.Fatalf("independent commit probe failed: %v", err)
+			}
+			if count != 1 {
+				t.Errorf("delete callback saw %d tasks, want committed task", count)
+			}
+			return nil
+		}
+		if _, err := svc.CreateToday(ctx, a, applicationtask.CreateTodayInput{PlanDate: "2026-11-05", Title: "Delayed callback", Priority: 2}); err != nil || store.deletes != 1 {
+			t.Fatal("delayed invalidation failed", err)
 		}
 	})
 
