@@ -108,6 +108,37 @@ def main():
                 raw = response.read()
                 return json.loads(raw) if raw else None
         request('GET', '/api/health/ready')
+        # The gateway rejects oversized recovery bodies before forwarding them
+        # to Go. Check HTML so an API-generated JSON 413 cannot mask this gap.
+        for path in ('/api/auth/password/reset/request',
+                     '/api/auth/email/verification/confirm'):
+            req = urllib.request.Request(origin + path, data=b'x' * 4097,
+                                         headers={'Content-Type': 'application/json',
+                                                  'Origin': origin}, method='POST')
+            try:
+                urllib.request.urlopen(req, context=tls, timeout=15)
+                raise AssertionError('oversized recovery body accepted')
+            except urllib.error.HTTPError as error:
+                with error:
+                    assert error.code == 413
+                    assert 'text/html' in error.headers.get('Content-Type', ''), 'recovery body reached API; gateway limit missing'
+        print('PASS: gateway recovery/verification body limits', flush=True)
+        gateway_limited = False
+        for _ in range(16):
+            req = urllib.request.Request(origin + '/api/auth/password/reset/request',
+                                         data=b'{}', headers={'Content-Type': 'application/json',
+                                                              'Origin': origin}, method='POST')
+            try:
+                urllib.request.urlopen(req, context=tls, timeout=15)
+                raise AssertionError('disabled mail unexpectedly accepted')
+            except urllib.error.HTTPError as error:
+                with error:
+                    assert error.code in (503, 429)
+                    gateway_limited |= error.code == 429 and 'text/html' in error.headers.get('Content-Type', '')
+        assert gateway_limited, 'mail POST budget not enforced at gateway'
+        for _ in range(6):
+            request('GET', '/api/auth/email/verification', expected=401)
+        print('PASS: gateway mail POST budget; status GET remains independent', flush=True)
         with urllib.request.urlopen(origin+'/tasks', context=tls) as page:
             assert b'<div id="root">' in page.read(), 'SPA fallback failed'
             assert page.headers['X-Frame-Options']=='DENY'

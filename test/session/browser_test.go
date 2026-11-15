@@ -14,12 +14,76 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	applicationaccount "github.com/pluto-han/taskflow/internal/application/account"
 	domainaccount "github.com/pluto-han/taskflow/internal/domain/account"
 	domainsession "github.com/pluto-han/taskflow/internal/domain/session"
 	interfaceshttpmiddleware "github.com/pluto-han/taskflow/internal/interfaces/http/middleware"
 	interfaceshttprouter "github.com/pluto-han/taskflow/internal/interfaces/http/router"
 	interfaceshttpsession "github.com/pluto-han/taskflow/internal/interfaces/http/session"
 )
+
+// Exercise the production router, not a synthetic /protected endpoint. A nil
+// business service must never be reached when Cookie write protection fails.
+func TestProductionCookieMutationProtectionMatrix(t *testing.T) {
+	origin := "https://tasks.example.com"
+	for _, route := range []struct{ method, path string }{
+		{"POST", "/tasks"}, {"POST", "/tasks/today"},
+		{"PATCH", "/tasks/task-id"}, {"DELETE", "/tasks/task-id"},
+		{"POST", "/projects"}, {"PATCH", "/projects/project-id"}, {"DELETE", "/projects/project-id"},
+		{"DELETE", "/projects/project-id/members/user-id"},
+		{"POST", "/projects/project-id/leave"}, {"POST", "/projects/project-id/ownership"},
+		{"POST", "/projects/project-id/invitations"}, {"DELETE", "/projects/project-id/invitations/invitation-id"},
+		{"POST", "/invitations/accept"},
+		{"POST", "/recurrences"}, {"POST", "/recurrences/preview"},
+		{"PATCH", "/recurrences/rule-id"}, {"DELETE", "/recurrences/rule-id"},
+		{"POST", "/integrations/discord/code"}, {"DELETE", "/integrations/discord"},
+		{"POST", "/auth/browser/logout"}, {"DELETE", "/auth/sessions/session-id"},
+		{"POST", "/auth/password/change"}, {"POST", "/auth/email/verification"},
+	} {
+		t.Run(route.method+" "+route.path, func(t *testing.T) {
+			for _, mode := range []string{"missing csrf", "wrong csrf", "foreign origin", "revoked session"} {
+				t.Run(mode, func(t *testing.T) {
+					_, users, legacy, passwords := fixture(t)
+					rows := &browserSessions{Repository: legacy, rows: make(map[[32]byte]domainsession.BrowserPrincipal)}
+					service := sessionWithRepository(t, users, rows, passwords)
+					mail, err := applicationaccount.NewCapabilities(nil, true, origin, nil)
+					if err != nil {
+						t.Fatal(err)
+					}
+					router := interfaceshttprouter.New(interfaceshttprouter.Dependencies{
+						Sessions: service, Mail: mail,
+						Security: interfaceshttpmiddleware.SecurityOptions{PublicOrigin: origin},
+					})
+					cookie, session := loginBrowser(t, router, origin)
+					csrf, source, want := session.CSRFToken, origin, 403
+					switch mode {
+					case "missing csrf":
+						csrf = ""
+					case "wrong csrf":
+						raw, err := base64.RawURLEncoding.DecodeString(csrf)
+						if err != nil || len(raw) != 32 {
+							t.Fatal("invalid fixture CSRF")
+						}
+						raw[0] ^= 1
+						csrf = base64.RawURLEncoding.EncodeToString(raw)
+					case "foreign origin":
+						source = "https://untrusted.example"
+					case "revoked session":
+						rows.err = domainaccount.ErrUnauthorized
+						want = 401
+					}
+					response := browserRequest(router, route.method, route.path, `{}`, cookie, source, csrf)
+					if response.Code != want {
+						t.Fatalf("status %d, want %d: %s", response.Code, want, response.Body.String())
+					}
+					if response.Header().Get("Cache-Control") != "no-store" {
+						t.Fatal("security rejection is cacheable")
+					}
+				})
+			}
+		})
+	}
+}
 
 type browserSessions struct {
 	domainsession.Repository
